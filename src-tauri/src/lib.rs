@@ -3,6 +3,7 @@ use gray_matter::Matter;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize)]
 struct Task {
@@ -18,14 +19,37 @@ struct Frontmatter {
     status: String,
 }
 
-#[tauri::command]
-fn select_directory() -> Option<String> {
-    let dialog = rfd::FileDialog::new().pick_folder();
-    dialog.map(|p| p.to_string_lossy().to_string())
+struct AppState {
+    selected_dir: Mutex<Option<String>>,
 }
 
 #[tauri::command]
-fn list_tasks(dir: String) -> Vec<Task> {
+fn select_directory(
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Option<String> {
+    use tauri_plugin_fs::FsExt;
+
+    let dialog = rfd::FileDialog::new().pick_folder();
+    dialog.map(|path| {
+        let path_str = path.to_string_lossy().to_string();
+        *state.selected_dir.lock().unwrap() = Some(path_str.clone());
+        if let Err(e) = app.fs_scope().allow_directory(&path, false) {
+            eprintln!("failed to allow directory in fs scope: {e}");
+        }
+        path_str
+    })
+}
+
+#[tauri::command]
+fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
+    let dir_guard = state.selected_dir.lock().unwrap();
+    let dir = match dir_guard.as_ref() {
+        Some(d) => d.clone(),
+        None => return vec![],
+    };
+    drop(dir_guard);
+
     let path = PathBuf::from(&dir);
     let mut tasks = Vec::new();
 
@@ -56,10 +80,26 @@ fn list_tasks(dir: String) -> Vec<Task> {
 }
 
 #[tauri::command]
-fn update_task_status(path: String, status: String) -> Result<(), String> {
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+fn update_task_status(
+    path: String,
+    status: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    let dir_guard = state.selected_dir.lock().unwrap();
+    let dir = match dir_guard.as_ref() {
+        Some(d) => d,
+        None => return Err("No directory selected".to_string()),
+    };
+    let dir_canonical = std::fs::canonicalize(dir).map_err(|e| e.to_string())?;
+    let path_canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
+    if !path_canonical.starts_with(&dir_canonical) {
+        return Err("Access denied".to_string());
+    }
+    drop(dir_guard);
+
+    let content = fs::read_to_string(&path_canonical).map_err(|e| e.to_string())?;
     let updated = replace_frontmatter_status(&content, &status);
-    fs::write(&path, updated).map_err(|e| e.to_string())
+    fs::write(&path_canonical, updated).map_err(|e| e.to_string())
 }
 
 fn parse_frontmatter(content: &str) -> (Option<Frontmatter>, String) {
@@ -89,6 +129,10 @@ fn replace_frontmatter_status(content: &str, new_status: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_fs::init())
+        .manage(AppState {
+            selected_dir: Mutex::new(None),
+        })
         .invoke_handler(tauri::generate_handler![
             select_directory,
             list_tasks,

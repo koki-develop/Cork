@@ -1,0 +1,5 @@
+schema: spec-driven
+name: auto-refresh-on-file-change
+title: 外部ファイル変更の自動検出とリアルタイムUI反映
+status: proposed
+created: 2026-06-02
