@@ -1,0 +1,5 @@
+schema: spec-driven
+name: kanban-view
+title: Markdown ファイルベースの Kanban ビュー実装
+status: proposed
+created: 2026-06-02
