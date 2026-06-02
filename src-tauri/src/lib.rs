@@ -76,7 +76,7 @@ fn replace_frontmatter_status(content: &str, new_status: &str) -> String {
         Ok(entity) => {
             let body = entity
                 .content
-                .trim_start_matches(|c: char| c == '\n' || c == '\r');
+                .trim_start_matches(['\n', '\r']);
             format!("---\nstatus: {}\n---\n{}", new_status, body)
         }
         Err(_) => {
