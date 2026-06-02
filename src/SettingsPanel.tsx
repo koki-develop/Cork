@@ -43,49 +43,49 @@ function SettingsPanel({
 
   if (!isOpen) return null;
 
-  async function handleChangeDirectory() {
+  const handleChangeDirectory = async () => {
     const path = await invoke<string | null>("select_directory");
     if (path) {
       onDirectoryChange(path);
       onClose();
     }
-  }
+  };
 
-  function handleLabelChange(index: number, label: string) {
+  const handleLabelChange = (index: number, label: string) => {
     setEditing((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], label };
       return next;
     });
-  }
+  };
 
-  function handleAdd() {
+  const handleAdd = () => {
     setEditing((prev) => [...prev, { label: "", _key: nextKey.current++ }]);
-  }
+  };
 
-  function handleRemove(index: number) {
+  const handleRemove = (index: number) => {
     setEditing((prev) => prev.filter((_, i) => i !== index));
-  }
+  };
 
-  function handleMoveUp(index: number) {
+  const handleMoveUp = (index: number) => {
     if (index === 0) return;
     setEditing((prev) => {
       const next = [...prev];
       [next[index - 1], next[index]] = [next[index], next[index - 1]];
       return next;
     });
-  }
+  };
 
-  function handleMoveDown(index: number) {
+  const handleMoveDown = (index: number) => {
     setEditing((prev) => {
       if (index >= prev.length - 1) return prev;
       const next = [...prev];
       [next[index], next[index + 1]] = [next[index + 1], next[index]];
       return next;
     });
-  }
+  };
 
-  async function handleSave() {
+  const handleSave = async () => {
     const valid = editing.filter((s) => s.label.trim().length > 0);
     if (valid.length === 0) return;
     const labels = valid.map((s) => s.label.trim().toLowerCase());
@@ -97,7 +97,7 @@ function SettingsPanel({
     await invoke("save_statuses", { statuses: valid });
     onStatusesChange();
     onClose();
-  }
+  };
 
   return (
     <div className="relative">
