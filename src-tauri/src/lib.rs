@@ -13,6 +13,11 @@ struct Task {
     body: String,
 }
 
+#[derive(Serialize, Deserialize)]
+struct StatusEntry {
+    label: String,
+}
+
 #[derive(Deserialize)]
 struct Frontmatter {
     #[serde(default)]
@@ -77,13 +82,27 @@ fn get_workspace_directory(
 }
 
 #[tauri::command]
-fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
+fn list_tasks(
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Vec<Task> {
     let dir_guard = state.workspace_dir.lock().unwrap();
     let dir = match dir_guard.as_ref() {
         Some(d) => d.clone(),
         None => return vec![],
     };
     drop(dir_guard);
+
+    let default_status = {
+        use tauri_plugin_store::StoreExt;
+        app
+            .store("settings.json")
+            .ok()
+            .and_then(|store| store.get("statuses"))
+            .and_then(|v| serde_json::from_value::<Vec<StatusEntry>>(v.clone()).ok())
+            .and_then(|ss| ss.first().map(|s| s.label.clone()))
+            .unwrap_or_default()
+    };
 
     let path = PathBuf::from(&dir);
     let mut tasks = Vec::new();
@@ -102,7 +121,7 @@ fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
                     tasks.push(Task {
                         id: file_path.to_string_lossy().to_string(),
                         title,
-                        status: fm.map(|f| f.status).unwrap_or_else(|| "todo".to_string()),
+                        status: fm.map(|f| f.status).unwrap_or_else(|| default_status.clone()),
                         body,
                     });
                 }
@@ -160,6 +179,33 @@ fn replace_frontmatter_status(content: &str, new_status: &str) -> String {
     }
 }
 
+#[tauri::command]
+fn get_statuses(app: tauri::AppHandle) -> Vec<StatusEntry> {
+    use tauri_plugin_store::StoreExt;
+    if let Ok(store) = app.store("settings.json") {
+        if let Some(value) = store.get("statuses") {
+            if let Ok(statuses) = serde_json::from_value::<Vec<StatusEntry>>(value.clone()) {
+                return statuses;
+            }
+        }
+    }
+    vec![]
+}
+
+#[tauri::command]
+fn save_statuses(
+    app: tauri::AppHandle,
+    statuses: Vec<StatusEntry>,
+) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("settings.json").map_err(|e| e.to_string())?;
+    store.set(
+        "statuses",
+        serde_json::to_value(&statuses).map_err(|e| e.to_string())?,
+    );
+    store.save().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -174,6 +220,8 @@ pub fn run() {
             list_tasks,
             update_task_status,
             get_workspace_directory,
+            get_statuses,
+            save_statuses,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

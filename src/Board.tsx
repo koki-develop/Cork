@@ -2,24 +2,34 @@ import { Settings } from "lucide-react";
 import { useState } from "react";
 import Column from "./Column";
 import SettingsPanel from "./SettingsPanel";
-import type { Task } from "./types";
+import type { StatusEntry, Task } from "./types";
+
+const STATUS_COLORS = [
+  "bg-gray-600",
+  "bg-blue-600",
+  "bg-green-600",
+  "bg-yellow-600",
+  "bg-purple-600",
+  "bg-pink-600",
+  "bg-indigo-600",
+  "bg-red-600",
+  "bg-teal-600",
+];
 
 type Props = {
   tasks: Task[];
+  statuses: StatusEntry[];
   onStatusChange: () => void;
+  onStatusesChange: () => void;
   currentDir: string;
   onDirectoryChange: (path: string) => void;
 };
 
-const COLUMNS: { status: Task["status"]; title: string; color: string }[] = [
-  { status: "todo", title: "Todo", color: "bg-gray-600" },
-  { status: "doing", title: "Doing", color: "bg-blue-600" },
-  { status: "done", title: "Done", color: "bg-green-600" },
-];
-
 function Board({
   tasks,
+  statuses,
   onStatusChange,
+  onStatusesChange,
   currentDir,
   onDirectoryChange,
 }: Props) {
@@ -36,21 +46,24 @@ function Board({
         >
           <Settings className="h-5 w-5" />
         </button>
-        {COLUMNS.map((col) => (
+        {statuses.map((s, i) => (
           <Column
-            key={col.status}
-            title={col.title}
-            tasks={tasks.filter((t) => t.status === col.status)}
-            color={col.color}
+            key={s.label}
+            title={s.label}
+            tasks={tasks.filter((t) => t.status === s.label)}
+            color={STATUS_COLORS[i % STATUS_COLORS.length]}
+            statuses={statuses}
             onStatusChange={onStatusChange}
           />
         ))}
       </div>
       <SettingsPanel
         isOpen={settingsOpen}
+        statuses={statuses}
         currentDir={currentDir}
         onClose={() => setSettingsOpen(false)}
         onDirectoryChange={onDirectoryChange}
+        onStatusesChange={onStatusesChange}
       />
     </>
   );

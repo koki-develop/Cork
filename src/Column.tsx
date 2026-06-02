@@ -1,14 +1,15 @@
 import Card from "./Card";
-import type { Task } from "./types";
+import type { StatusEntry, Task } from "./types";
 
 type Props = {
   title: string;
   tasks: Task[];
   color: string;
+  statuses: StatusEntry[];
   onStatusChange: () => void;
 };
 
-function Column({ title, tasks, color, onStatusChange }: Props) {
+function Column({ title, tasks, color, statuses, onStatusChange }: Props) {
   return (
     <div className="flex w-80 shrink-0 flex-col gap-3">
       <h2
@@ -18,7 +19,12 @@ function Column({ title, tasks, color, onStatusChange }: Props) {
       </h2>
       <div className="flex flex-col gap-2">
         {tasks.map((task) => (
-          <Card key={task.id} task={task} onStatusChange={onStatusChange} />
+          <Card
+            key={task.id}
+            task={task}
+            statuses={statuses}
+            onStatusChange={onStatusChange}
+          />
         ))}
       </div>
     </div>

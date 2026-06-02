@@ -1,8 +1,10 @@
-export type Status = "todo" | "doing" | "done";
+export interface StatusEntry {
+  label: string;
+}
 
 export interface Task {
   id: string;
   title: string;
-  status: Status;
+  status: string;
   body: string;
 }

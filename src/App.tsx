@@ -3,14 +3,27 @@ import { watch } from "@tauri-apps/plugin-fs";
 import { useCallback, useEffect, useState } from "react";
 import Board from "./Board";
 import DirectoryPicker from "./DirectoryPicker";
-import type { Task } from "./types";
+import type { StatusEntry, Task } from "./types";
+
+const DEFAULT_STATUSES: StatusEntry[] = [
+  { label: "Todo" },
+  { label: "Doing" },
+  { label: "Done" },
+];
 
 function App() {
   const [dir, setDir] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [statuses, setStatuses] = useState<StatusEntry[]>(DEFAULT_STATUSES);
+
   const loadTasks = useCallback(async () => {
     const result = await invoke<Task[]>("list_tasks");
     setTasks(result);
+  }, []);
+
+  const loadStatuses = useCallback(async () => {
+    const result = await invoke<StatusEntry[]>("get_statuses");
+    setStatuses(result.length > 0 ? result : DEFAULT_STATUSES);
   }, []);
 
   useEffect(() => {
@@ -23,6 +36,7 @@ function App() {
     if (!dir) return;
 
     loadTasks();
+    loadStatuses();
 
     const w = watch(
       dir,
@@ -38,7 +52,7 @@ function App() {
     return () => {
       w.then((unwatch) => unwatch());
     };
-  }, [dir, loadTasks]);
+  }, [dir, loadTasks, loadStatuses]);
 
   if (!dir) {
     return <DirectoryPicker onDirectorySelected={setDir} />;
@@ -47,7 +61,9 @@ function App() {
   return (
     <Board
       tasks={tasks}
+      statuses={statuses}
       onStatusChange={loadTasks}
+      onStatusesChange={loadStatuses}
       currentDir={dir}
       onDirectoryChange={setDir}
     />

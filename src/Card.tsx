@@ -1,26 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Task } from "./types";
+import type { StatusEntry, Task } from "./types";
 
 type Props = {
   task: Task;
+  statuses: StatusEntry[];
   onStatusChange: () => void;
 };
 
-const STATUSES: Task["status"][] = ["todo", "doing", "done"];
-
-function statusLabel(status: Task["status"]): string {
-  switch (status) {
-    case "todo":
-      return "Todo";
-    case "doing":
-      return "Doing";
-    case "done":
-      return "Done";
-  }
-}
-
-function Card({ task, onStatusChange }: Props) {
-  async function handleStatusClick(nextStatus: Task["status"]) {
+function Card({ task, statuses, onStatusChange }: Props) {
+  async function handleStatusClick(nextStatus: string) {
     if (nextStatus === task.status) return;
     await invoke("update_task_status", { path: task.id, status: nextStatus });
     onStatusChange();
@@ -41,16 +29,18 @@ function Card({ task, onStatusChange }: Props) {
         </pre>
       )}
       <div className="mt-2 flex gap-1">
-        {STATUSES.filter((s) => s !== task.status).map((s) => (
-          <button
-            type="button"
-            key={s}
-            onClick={() => handleStatusClick(s)}
-            className="text-xs rounded bg-gray-600 px-2 py-0.5 text-gray-300 hover:bg-gray-500 transition-colors"
-          >
-            Move to {statusLabel(s)}
-          </button>
-        ))}
+        {statuses
+          .filter((s) => s.label !== task.status)
+          .map((s) => (
+            <button
+              type="button"
+              key={s.label}
+              onClick={() => handleStatusClick(s.label)}
+              className="text-xs rounded bg-gray-600 px-2 py-0.5 text-gray-300 hover:bg-gray-500 transition-colors"
+            >
+              Move to {s.label}
+            </button>
+          ))}
       </div>
     </div>
   );

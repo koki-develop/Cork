@@ -1,0 +1,5 @@
+schema: spec-driven
+name: configurable-statuses
+title: 設定で任意のステータスを定義できるようにする
+status: proposed
+created: 2026-06-03
