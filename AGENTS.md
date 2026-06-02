@@ -19,10 +19,20 @@
 - `.husky/pre-commit` runs: `gitleaks` (secret scan) → `lint-staged`
 - lint-staged runs `biome check --write` on all files + `cargo clippy` on Rust files
 
+## Dependencies
+- **Cargo**: `tauri-plugin-fs = { version = "2", features = ["watch"] }` for file watching and fs scope management
+- **npm**: `@tauri-apps/plugin-fs` (frontend `watch()` API)
+
 ## Architecture
 - **`src/`** — React/TS frontend: `main.tsx` (entry), `App.tsx` (root), `Board.tsx` (3 columns), `Column.tsx`, `Card.tsx`, `DirectoryPicker.tsx`, `types.ts`
+  - `App.tsx` runs a file watcher via `watch()` from `@tauri-apps/plugin-fs` when a directory is selected. On `.md` file changes it calls `invoke("list_tasks")` to refresh the UI.
 - **`src-tauri/src/`** — Rust backend: `lib.rs` (all commands), `main.rs` (entry → `cork_lib::run()`)
-- Tauri commands (in `lib.rs`): `select_directory`, `list_tasks`, `update_task_status`
+  - `AppState` (with `Mutex<Option<String>>`) stores the selected directory path.
+- Tauri commands (in `lib.rs`):
+  - `select_directory` — picks folder, saves path to `AppState`, registers it in `fs_scope()` via `FsExt::allow_directory`
+  - `list_tasks` — reads directory from `AppState` (no arg), lists `.md` files, parses frontmatter
+  - `update_task_status` — validates path via `fs::canonicalize` against the selected directory before writing; returns `"Access denied"` on mismatch
+- Capabilities: `"fs:default"` + `"fs:allow-watch"` in `capabilities/default.json`
 - CSS: Tailwind 4 via `@import "tailwindcss"` in `src/style.css` (no `tailwind.config`, no `@tailwind` directives)
 
 ## Tests
