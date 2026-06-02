@@ -52,6 +52,8 @@ function App() {
     return () => {
       w.then((unwatch) => unwatch());
     };
+    // biome-ignore lint/correctness/useExhaustiveDependencies(loadTasks): auto-memoized by React Compiler
+    // biome-ignore lint/correctness/useExhaustiveDependencies(loadStatuses): auto-memoized by React Compiler
   }, [dir, loadTasks, loadStatuses]);
 
   if (!dir) {
