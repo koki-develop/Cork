@@ -1,1 +1,3 @@
+gitleaks git --pre-commit --redact --staged --verbose
+
 bunx lint-staged
