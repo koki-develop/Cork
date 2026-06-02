@@ -10,10 +10,12 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@tailwindcss/vite": "4.3.0",
     "@tauri-apps/api": "2.11.0",
     "@tauri-apps/plugin-opener": "2.5.4",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "tailwindcss": "4.3.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.2",
