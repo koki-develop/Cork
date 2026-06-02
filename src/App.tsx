@@ -14,8 +14,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+    invoke<string | null>("get_workspace_directory")
+      .then((path) => setDir(path))
+      .catch((err) => console.error("failed to restore directory:", err));
+  }, []);
 
   useEffect(() => {
     if (!dir) return;
@@ -42,7 +44,14 @@ function App() {
     return <DirectoryPicker onDirectorySelected={setDir} />;
   }
 
-  return <Board tasks={tasks} onStatusChange={loadTasks} />;
+  return (
+    <Board
+      tasks={tasks}
+      onStatusChange={loadTasks}
+      currentDir={dir}
+      onDirectoryChange={setDir}
+    />
+  );
 }
 
 export default App;

@@ -1,0 +1,5 @@
+schema: spec-driven
+name: settings-screen
+title: 設定画面の実装と作業ディレクトリの永続化
+status: proposed
+created: 2026-06-02

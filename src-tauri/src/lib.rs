@@ -20,7 +20,7 @@ struct Frontmatter {
 }
 
 struct AppState {
-    selected_dir: Mutex<Option<String>>,
+    workspace_dir: Mutex<Option<String>>,
 }
 
 #[tauri::command]
@@ -29,21 +29,56 @@ fn select_directory(
     app: tauri::AppHandle,
 ) -> Option<String> {
     use tauri_plugin_fs::FsExt;
+    use tauri_plugin_store::StoreExt;
 
     let dialog = rfd::FileDialog::new().pick_folder();
     dialog.map(|path| {
         let path_str = path.to_string_lossy().to_string();
-        *state.selected_dir.lock().unwrap() = Some(path_str.clone());
+        *state.workspace_dir.lock().unwrap() = Some(path_str.clone());
         if let Err(e) = app.fs_scope().allow_directory(&path, false) {
             eprintln!("failed to allow directory in fs scope: {e}");
+        }
+        if let Ok(store) = app.store("settings.json") {
+            store.set("workspace_dir", path_str.clone());
+            if let Err(e) = store.save() {
+                eprintln!("failed to save store: {e}");
+            }
         }
         path_str
     })
 }
 
 #[tauri::command]
+fn get_workspace_directory(
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Option<String> {
+    use tauri_plugin_store::StoreExt;
+
+    {
+        let guard = state.workspace_dir.lock().unwrap();
+        if let Some(dir) = guard.as_ref() {
+            return Some(dir.clone());
+        }
+    }
+
+    if let Ok(store) = app.store("settings.json") {
+        if let Some(value) = store.get("workspace_dir") {
+            if let Some(dir) = value.as_str() {
+                if std::path::Path::new(dir).exists() {
+                    *state.workspace_dir.lock().unwrap() = Some(dir.to_string());
+                    return Some(dir.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+
+#[tauri::command]
 fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
-    let dir_guard = state.selected_dir.lock().unwrap();
+    let dir_guard = state.workspace_dir.lock().unwrap();
     let dir = match dir_guard.as_ref() {
         Some(d) => d.clone(),
         None => return vec![],
@@ -85,7 +120,7 @@ fn update_task_status(
     status: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    let dir_guard = state.selected_dir.lock().unwrap();
+    let dir_guard = state.workspace_dir.lock().unwrap();
     let dir = match dir_guard.as_ref() {
         Some(d) => d,
         None => return Err("No directory selected".to_string()),
@@ -130,13 +165,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .manage(AppState {
-            selected_dir: Mutex::new(None),
+            workspace_dir: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             select_directory,
             list_tasks,
             update_task_status,
+            get_workspace_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
