@@ -1,5 +1,5 @@
 import { Settings } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Column from "./Column";
 import SettingsPanel from "./SettingsPanel";
 import type { StatusEntry, Task } from "./types";
@@ -34,6 +34,7 @@ function Board({
   onDirectoryChange,
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const handleClose = useCallback(() => setSettingsOpen(false), []);
 
   return (
     <>
@@ -44,7 +45,7 @@ function Board({
           className="absolute right-4 top-4 rounded p-2 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
           aria-label="Settings"
         >
-          <Settings className="h-5 w-5" />
+          <Settings className="size-5" />
         </button>
         {statuses.map((s, i) => (
           <Column
@@ -58,10 +59,11 @@ function Board({
         ))}
       </div>
       <SettingsPanel
+        key={String(settingsOpen)}
         isOpen={settingsOpen}
         statuses={statuses}
         currentDir={currentDir}
-        onClose={() => setSettingsOpen(false)}
+        onClose={handleClose}
         onDirectoryChange={onDirectoryChange}
         onStatusesChange={onStatusesChange}
       />

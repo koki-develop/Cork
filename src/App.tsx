@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { watch } from "@tauri-apps/plugin-fs";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Board from "./Board";
 import DirectoryPicker from "./DirectoryPicker";
 import type { StatusEntry, Task } from "./types";
@@ -16,15 +16,15 @@ function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [statuses, setStatuses] = useState<StatusEntry[]>(DEFAULT_STATUSES);
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     const result = await invoke<Task[]>("list_tasks");
     setTasks(result);
-  };
+  }, []);
 
-  const loadStatuses = async () => {
+  const loadStatuses = useCallback(async () => {
     const result = await invoke<StatusEntry[]>("get_statuses");
     setStatuses(result.length > 0 ? result : DEFAULT_STATUSES);
-  };
+  }, []);
 
   useEffect(() => {
     invoke<string | null>("get_workspace_directory")
@@ -35,8 +35,10 @@ function App() {
   useEffect(() => {
     if (!dir) return;
 
-    loadTasks();
-    loadStatuses();
+    invoke<Task[]>("list_tasks").then(setTasks);
+    invoke<StatusEntry[]>("get_statuses").then((result) => {
+      setStatuses(result.length > 0 ? result : DEFAULT_STATUSES);
+    });
 
     const w = watch(
       dir,
@@ -52,9 +54,7 @@ function App() {
     return () => {
       w.then((unwatch) => unwatch());
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies(loadTasks): auto-memoized by React Compiler
-    // biome-ignore lint/correctness/useExhaustiveDependencies(loadStatuses): auto-memoized by React Compiler
-  }, [dir, loadTasks, loadStatuses]);
+  }, [dir, loadTasks]);
 
   if (!dir) {
     return <DirectoryPicker onDirectorySelected={setDir} />;

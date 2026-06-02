@@ -20,6 +20,8 @@ function Card({ task, statuses, onStatusChange }: Props) {
     .filter((l) => l.trim())
     .join("\n");
 
+  const otherStatuses = statuses.filter((s) => s.label !== task.status);
+
   return (
     <div className="rounded-lg bg-gray-700 p-3 shadow">
       <h3 className="font-semibold text-white mb-1">{task.title}</h3>
@@ -29,18 +31,16 @@ function Card({ task, statuses, onStatusChange }: Props) {
         </pre>
       )}
       <div className="mt-2 flex gap-1">
-        {statuses
-          .filter((s) => s.label !== task.status)
-          .map((s) => (
-            <button
-              type="button"
-              key={s.label}
-              onClick={() => handleStatusClick(s.label)}
-              className="text-xs rounded bg-gray-600 px-2 py-0.5 text-gray-300 hover:bg-gray-500 transition-colors"
-            >
-              Move to {s.label}
-            </button>
-          ))}
+        {otherStatuses.map((s) => (
+          <button
+            type="button"
+            key={s.label}
+            onClick={() => handleStatusClick(s.label)}
+            className="text-xs rounded bg-gray-600 px-2 py-0.5 text-gray-300 hover:bg-gray-500 transition-colors"
+          >
+            Move to {s.label}
+          </button>
+        ))}
       </div>
     </div>
   );

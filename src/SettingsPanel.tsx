@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import type { StatusEntry } from "./types";
 
-type EditingEntry = StatusEntry & { _key: number };
+type EditingEntry = StatusEntry & { _key: string };
 
 type Props = {
   isOpen: boolean;
@@ -21,25 +21,23 @@ function SettingsPanel({
   onDirectoryChange,
   onStatusesChange,
 }: Props) {
-  const nextKey = useRef(0);
-  const [editing, setEditing] = useState<EditingEntry[]>([]);
+  const [editing, setEditing] = useState<EditingEntry[]>(() =>
+    statuses.map((s) => ({ ...s, _key: crypto.randomUUID() })),
+  );
   const [error, setError] = useState<string | null>(null);
-
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    if (isOpen) {
-      setError(null);
-      setEditing(statuses.map((s) => ({ ...s, _key: nextKey.current++ })));
-    }
-  }, [isOpen, statuses]);
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -60,7 +58,7 @@ function SettingsPanel({
   };
 
   const handleAdd = () => {
-    setEditing((prev) => [...prev, { label: "", _key: nextKey.current++ }]);
+    setEditing((prev) => [...prev, { label: "", _key: crypto.randomUUID() }]);
   };
 
   const handleRemove = (index: number) => {
@@ -108,9 +106,9 @@ function SettingsPanel({
         aria-label="Close settings"
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-        <div
+        <dialog
+          open
           className="w-96 max-h-[80vh] overflow-y-auto rounded-lg bg-gray-800 p-6 text-white shadow-xl pointer-events-auto"
-          role="dialog"
           aria-modal="true"
         >
           <h2 className="mb-4 text-xl font-bold">Settings</h2>
@@ -141,6 +139,7 @@ function SettingsPanel({
                     onChange={(e) => handleLabelChange(i, e.target.value)}
                     className="min-w-0 flex-1 rounded bg-gray-700 px-2 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Status label"
+                    aria-label={`Status label ${i + 1}`}
                   />
                   <button
                     type="button"
@@ -203,7 +202,7 @@ function SettingsPanel({
               Close
             </button>
           </div>
-        </div>
+        </dialog>
       </div>
     </div>
   );
