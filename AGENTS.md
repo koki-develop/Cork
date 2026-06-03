@@ -24,15 +24,25 @@
 - **npm**: `@tauri-apps/plugin-fs` (frontend `watch()` API)
 
 ## Architecture
-- **`src/`** — React/TS frontend: `main.tsx` (entry), `App.tsx` (root), `Board.tsx` (3 columns), `Column.tsx`, `Card.tsx`, `DirectoryPicker.tsx`, `types.ts`
-  - `App.tsx` runs a file watcher via `watch()` from `@tauri-apps/plugin-fs` when a directory is selected. On `.md` file changes it calls `invoke("list_tasks")` to refresh the UI.
+- **`src/`** — React/TS frontend:
+  - `main.tsx` (entry), `App.tsx` (root)
+  - `components/board/Board.tsx`, `Column.tsx`, `Card.tsx` — board views (columns not fixed at 3, configured via statuses)
+  - `components/directory/DirectoryPicker.tsx`
+  - `components/settings/SettingsPanel.tsx`, `StatusList.tsx`, `StatusRow.tsx` — status management UI
+  - `hooks/useWorkspace.ts` — central state: runs `watch()` from `@tauri-apps/plugin-fs` when a directory is selected; on `.md` changes calls `invoke("list_tasks")` to refresh the UI
+  - `hooks/useStatusEdit.ts` — editing/reordering statuses
+  - `types/index.ts` — `Task`, `StatusEntry`
+  - `types/settings.ts` — `EditingEntry`
 - **`src-tauri/src/`** — Rust backend: `lib.rs` (all commands), `main.rs` (entry → `cork_lib::run()`)
   - `AppState` (with `Mutex<Option<String>>`) stores the selected directory path.
-- Tauri commands (in `lib.rs`):
-  - `select_directory` — picks folder, saves path to `AppState`, registers it in `fs_scope()` via `FsExt::allow_directory`
-  - `list_tasks` — reads directory from `AppState` (no arg), lists `.md` files, parses frontmatter
+- Tauri commands in `lib.rs`:
+  - `select_directory` — picks folder via `rfd::FileDialog`, saves path to `AppState` + `tauri_plugin_store`, registers in `fs_scope()` via `FsExt::allow_directory`
+  - `get_workspace_directory` — returns directory from state or restores from store
+  - `list_tasks` — reads directory from `AppState` (no arg), lists `.md` files, parses frontmatter, maps to first configured status
   - `update_task_status` — validates path via `fs::canonicalize` against the selected directory before writing; returns `"Access denied"` on mismatch
-- Capabilities: `"fs:default"` + `"fs:allow-watch"` in `capabilities/default.json`
+  - `get_statuses` — reads configured statuses from store
+  - `save_statuses` — writes configured statuses to store
+- Capabilities: `core:default`, `opener:default`, `fs:default`, `fs:allow-watch`, `store:default` in `capabilities/default.json`
 - CSS: Tailwind 4 via `@import "tailwindcss"` in `src/style.css` (no `tailwind.config`, no `@tailwind` directives)
 
 ## Tests
