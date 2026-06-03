@@ -1,4 +1,4 @@
-import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
+import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react";
 import { Settings } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { StatusEntry, Task } from "../../types";
@@ -27,20 +27,20 @@ function Board({
   const handleClose = useCallback(() => setSettingsOpen(false), []);
 
   const handleDragEnd = useCallback(
-    async (result: DropResult) => {
-      if (!result.destination) return;
-      if (result.source.droppableId === result.destination.droppableId) return;
-      await onTaskStatusUpdate(
-        result.draggableId,
-        result.destination.droppableId,
-      );
+    async (event: DragEndEvent) => {
+      if (event.canceled) return;
+      const { source, target } = event.operation;
+      if (!source || !target) return;
+      const task = tasks.find((t) => t.id === String(source.id));
+      if (!task || task.status === target.id) return;
+      await onTaskStatusUpdate(String(source.id), String(target.id));
     },
-    [onTaskStatusUpdate],
+    [onTaskStatusUpdate, tasks],
   );
 
   return (
     <>
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropProvider onDragEnd={handleDragEnd}>
         <div className="flex h-screen flex-col overflow-hidden">
           <header className="flex shrink-0 items-center justify-between border-b border-cork-border/50 px-6 py-3">
             <div className="flex items-center gap-3">
@@ -74,7 +74,7 @@ function Board({
             ))}
           </div>
         </div>
-      </DragDropContext>
+      </DragDropProvider>
       <SettingsPanel
         key={String(settingsOpen)}
         isOpen={settingsOpen}

@@ -1,4 +1,4 @@
-import { Droppable } from "@hello-pangea/dnd";
+import { useDroppable } from "@dnd-kit/react";
 import { GripVertical } from "lucide-react";
 import type { Task } from "../../types";
 import Card from "./Card";
@@ -9,6 +9,11 @@ type Props = {
 };
 
 function Column({ title, tasks }: Props) {
+  const { ref, isDropTarget } = useDroppable({
+    id: title,
+    accept: "card",
+  });
+
   return (
     <div className="flex w-72 shrink-0 flex-col rounded-xl border border-cork-border/40 bg-cork-surface/60">
       <div className="flex items-center gap-2 border-b border-cork-border/40 px-4 py-3">
@@ -18,20 +23,14 @@ function Column({ title, tasks }: Props) {
           {tasks.length}
         </span>
       </div>
-      <Droppable droppableId={title}>
-        {(provided) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className="flex flex-col gap-2 p-3 min-h-24 flex-1"
-          >
-            {tasks.map((task, index) => (
-              <Card key={task.id} task={task} index={index} />
-            ))}
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+      <div
+        ref={ref}
+        className={`flex flex-col gap-2 p-3 min-h-24 flex-1 transition-colors duration-200 ${isDropTarget ? "bg-cork-accent/[0.06] ring-1 ring-inset ring-cork-accent/30" : ""}`}
+      >
+        {tasks.map((task) => (
+          <Card key={task.id} task={task} />
+        ))}
+      </div>
     </div>
   );
 }
