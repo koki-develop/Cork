@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import Button from "../ui/Button";
 
 type Props = {
   label: string;
@@ -31,32 +32,33 @@ function StatusRow({
         placeholder="Status label"
         aria-label={`Status label ${index + 1}`}
       />
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => onMoveUp(index)}
         disabled={isFirst}
-        className="rounded-lg p-1.5 text-cork-muted transition-colors duration-200 hover:bg-cork-elevated hover:text-cork-text disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-cork-muted cursor-pointer"
         aria-label="Move up"
       >
         <ArrowUp className="size-3.5" />
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => onMoveDown(index)}
         disabled={isLast}
-        className="rounded-lg p-1.5 text-cork-muted transition-colors duration-200 hover:bg-cork-elevated hover:text-cork-text disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-cork-muted cursor-pointer"
         aria-label="Move down"
       >
         <ArrowDown className="size-3.5" />
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="ghost"
+        color="danger"
+        size="sm"
         onClick={() => onRemove(index)}
-        className="rounded-lg p-1.5 text-red-400 transition-colors duration-200 hover:bg-red-500/10 hover:text-red-300 cursor-pointer"
         aria-label="Remove status"
       >
         <Trash2 className="size-3.5" />
-      </button>
+      </Button>
     </div>
   );
 }

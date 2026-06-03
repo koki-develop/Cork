@@ -3,6 +3,7 @@ import { Settings } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { StatusEntry, Task } from "../../types";
 import SettingsPanel from "../settings/SettingsPanel";
+import Button from "../ui/Button";
 import Column from "./Column";
 
 type Props = {
@@ -52,14 +53,14 @@ function Board({
               <span className="text-xs text-cork-muted">
                 {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
               </span>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setSettingsOpen(true)}
-                className="rounded-lg p-2 text-cork-muted transition-colors duration-200 hover:bg-cork-elevated hover:text-cork-text cursor-pointer"
                 aria-label="Settings"
               >
                 <Settings className="size-4" />
-              </button>
+              </Button>
             </div>
           </header>
 

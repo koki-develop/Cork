@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { FolderOpen } from "lucide-react";
+import Button from "../ui/Button";
 
 type Props = {
   onDirectorySelected: (path: string) => void;
@@ -25,14 +26,15 @@ function DirectoryPicker({ onDirectorySelected }: Props) {
         </p>
       </div>
 
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="lg"
         onClick={handleSelect}
-        className="group relative inline-flex items-center gap-2 rounded-xl bg-cork-accent px-6 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-cork-accent-hover active:scale-[0.98] cursor-pointer"
+        className="group gap-2 rounded-xl"
       >
         <FolderOpen className="size-4 transition-transform duration-200 group-hover:-translate-y-0.5" />
         Select Workspace Directory
-      </button>
+      </Button>
     </main>
   );
 }

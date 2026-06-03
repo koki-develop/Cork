@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import type { EditingEntry } from "../../types/settings";
+import Button from "../ui/Button";
 import StatusRow from "./StatusRow";
 
 type Props = {
@@ -39,14 +40,15 @@ function StatusList({
           />
         ))}
       </div>
-      <button
-        type="button"
+      <Button
+        variant="dashed"
+        size="md"
         onClick={onAdd}
-        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-cork-border/40 px-3 py-2 text-xs text-cork-muted transition-colors duration-200 hover:border-cork-border hover:bg-cork-elevated/50 hover:text-cork-text cursor-pointer"
+        className="mt-2 w-full"
       >
         <Plus className="size-3.5" />
         Add Status
-      </button>
+      </Button>
     </div>
   );
 }

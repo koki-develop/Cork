@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useStatusEdit } from "../../hooks/useStatusEdit";
 import type { StatusEntry } from "../../types";
+import Button from "../ui/Button";
 import StatusList from "./StatusList";
 
 type Props = {
@@ -67,21 +68,21 @@ function SettingsPanel({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"
         onClick={onClose}
         aria-label="Close settings"
       />
       <div className="relative w-full max-w-md mx-4 max-h-[85vh] overflow-y-auto rounded-2xl border border-cork-border/60 bg-cork-surface/95 backdrop-blur-xl p-6 shadow-2xl">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-lg font-bold tracking-tight">Settings</h2>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-cork-muted transition-colors duration-200 hover:bg-cork-elevated hover:text-cork-text cursor-pointer"
             aria-label="Close"
           >
             <X className="size-4" />
-          </button>
+          </Button>
         </div>
 
         <div className="mb-5">
@@ -109,27 +110,20 @@ function SettingsPanel({
         />
 
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleChangeDirectory}
-            className="rounded-lg border border-cork-border/40 px-4 py-2 text-xs font-medium text-cork-muted transition-colors duration-200 hover:bg-cork-elevated hover:text-cork-text cursor-pointer"
-          >
+          <Button variant="secondary" size="md" onClick={handleChangeDirectory}>
             Change Directory
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
+            size="md"
             onClick={onClose}
-            className="ml-auto rounded-lg border border-cork-border/40 px-4 py-2 text-xs font-medium text-cork-muted transition-colors duration-200 hover:bg-cork-elevated hover:text-cork-text cursor-pointer"
+            className="ml-auto"
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveAndClose}
-            className="rounded-lg bg-cork-accent px-4 py-2 text-xs font-semibold text-white transition-all duration-200 hover:bg-cork-accent-hover active:scale-[0.98] cursor-pointer"
-          >
+          </Button>
+          <Button variant="primary" size="md" onClick={handleSaveAndClose}>
             Save
-          </button>
+          </Button>
         </div>
       </div>
     </div>
