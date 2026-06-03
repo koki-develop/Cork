@@ -1,3 +1,4 @@
+import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { Settings } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { StatusEntry, Task } from "../../types";
@@ -23,6 +24,7 @@ type Props = {
   onStatusesChange: () => void;
   currentDir: string;
   onDirectoryChange: (path: string) => void;
+  onTaskStatusUpdate: (taskId: string, newStatus: string) => Promise<void>;
 };
 
 function Board({
@@ -32,32 +34,47 @@ function Board({
   onStatusesChange,
   currentDir,
   onDirectoryChange,
+  onTaskStatusUpdate,
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const handleClose = useCallback(() => setSettingsOpen(false), []);
 
+  const handleDragEnd = useCallback(
+    async (result: DropResult) => {
+      if (!result.destination) return;
+      if (result.source.droppableId === result.destination.droppableId) return;
+      await onTaskStatusUpdate(
+        result.draggableId,
+        result.destination.droppableId,
+      );
+    },
+    [onTaskStatusUpdate],
+  );
+
   return (
     <>
-      <div className="relative flex min-h-screen gap-4 overflow-x-auto bg-gray-900 p-6">
-        <button
-          type="button"
-          onClick={() => setSettingsOpen(true)}
-          className="absolute right-4 top-4 rounded p-2 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-          aria-label="Settings"
-        >
-          <Settings className="size-5" />
-        </button>
-        {statuses.map((s, i) => (
-          <Column
-            key={s.label}
-            title={s.label}
-            tasks={tasks.filter((t) => t.status === s.label)}
-            color={STATUS_COLORS[i % STATUS_COLORS.length]}
-            statuses={statuses}
-            onStatusChange={onStatusChange}
-          />
-        ))}
-      </div>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="relative flex min-h-screen gap-4 overflow-x-auto bg-gray-900 p-6">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="absolute right-4 top-4 rounded p-2 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+            aria-label="Settings"
+          >
+            <Settings className="size-5" />
+          </button>
+          {statuses.map((s, i) => (
+            <Column
+              key={s.label}
+              title={s.label}
+              tasks={tasks.filter((t) => t.status === s.label)}
+              color={STATUS_COLORS[i % STATUS_COLORS.length]}
+              statuses={statuses}
+              onStatusChange={onStatusChange}
+            />
+          ))}
+        </div>
+      </DragDropContext>
       <SettingsPanel
         key={String(settingsOpen)}
         isOpen={settingsOpen}

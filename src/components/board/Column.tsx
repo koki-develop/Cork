@@ -1,3 +1,4 @@
+import { Droppable } from "@hello-pangea/dnd";
 import type { StatusEntry, Task } from "../../types";
 import Card from "./Card";
 
@@ -17,16 +18,26 @@ function Column({ title, tasks, color, statuses, onStatusChange }: Props) {
       >
         {title} ({tasks.length})
       </h2>
-      <div className="flex flex-col gap-2">
-        {tasks.map((task) => (
-          <Card
-            key={task.id}
-            task={task}
-            statuses={statuses}
-            onStatusChange={onStatusChange}
-          />
-        ))}
-      </div>
+      <Droppable droppableId={title}>
+        {(provided) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className="flex flex-col gap-2 min-h-2"
+          >
+            {tasks.map((task, index) => (
+              <Card
+                key={task.id}
+                task={task}
+                index={index}
+                statuses={statuses}
+                onStatusChange={onStatusChange}
+              />
+            ))}
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
     </div>
   );
 }

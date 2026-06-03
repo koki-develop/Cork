@@ -66,5 +66,24 @@ export function useWorkspace() {
     };
   }, [dir, loadTasks]);
 
-  return { dir, tasks, statuses, loadTasks, loadStatuses, setDir };
+  const updateTaskStatus = useCallback(
+    async (taskId: string, newStatus: string) => {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
+      );
+      await invoke("update_task_status", { path: taskId, status: newStatus });
+      await loadTasks();
+    },
+    [loadTasks],
+  );
+
+  return {
+    dir,
+    tasks,
+    statuses,
+    loadTasks,
+    loadStatuses,
+    setDir,
+    updateTaskStatus,
+  };
 }

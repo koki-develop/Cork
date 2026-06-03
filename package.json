@@ -13,6 +13,7 @@
     "react-doctor": "react-doctor --verbose"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^18",
     "@tailwindcss/vite": "4.3.0",
     "@tauri-apps/api": "2.11.0",
     "@tauri-apps/plugin-fs": "2.5.1",
