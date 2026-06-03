@@ -1,3 +1,4 @@
 [tools]
 bun = "1.3.14"
 "npm:@fission-ai/openspec" = "1.3.1"
+"npm:uipro-cli" = "2.2.3"
