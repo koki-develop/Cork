@@ -33,8 +33,21 @@ export function useWorkspace() {
   useEffect(() => {
     if (!dir) return;
 
-    loadTasks();
-    loadStatuses();
+    const loadData = async () => {
+      try {
+        const [loadedTasks, loadedStatuses] = await Promise.all([
+          invoke<Task[]>("list_tasks"),
+          invoke<StatusEntry[]>("get_statuses"),
+        ]);
+        setTasks(loadedTasks);
+        setStatuses(
+          loadedStatuses.length > 0 ? loadedStatuses : DEFAULT_STATUSES,
+        );
+      } catch (err) {
+        console.error("failed to load workspace:", err);
+      }
+    };
+    loadData();
 
     const watchPromise = watch(
       dir,
@@ -51,7 +64,7 @@ export function useWorkspace() {
     return () => {
       watchPromise.then((unwatch) => unwatch());
     };
-  }, [dir, loadTasks, loadStatuses]);
+  }, [dir, loadTasks]);
 
   return { dir, tasks, statuses, loadTasks, loadStatuses, setDir };
 }
