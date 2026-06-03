@@ -36,7 +36,8 @@
 - **`src-tauri/src/`** — Rust backend: `lib.rs` (all commands), `main.rs` (entry → `cork_lib::run()`)
   - `AppState` (with `Mutex<Option<String>>`) stores the selected directory path.
 - Tauri commands in `lib.rs`:
-  - `select_directory` — picks folder via `rfd::FileDialog`, saves path to `AppState` + `tauri_plugin_store`, registers in `fs_scope()` via `FsExt::allow_directory`
+  - `pick_directory` — picks folder via `rfd::FileDialog`, returns the path string
+  - `set_workspace_directory` — saves path to `AppState` + `tauri_plugin_store`, registers in `fs_scope()` via `FsExt::allow_directory`
   - `get_workspace_directory` — returns directory from state or restores from store
   - `list_tasks` — reads directory from `AppState` (no arg), lists `.md` files, parses frontmatter, maps to first configured status
   - `update_task_status` — validates path via `fs::canonicalize` against the selected directory before writing; returns `"Access denied"` on mismatch
