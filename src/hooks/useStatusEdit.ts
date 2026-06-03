@@ -5,9 +5,12 @@ import type {
   DragStartEvent,
 } from "@dnd-kit/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { StatusEntry } from "../types";
 import type { EditingEntry } from "../types/settings";
+
+const labelKey = (entries: { label: string }[]) =>
+  entries.map((e) => e.label).join("\x00");
 
 type Options = {
   onStatusesChange: () => void;
@@ -26,6 +29,19 @@ export function useStatusEdit(
   const lastPersisted = useRef<StatusEntry[]>(
     initialStatuses.map((s) => ({ label: s.label })),
   );
+
+  const initialKey = useMemo(
+    () => labelKey(initialStatuses),
+    [initialStatuses],
+  );
+
+  useEffect(() => {
+    if (initialKey === labelKey(lastPersisted.current)) return;
+    setEditing(initialStatuses.map((s) => ({ ...s, id: crypto.randomUUID() })));
+    setDragSnapshot(null);
+    setError(null);
+    lastPersisted.current = initialStatuses.map((s) => ({ label: s.label }));
+  }, [initialKey, initialStatuses]);
 
   const persist = async (next: EditingEntry[]): Promise<boolean> => {
     const trimmed = next

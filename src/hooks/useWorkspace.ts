@@ -52,8 +52,14 @@ export function useWorkspace() {
     const watchPromise = watch(
       dir,
       (event) => {
+        const hasCorkConfig = event.paths.some(
+          (p: string) => p.split(/[\\/]/).pop() === ".cork.json",
+        );
         const hasMdFile = event.paths.some((p: string) => p.endsWith(".md"));
-        if (hasMdFile) {
+        if (hasCorkConfig) {
+          loadStatuses();
+          loadTasks();
+        } else if (hasMdFile) {
           loadTasks();
         }
       },
@@ -64,7 +70,7 @@ export function useWorkspace() {
     return () => {
       watchPromise.then((unwatch) => unwatch());
     };
-  }, [dir, loadTasks]);
+  }, [dir, loadTasks, loadStatuses]);
 
   const updateTaskStatus = useCallback(
     async (taskId: string, newStatus: string) => {

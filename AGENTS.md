@@ -29,7 +29,7 @@
   - `components/board/Board.tsx`, `Column.tsx`, `Card.tsx` — board views (columns not fixed at 3, configured via statuses)
   - `components/directory/DirectoryPicker.tsx`
   - `components/settings/SettingsPanel.tsx`, `StatusList.tsx`, `StatusRow.tsx` — status management UI
-  - `hooks/useWorkspace.ts` — central state: runs `watch()` from `@tauri-apps/plugin-fs` when a directory is selected; on `.md` changes calls `invoke("list_tasks")` to refresh the UI
+  - `hooks/useWorkspace.ts` — central state: runs `watch()` from `@tauri-apps/plugin-fs` when a directory is selected; on `.md` changes calls `invoke("list_tasks")` to refresh the UI, and on `.cork.json` changes reloads both tasks and statuses
   - `hooks/useStatusEdit.ts` — editing/reordering statuses
   - `types/index.ts` — `Task`, `StatusEntry`
   - `types/settings.ts` — `EditingEntry`
@@ -41,8 +41,8 @@
   - `get_workspace_directory` — returns directory from state or restores from store
   - `list_tasks` — reads directory from `AppState` (no arg), lists `.md` files, parses frontmatter, maps to first configured status
   - `update_task_status` — validates path via `fs::canonicalize` against the selected directory before writing; returns `"Access denied"` on mismatch
-  - `get_statuses` — reads configured statuses from store
-  - `save_statuses` — writes configured statuses to store
+  - `get_statuses` — reads configured statuses from `.cork.json` in the selected workspace directory (empty list on missing file / parse failure / no directory selected)
+  - `save_statuses` — writes configured statuses to `.cork.json` in the selected workspace directory; returns `"No directory selected"` when no directory is set
 - Capabilities: `core:default`, `opener:default`, `fs:default`, `fs:allow-watch`, `store:default` in `capabilities/default.json`
 - CSS: Tailwind 4 via `@import "tailwindcss"` in `src/style.css` (no `tailwind.config`, no `@tailwind` directives)
 

@@ -94,10 +94,7 @@ fn get_workspace_directory(
 }
 
 #[tauri::command]
-fn list_tasks(
-    state: tauri::State<'_, AppState>,
-    app: tauri::AppHandle,
-) -> Vec<Task> {
+fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
     let dir_guard = state.workspace_dir.lock().unwrap();
     let dir = match dir_guard.as_ref() {
         Some(d) => d.clone(),
@@ -105,16 +102,10 @@ fn list_tasks(
     };
     drop(dir_guard);
 
-    let default_status = {
-        use tauri_plugin_store::StoreExt;
-        app
-            .store("settings.json")
-            .ok()
-            .and_then(|store| store.get("statuses"))
-            .and_then(|v| serde_json::from_value::<Vec<StatusEntry>>(v.clone()).ok())
-            .and_then(|ss| ss.first().map(|s| s.label.clone()))
-            .unwrap_or_default()
-    };
+    let default_status = read_statuses_from_workspace(&dir)
+        .first()
+        .map(|s| s.label.clone())
+        .unwrap_or_default();
 
     let path = PathBuf::from(&dir);
     let mut tasks = Vec::new();
@@ -261,30 +252,66 @@ fn update_frontmatter(content: &str, updates: &[(&str, serde_json::Value)]) -> S
 }
 
 #[tauri::command]
-fn get_statuses(app: tauri::AppHandle) -> Vec<StatusEntry> {
-    use tauri_plugin_store::StoreExt;
-    if let Ok(store) = app.store("settings.json") {
-        if let Some(value) = store.get("statuses") {
-            if let Ok(statuses) = serde_json::from_value::<Vec<StatusEntry>>(value.clone()) {
-                return statuses;
-            }
-        }
-    }
-    vec![]
+fn get_statuses(state: tauri::State<'_, AppState>) -> Vec<StatusEntry> {
+    let dir = match state.workspace_dir.lock().unwrap().clone() {
+        Some(d) => d,
+        None => return vec![],
+    };
+    read_statuses_from_workspace(&dir)
 }
 
 #[tauri::command]
 fn save_statuses(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     statuses: Vec<StatusEntry>,
 ) -> Result<(), String> {
-    use tauri_plugin_store::StoreExt;
-    let store = app.store("settings.json").map_err(|e| e.to_string())?;
-    store.set(
-        "statuses",
-        serde_json::to_value(&statuses).map_err(|e| e.to_string())?,
-    );
-    store.save().map_err(|e| e.to_string())
+    let dir = match state.workspace_dir.lock().unwrap().clone() {
+        Some(d) => d,
+        None => return Err("No directory selected".to_string()),
+    };
+    write_statuses_to_workspace(&dir, &statuses)
+}
+
+fn cork_config_path(dir: &str) -> PathBuf {
+    Path::new(dir).join(".cork.json")
+}
+
+fn read_statuses_from_workspace(dir: &str) -> Vec<StatusEntry> {
+    let path = cork_config_path(dir);
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let value: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!(
+                "failed to parse {}: {e}",
+                path.display()
+            );
+            return vec![];
+        }
+    };
+    value
+        .get("statuses")
+        .and_then(|v| serde_json::from_value::<Vec<StatusEntry>>(v.clone()).ok())
+        .unwrap_or_default()
+}
+
+fn write_statuses_to_workspace(dir: &str, statuses: &[StatusEntry]) -> Result<(), String> {
+    let path = cork_config_path(dir);
+    let mut root = fs::read_to_string(&path)
+        .ok()
+        .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
+        .filter(|v| v.is_object())
+        .unwrap_or_else(|| serde_json::json!({}));
+    let statuses_value = serde_json::to_value(statuses).map_err(|e| e.to_string())?;
+    if let Some(obj) = root.as_object_mut() {
+        obj.insert("statuses".to_string(), statuses_value);
+    }
+    let mut serialized = serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?;
+    serialized.push('\n');
+    fs::write(&path, serialized).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
