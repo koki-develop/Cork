@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { FolderOpen, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useStatusEdit } from "../../hooks/useStatusEdit";
 import type { StatusEntry } from "../../types";
 import Button from "../ui/Button";
@@ -26,6 +26,7 @@ function SettingsPanel({
   const {
     editing,
     error,
+    isDirty: statusesDirty,
     handleLabelChange,
     handleAdd,
     handleRemove,
@@ -35,15 +36,27 @@ function SettingsPanel({
     handleSave,
   } = useStatusEdit(statuses);
 
-  const onCloseRef = useRef(onClose);
+  const [pendingDir, setPendingDir] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const hasPendingChanges = pendingDir !== null || statusesDirty;
+
+  const discardAndClose = () => {
+    setPendingDir(null);
+    onClose();
+  };
+
+  const discardAndCloseRef = useRef(discardAndClose);
   useEffect(() => {
-    onCloseRef.current = onClose;
+    discardAndCloseRef.current = discardAndClose;
   });
 
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onCloseRef.current();
+      if (e.key === "Escape" && !e.defaultPrevented) {
+        discardAndCloseRef.current();
+      }
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -51,18 +64,33 @@ function SettingsPanel({
 
   if (!isOpen) return null;
 
+  const displayedDir = pendingDir ?? currentDir;
+
   const handleChangeDirectory = async () => {
-    const path = await invoke<string | null>("select_directory");
-    if (path) {
-      onDirectoryChange(path);
-      onClose();
-    }
+    const path = await invoke<string | null>("pick_directory");
+    if (path === null) return;
+    setPendingDir(path === currentDir ? null : path);
   };
 
   const handleSaveAndClose = async () => {
-    await handleSave();
-    onStatusesChange();
-    onClose();
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const saved = await handleSave();
+      if (!saved) return;
+
+      if (pendingDir !== null) {
+        await invoke("set_workspace_directory", { path: pendingDir });
+        onDirectoryChange(pendingDir);
+      } else {
+        onStatusesChange();
+      }
+
+      setPendingDir(null);
+      onClose();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -70,16 +98,23 @@ function SettingsPanel({
       <button
         type="button"
         className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"
-        onClick={onClose}
+        onClick={discardAndClose}
         aria-label="Close settings"
       />
       <div className="relative w-full max-w-md mx-4 max-h-[85vh] overflow-y-auto rounded-2xl border border-cork-border/60 bg-cork-surface/95 backdrop-blur-xl p-6 shadow-2xl">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-lg font-bold tracking-tight">Settings</h2>
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <h2 className="text-lg font-bold tracking-tight">Settings</h2>
+            {hasPendingChanges && (
+              <span className="text-[10px] font-semibold text-cork-accent-hover uppercase tracking-wider truncate">
+                • Unsaved changes
+              </span>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"
-            onClick={onClose}
+            onClick={discardAndClose}
             aria-label="Close"
           >
             <X className="size-4" />
@@ -90,9 +125,16 @@ function SettingsPanel({
           <span className="mb-1.5 block text-xs font-medium text-cork-muted uppercase tracking-wider">
             Workspace Directory
           </span>
-          <p className="truncate rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-2 text-xs font-mono text-cork-muted">
-            {currentDir}
-          </p>
+          <button
+            type="button"
+            onClick={handleChangeDirectory}
+            disabled={isSaving}
+            aria-label="Change workspace directory"
+            className="flex w-full items-center gap-2 rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-2 text-left text-xs font-mono text-cork-text cursor-pointer transition-colors hover:bg-cork-elevated/90 hover:border-cork-border/60 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-cork-elevated/60 disabled:hover:border-cork-border/40"
+          >
+            <span className="flex-1 truncate">{displayedDir}</span>
+            <FolderOpen className="size-3.5 shrink-0 text-cork-muted" />
+          </button>
         </div>
 
         {error && (
@@ -111,19 +153,16 @@ function SettingsPanel({
           onAdd={handleAdd}
         />
 
-        <div className="flex gap-2">
-          <Button variant="secondary" size="md" onClick={handleChangeDirectory}>
-            Change Directory
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={onClose}
-            className="ml-auto"
-          >
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="md" onClick={discardAndClose}>
             Cancel
           </Button>
-          <Button variant="primary" size="md" onClick={handleSaveAndClose}>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={handleSaveAndClose}
+            disabled={isSaving || !hasPendingChanges}
+          >
             Save
           </Button>
         </div>

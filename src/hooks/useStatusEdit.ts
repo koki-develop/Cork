@@ -47,25 +47,34 @@ export function useStatusEdit(initialStatuses: StatusEntry[]) {
     setDragSnapshot(null);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     const trimmed = editing
       .map((s) => s.label.trim())
       .filter((label) => label.length > 0);
-    if (trimmed.length === 0) return;
+    if (trimmed.length === 0) {
+      setError(null);
+      return true;
+    }
     const lowered = trimmed.map((label) => label.toLowerCase());
     if (new Set(lowered).size !== lowered.length) {
       setError("Duplicate labels are not allowed.");
-      return;
+      return false;
     }
     setError(null);
     await invoke("save_statuses", {
       statuses: trimmed.map((label) => ({ label })),
     });
+    return true;
   };
+
+  const isDirty =
+    editing.length !== initialStatuses.length ||
+    editing.some((entry, i) => entry.label !== initialStatuses[i]?.label);
 
   return {
     editing,
     error,
+    isDirty,
     handleLabelChange,
     handleAdd,
     handleRemove,

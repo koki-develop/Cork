@@ -8,9 +8,13 @@ type Props = {
 
 function DirectoryPicker({ onDirectorySelected }: Props) {
   async function handleSelect() {
-    const path = await invoke<string | null>("select_directory");
-    if (path) {
+    const path = await invoke<string | null>("pick_directory");
+    if (!path) return;
+    try {
+      await invoke("set_workspace_directory", { path });
       onDirectorySelected(path);
+    } catch (err) {
+      console.error("failed to set workspace directory:", err);
     }
   }
 
