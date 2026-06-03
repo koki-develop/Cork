@@ -106,11 +106,11 @@ export function useBoardDragState({
         newOrder = idx;
       }
 
+      await onTaskOrderUpdate(taskId, newOrder);
+
       if (newStatus && task && task.status !== newStatus) {
         await onTaskStatusUpdate(taskId, newStatus);
       }
-
-      await onTaskOrderUpdate(taskId, newOrder);
     }
   };
 
