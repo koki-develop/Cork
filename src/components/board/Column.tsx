@@ -23,7 +23,7 @@ function Column({ title, tasks }: Props) {
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="flex flex-col gap-2 p-3 min-h-24"
+            className="flex flex-col gap-2 p-3 min-h-24 flex-1"
           >
             {tasks.map((task, index) => (
               <Card key={task.id} task={task} index={index} />
