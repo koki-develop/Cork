@@ -1,6 +1,6 @@
 import { CollisionPriority } from "@dnd-kit/abstract";
 import { useDragOperation } from "@dnd-kit/react";
-import { useSortable } from "@dnd-kit/react/sortable";
+import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { GripVertical } from "lucide-react";
 import type { Task } from "../../types";
 import Card from "./Card";
@@ -13,7 +13,7 @@ type Props = {
 };
 
 function Column({ label, index, taskIds, tasksById }: Props) {
-  const { ref, handleRef, isDropTarget } = useSortable({
+  const { ref, handleRef } = useSortable({
     id: label,
     index,
     type: "column",
@@ -21,8 +21,11 @@ function Column({ label, index, taskIds, tasksById }: Props) {
     collisionPriority: CollisionPriority.Low,
   });
 
-  const { source } = useDragOperation();
-  const isCardDropTarget = isDropTarget && source?.type === "card";
+  const { source, target } = useDragOperation();
+  const isCardDropTarget =
+    source?.type === "card" &&
+    target != null &&
+    (target.id === label || (isSortable(target) && target.group === label));
 
   return (
     <div
