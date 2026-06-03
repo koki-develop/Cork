@@ -97,7 +97,7 @@ function SettingsPanel({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"
+        className="absolute inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
         onClick={discardAndClose}
         aria-label="Close settings"
       />

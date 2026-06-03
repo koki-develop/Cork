@@ -1,6 +1,7 @@
 import { DragDropProvider } from "@dnd-kit/react";
+import { listen } from "@tauri-apps/api/event";
 import { Settings } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useBoardDragState } from "../../hooks/useBoardDragState";
 import type { StatusEntry, Task } from "../../types";
 import SettingsPanel from "../settings/SettingsPanel";
@@ -32,6 +33,15 @@ function Board({
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const handleClose = () => setSettingsOpen(false);
+
+  useEffect(() => {
+    const unlisten = listen("menu:open-settings", () => {
+      setSettingsOpen(true);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
 
   const {
     columnOrder,
