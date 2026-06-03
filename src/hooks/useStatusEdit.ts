@@ -5,16 +5,51 @@ import type {
   DragStartEvent,
 } from "@dnd-kit/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { StatusEntry } from "../types";
 import type { EditingEntry } from "../types/settings";
 
-export function useStatusEdit(initialStatuses: StatusEntry[]) {
+type Options = {
+  onStatusesChange: () => void;
+};
+
+export function useStatusEdit(
+  initialStatuses: StatusEntry[],
+  { onStatusesChange }: Options,
+) {
   const [editing, setEditing] = useState<EditingEntry[]>(() =>
     initialStatuses.map((s) => ({ ...s, id: crypto.randomUUID() })),
   );
   const [dragSnapshot, setDragSnapshot] = useState<EditingEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const lastPersisted = useRef<StatusEntry[]>(
+    initialStatuses.map((s) => ({ label: s.label })),
+  );
+
+  const persist = async (next: EditingEntry[]): Promise<boolean> => {
+    const trimmed = next
+      .map((e) => e.label.trim())
+      .filter((label) => label.length > 0);
+    const lowered = trimmed.map((label) => label.toLowerCase());
+    if (new Set(lowered).size !== lowered.length) {
+      setError("Duplicate labels are not allowed.");
+      return false;
+    }
+    setError(null);
+
+    const candidate: StatusEntry[] = trimmed.map((label) => ({ label }));
+    const prev = lastPersisted.current;
+    const isSame =
+      prev.length === candidate.length &&
+      candidate.every((c, i) => c.label === prev[i]?.label);
+    if (isSame) return true;
+
+    await invoke("save_statuses", { statuses: candidate });
+    lastPersisted.current = candidate;
+    onStatusesChange();
+    return true;
+  };
 
   const handleLabelChange = (index: number, label: string) => {
     setEditing((prev) => {
@@ -28,8 +63,10 @@ export function useStatusEdit(initialStatuses: StatusEntry[]) {
     setEditing((prev) => [...prev, { label: "", id: crypto.randomUUID() }]);
   };
 
-  const handleRemove = (index: number) => {
-    setEditing((prev) => prev.filter((_, i) => i !== index));
+  const handleRemove = async (index: number) => {
+    const next = editing.filter((_, i) => i !== index);
+    setEditing(next);
+    await persist(next);
   };
 
   const handleDragStart = (_event: DragStartEvent) => {
@@ -40,47 +77,37 @@ export function useStatusEdit(initialStatuses: StatusEntry[]) {
     setEditing((prev) => move(prev, event));
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     if (event.canceled && dragSnapshot) {
       setEditing(dragSnapshot);
+      setDragSnapshot(null);
+      return;
     }
     setDragSnapshot(null);
+    await persist(editing);
   };
 
-  const handleSave = async (): Promise<boolean> => {
-    const trimmed = editing
-      .map((s) => s.label.trim())
-      .filter((label) => label.length > 0);
-    if (trimmed.length === 0) {
-      setError(null);
-      return true;
+  const handleLabelBlur = async (index: number) => {
+    const entry = editing[index];
+    if (!entry) return;
+    if (entry.label.trim() === "") {
+      const next = editing.filter((_, i) => i !== index);
+      setEditing(next);
+      await persist(next);
+      return;
     }
-    const lowered = trimmed.map((label) => label.toLowerCase());
-    if (new Set(lowered).size !== lowered.length) {
-      setError("Duplicate labels are not allowed.");
-      return false;
-    }
-    setError(null);
-    await invoke("save_statuses", {
-      statuses: trimmed.map((label) => ({ label })),
-    });
-    return true;
+    await persist(editing);
   };
-
-  const isDirty =
-    editing.length !== initialStatuses.length ||
-    editing.some((entry, i) => entry.label !== initialStatuses[i]?.label);
 
   return {
     editing,
     error,
-    isDirty,
     handleLabelChange,
+    handleLabelBlur,
     handleAdd,
     handleRemove,
     handleDragStart,
     handleDragOver,
     handleDragEnd,
-    handleSave,
   };
 }

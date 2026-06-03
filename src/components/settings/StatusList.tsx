@@ -12,6 +12,7 @@ import StatusRow from "./StatusRow";
 type Props = {
   editing: EditingEntry[];
   onLabelChange: (index: number, label: string) => void;
+  onLabelBlur: (index: number) => void;
   onDragStart: (event: DragStartEvent) => void;
   onDragOver: (event: DragOverEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
@@ -22,6 +23,7 @@ type Props = {
 function StatusList({
   editing,
   onLabelChange,
+  onLabelBlur,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -46,6 +48,7 @@ function StatusList({
               index={i}
               label={s.label}
               onLabelChange={onLabelChange}
+              onLabelBlur={onLabelBlur}
               onRemove={onRemove}
             />
           ))}

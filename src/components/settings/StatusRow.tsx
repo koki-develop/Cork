@@ -7,10 +7,18 @@ type Props = {
   index: number;
   label: string;
   onLabelChange: (index: number, label: string) => void;
+  onLabelBlur: (index: number) => void;
   onRemove: (index: number) => void;
 };
 
-function StatusRow({ id, index, label, onLabelChange, onRemove }: Props) {
+function StatusRow({
+  id,
+  index,
+  label,
+  onLabelChange,
+  onLabelBlur,
+  onRemove,
+}: Props) {
   const { ref, handleRef } = useSortable({
     id,
     index,
@@ -32,6 +40,7 @@ function StatusRow({ id, index, label, onLabelChange, onRemove }: Props) {
         type="text"
         value={label}
         onChange={(e) => onLabelChange(index, e.target.value)}
+        onBlur={() => onLabelBlur(index)}
         className="min-w-0 flex-1 rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-1.5 text-sm text-cork-text outline-none transition-colors duration-200 placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-1 focus:ring-cork-accent/30"
         placeholder="Status label"
         aria-label={`Status label ${index + 1}`}
