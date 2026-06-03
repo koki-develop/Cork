@@ -85,6 +85,22 @@ export function useWorkspace() {
     [loadTasks, tasks],
   );
 
+  const updateTaskOrder = useCallback(async (taskId: string, order: number) => {
+    try {
+      await invoke("update_task_order", { path: taskId, order });
+    } catch (err) {
+      console.error("failed to update task order:", err);
+    }
+  }, []);
+
+  const renumberTasks = useCallback(async (paths: string[]) => {
+    try {
+      await invoke("renumber_tasks", { paths });
+    } catch (err) {
+      console.error("failed to renumber tasks:", err);
+    }
+  }, []);
+
   const reorderStatuses = useCallback(
     async (newStatuses: StatusEntry[]) => {
       await invoke("save_statuses", { statuses: newStatuses });
@@ -101,6 +117,8 @@ export function useWorkspace() {
     loadStatuses,
     setDir,
     updateTaskStatus,
+    updateTaskOrder,
+    renumberTasks,
     reorderStatuses,
   };
 }

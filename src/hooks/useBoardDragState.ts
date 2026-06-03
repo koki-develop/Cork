@@ -8,6 +8,8 @@ type Params = {
   tasks: Task[];
   onReorderStatuses: (statuses: StatusEntry[]) => Promise<void>;
   onTaskStatusUpdate: (taskId: string, newStatus: string) => Promise<void>;
+  onTaskOrderUpdate: (taskId: string, order: number) => Promise<void>;
+  onRenumberTasks: (paths: string[]) => Promise<void>;
 };
 
 function groupTasksByStatus(
@@ -20,11 +22,20 @@ function groupTasksByStatus(
   return grouped;
 }
 
+function calculateMidpoint(prev: number | null, next: number | null): number {
+  if (prev === null && next === null) return 0.0;
+  if (prev === null) return next! / 2.0;
+  if (next === null) return prev + 1.0;
+  return (prev + next) / 2.0;
+}
+
 export function useBoardDragState({
   statuses,
   tasks,
   onReorderStatuses,
   onTaskStatusUpdate,
+  onTaskOrderUpdate,
+  onRenumberTasks,
 }: Params) {
   const tasksById = new Map(tasks.map((t) => [t.id, t]));
   const derivedColumnOrder = statuses.map((s) => s.label);
@@ -70,9 +81,36 @@ export function useBoardDragState({
         ids.includes(taskId),
       )?.[0];
       const task = tasksById.get(taskId);
+
+      const targetColumn = newStatus ?? task?.status;
+      if (!targetColumn) return;
+
+      const columnIds = tasksByColumn[targetColumn];
+      const idx = columnIds.indexOf(taskId);
+      const prevTask = idx > 0 ? tasksById.get(columnIds[idx - 1]) : null;
+      const nextTask =
+        idx < columnIds.length - 1 ? tasksById.get(columnIds[idx + 1]) : null;
+
+      let newOrder = calculateMidpoint(
+        prevTask?.order ?? null,
+        nextTask?.order ?? null,
+      );
+
+      if (
+        prevTask?.order === null ||
+        nextTask?.order === null ||
+        newOrder === prevTask?.order ||
+        newOrder === nextTask?.order
+      ) {
+        await onRenumberTasks(columnIds);
+        newOrder = idx;
+      }
+
       if (newStatus && task && task.status !== newStatus) {
         await onTaskStatusUpdate(taskId, newStatus);
       }
+
+      await onTaskOrderUpdate(taskId, newOrder);
     }
   };
 

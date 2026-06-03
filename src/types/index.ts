@@ -7,4 +7,5 @@ export interface Task {
   title: string;
   status: string;
   body: string;
+  order: number | null;
 }

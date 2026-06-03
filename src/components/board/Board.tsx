@@ -14,6 +14,8 @@ type Props = {
   currentDir: string;
   onDirectoryChange: (path: string) => void;
   onTaskStatusUpdate: (taskId: string, newStatus: string) => Promise<void>;
+  onTaskOrderUpdate: (taskId: string, order: number) => Promise<void>;
+  onRenumberTasks: (paths: string[]) => Promise<void>;
   onReorderStatuses: (statuses: StatusEntry[]) => Promise<void>;
 };
 
@@ -24,6 +26,8 @@ function Board({
   currentDir,
   onDirectoryChange,
   onTaskStatusUpdate,
+  onTaskOrderUpdate,
+  onRenumberTasks,
   onReorderStatuses,
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -40,6 +44,8 @@ function Board({
     tasks,
     onReorderStatuses,
     onTaskStatusUpdate,
+    onTaskOrderUpdate,
+    onRenumberTasks,
   });
 
   return (

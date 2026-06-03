@@ -10,6 +10,8 @@ function App() {
     loadStatuses,
     setDir,
     updateTaskStatus,
+    updateTaskOrder,
+    renumberTasks,
     reorderStatuses,
   } = useWorkspace();
 
@@ -25,6 +27,8 @@ function App() {
       currentDir={dir}
       onDirectoryChange={setDir}
       onTaskStatusUpdate={updateTaskStatus}
+      onTaskOrderUpdate={updateTaskOrder}
+      onRenumberTasks={renumberTasks}
       onReorderStatuses={reorderStatuses}
     />
   );
