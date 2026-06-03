@@ -1,8 +1,8 @@
 import { Settings } from "lucide-react";
 import { useCallback, useState } from "react";
+import type { StatusEntry, Task } from "../../types";
+import SettingsPanel from "../settings/SettingsPanel";
 import Column from "./Column";
-import SettingsPanel from "./SettingsPanel";
-import type { StatusEntry, Task } from "./types";
 
 const STATUS_COLORS = [
   "bg-gray-600",

@@ -1,5 +1,5 @@
+import type { StatusEntry, Task } from "../../types";
 import Card from "./Card";
-import type { StatusEntry, Task } from "./types";
 
 type Props = {
   title: string;

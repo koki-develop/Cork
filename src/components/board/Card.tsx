@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { StatusEntry, Task } from "./types";
+import type { StatusEntry, Task } from "../../types";
 
 type Props = {
   task: Task;
