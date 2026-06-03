@@ -85,6 +85,14 @@ export function useWorkspace() {
     [loadTasks, tasks],
   );
 
+  const reorderStatuses = useCallback(
+    async (newStatuses: StatusEntry[]) => {
+      await invoke("save_statuses", { statuses: newStatuses });
+      await loadStatuses();
+    },
+    [loadStatuses],
+  );
+
   return {
     dir,
     tasks,
@@ -93,5 +101,6 @@ export function useWorkspace() {
     loadStatuses,
     setDir,
     updateTaskStatus,
+    reorderStatuses,
   };
 }

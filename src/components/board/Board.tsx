@@ -1,6 +1,7 @@
-import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react";
+import { DragDropProvider } from "@dnd-kit/react";
 import { Settings } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
+import { useBoardDragState } from "../../hooks/useBoardDragState";
 import type { StatusEntry, Task } from "../../types";
 import SettingsPanel from "../settings/SettingsPanel";
 import Button from "../ui/Button";
@@ -13,6 +14,7 @@ type Props = {
   currentDir: string;
   onDirectoryChange: (path: string) => void;
   onTaskStatusUpdate: (taskId: string, newStatus: string) => Promise<void>;
+  onReorderStatuses: (statuses: StatusEntry[]) => Promise<void>;
 };
 
 function Board({
@@ -22,25 +24,27 @@ function Board({
   currentDir,
   onDirectoryChange,
   onTaskStatusUpdate,
+  onReorderStatuses,
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const handleClose = useCallback(() => setSettingsOpen(false), []);
+  const handleClose = () => setSettingsOpen(false);
 
-  const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
-      if (event.canceled) return;
-      const { source, target } = event.operation;
-      if (!source || !target) return;
-      const task = tasks.find((t) => t.id === String(source.id));
-      if (!task || task.status === target.id) return;
-      await onTaskStatusUpdate(String(source.id), String(target.id));
-    },
-    [onTaskStatusUpdate, tasks],
-  );
+  const {
+    columnOrder,
+    tasksByColumn,
+    tasksById,
+    handleDragOver,
+    handleDragEnd,
+  } = useBoardDragState({
+    statuses,
+    tasks,
+    onReorderStatuses,
+    onTaskStatusUpdate,
+  });
 
   return (
     <>
-      <DragDropProvider onDragEnd={handleDragEnd}>
+      <DragDropProvider onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
         <div className="flex h-screen flex-col overflow-hidden">
           <header className="flex shrink-0 items-center justify-between border-b border-cork-border/50 px-6 py-3">
             <div className="flex items-center gap-3">
@@ -65,11 +69,13 @@ function Board({
           </header>
 
           <div className="flex flex-1 gap-5 overflow-x-auto overflow-y-hidden p-6">
-            {statuses.map((s) => (
+            {columnOrder.map((label, i) => (
               <Column
-                key={s.label}
-                title={s.label}
-                tasks={tasks.filter((t) => t.status === s.label)}
+                key={label}
+                label={label}
+                index={i}
+                taskIds={tasksByColumn[label] ?? []}
+                tasksById={tasksById}
               />
             ))}
           </div>

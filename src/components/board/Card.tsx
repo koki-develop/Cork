@@ -1,15 +1,19 @@
-import { useDraggable } from "@dnd-kit/react";
-import { memo } from "react";
+import { useSortable } from "@dnd-kit/react/sortable";
 import type { Task } from "../../types";
 
 type Props = {
   task: Task;
+  group: string;
+  index: number;
 };
 
-function Card({ task }: Props) {
-  const { ref, isDragging } = useDraggable({
+function Card({ task, group, index }: Props) {
+  const { ref, isDragging } = useSortable({
     id: task.id,
+    index,
+    group,
     type: "card",
+    accept: "card",
   });
 
   const bodyPreview = task.body
@@ -35,6 +39,4 @@ function Card({ task }: Props) {
   );
 }
 
-const MemoizedCard = memo(Card);
-
-export default MemoizedCard;
+export default Card;
