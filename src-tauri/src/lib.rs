@@ -2,6 +2,7 @@ use gray_matter::engine::YAML;
 use gray_matter::Matter;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -58,6 +59,7 @@ fn get_workspace_directory(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Option<String> {
+    use tauri_plugin_fs::FsExt;
     use tauri_plugin_store::StoreExt;
 
     {
@@ -70,8 +72,11 @@ fn get_workspace_directory(
     if let Ok(store) = app.store("settings.json") {
         if let Some(value) = store.get("workspace_dir") {
             if let Some(dir) = value.as_str() {
-                if std::path::Path::new(dir).exists() {
+                if Path::new(dir).exists() {
                     *state.workspace_dir.lock().unwrap() = Some(dir.to_string());
+                    if let Err(e) = app.fs_scope().allow_directory(Path::new(dir), false) {
+                        eprintln!("failed to allow directory in fs scope: {e}");
+                    }
                     return Some(dir.to_string());
                 }
             }

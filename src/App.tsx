@@ -40,7 +40,7 @@ function App() {
       setStatuses(result.length > 0 ? result : DEFAULT_STATUSES);
     });
 
-    const w = watch(
+    const watchPromise = watch(
       dir,
       (event) => {
         const hasMdFile = event.paths.some((p: string) => p.endsWith(".md"));
@@ -50,9 +50,10 @@ function App() {
       },
       { recursive: false, delayMs: 300 },
     );
+    watchPromise.catch((err) => console.error("watch failed:", err));
 
     return () => {
-      w.then((unwatch) => unwatch());
+      watchPromise.then((unwatch) => unwatch());
     };
   }, [dir, loadTasks]);
 
