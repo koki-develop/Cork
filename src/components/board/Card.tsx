@@ -1,4 +1,5 @@
 import { useSortable } from "@dnd-kit/react/sortable";
+import { clsx } from "clsx";
 import type { Task } from "../../types";
 
 type Props = {
@@ -25,7 +26,10 @@ function Card({ task, group, index }: Props) {
   return (
     <div
       ref={ref}
-      className={`cursor-grab active:cursor-grabbing rounded-xl border border-cork-border/30 bg-cork-elevated/80 p-3.5 transition-all duration-200 hover:border-cork-border hover:bg-cork-elevated ${isDragging ? "opacity-50 ring-2 ring-cork-accent/30" : ""}`}
+      className={clsx(
+        "cursor-grab active:cursor-grabbing rounded-xl border border-cork-border/30 bg-cork-elevated/80 p-3.5 transition-all duration-200 hover:border-cork-border hover:bg-cork-elevated",
+        isDragging && "opacity-50 ring-2 ring-cork-accent/30",
+      )}
     >
       <h3 className="text-sm font-medium leading-snug text-cork-text">
         {task.title}

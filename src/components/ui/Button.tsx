@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import type { ComponentPropsWithRef } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "dashed";
@@ -39,10 +40,6 @@ const sizeStyles: Record<Size, string> = {
   lg: "px-6 py-3 text-sm",
 };
 
-function cn(...classes: (string | false | undefined | null)[]) {
-  return classes.filter(Boolean).join(" ");
-}
-
 function Button({
   variant = "ghost",
   color = "default",
@@ -53,7 +50,7 @@ function Button({
   return (
     <button
       type="button"
-      className={cn(
+      className={clsx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg transition-colors duration-200 cursor-pointer",
         "disabled:opacity-40 disabled:pointer-events-none",
         variantStyles[variant][color],

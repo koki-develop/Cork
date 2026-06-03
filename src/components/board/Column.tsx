@@ -1,6 +1,7 @@
 import { CollisionPriority } from "@dnd-kit/abstract";
 import { useDragOperation } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
+import { clsx } from "clsx";
 import { GripVertical } from "lucide-react";
 import type { Task } from "../../types";
 import Card from "./Card";
@@ -43,7 +44,11 @@ function Column({ label, index, taskIds, tasksById }: Props) {
         </span>
       </div>
       <div
-        className={`flex flex-col gap-2 p-3 min-h-24 flex-1 transition-colors duration-200 ${isCardDropTarget ? "bg-cork-accent/[0.06] ring-1 ring-inset ring-cork-accent/30" : ""}`}
+        className={clsx(
+          "flex flex-col gap-2 p-3 min-h-24 flex-1 transition-colors duration-200",
+          isCardDropTarget &&
+            "bg-cork-accent/[0.06] ring-1 ring-inset ring-cork-accent/30",
+        )}
       >
         {taskIds.map((id, i) => {
           const task = tasksById.get(id);
