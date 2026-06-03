@@ -1,3 +1,3 @@
 import type { StatusEntry } from "./index";
 
-export type EditingEntry = StatusEntry & { _key: string };
+export type EditingEntry = StatusEntry & { id: string };

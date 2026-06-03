@@ -29,8 +29,9 @@ function SettingsPanel({
     handleLabelChange,
     handleAdd,
     handleRemove,
-    handleMoveUp,
-    handleMoveDown,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
     handleSave,
   } = useStatusEdit(statuses);
 
@@ -42,7 +43,7 @@ function SettingsPanel({
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
+      if (e.key === "Escape" && !e.defaultPrevented) onCloseRef.current();
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -103,8 +104,9 @@ function SettingsPanel({
         <StatusList
           editing={editing}
           onLabelChange={handleLabelChange}
-          onMoveUp={handleMoveUp}
-          onMoveDown={handleMoveDown}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
           onRemove={handleRemove}
           onAdd={handleAdd}
         />

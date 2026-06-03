@@ -1,29 +1,33 @@
-import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { useSortable } from "@dnd-kit/react/sortable";
+import { GripVertical, Trash2 } from "lucide-react";
 import Button from "../ui/Button";
 
 type Props = {
-  label: string;
+  id: string;
   index: number;
-  isFirst: boolean;
-  isLast: boolean;
+  label: string;
   onLabelChange: (index: number, label: string) => void;
-  onMoveUp: (index: number) => void;
-  onMoveDown: (index: number) => void;
   onRemove: (index: number) => void;
 };
 
-function StatusRow({
-  label,
-  index,
-  isFirst,
-  isLast,
-  onLabelChange,
-  onMoveUp,
-  onMoveDown,
-  onRemove,
-}: Props) {
+function StatusRow({ id, index, label, onLabelChange, onRemove }: Props) {
+  const { ref, handleRef } = useSortable({
+    id,
+    index,
+    type: "status-row",
+    accept: "status-row",
+  });
+
   return (
-    <div className="flex items-center gap-1.5">
+    <div ref={ref} className="flex items-center gap-1.5">
+      <button
+        ref={handleRef}
+        type="button"
+        aria-label={`Drag to reorder status ${index + 1}`}
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded text-cork-muted cursor-grab active:cursor-grabbing focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cork-accent/50"
+      >
+        <GripVertical className="size-3.5" />
+      </button>
       <input
         type="text"
         value={label}
@@ -32,24 +36,6 @@ function StatusRow({
         placeholder="Status label"
         aria-label={`Status label ${index + 1}`}
       />
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onMoveUp(index)}
-        disabled={isFirst}
-        aria-label="Move up"
-      >
-        <ArrowUp className="size-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onMoveDown(index)}
-        disabled={isLast}
-        aria-label="Move down"
-      >
-        <ArrowDown className="size-3.5" />
-      </Button>
       <Button
         variant="ghost"
         color="danger"

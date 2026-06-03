@@ -1,3 +1,9 @@
+import {
+  DragDropProvider,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/react";
 import { Plus } from "lucide-react";
 import type { EditingEntry } from "../../types/settings";
 import Button from "../ui/Button";
@@ -6,8 +12,9 @@ import StatusRow from "./StatusRow";
 type Props = {
   editing: EditingEntry[];
   onLabelChange: (index: number, label: string) => void;
-  onMoveUp: (index: number) => void;
-  onMoveDown: (index: number) => void;
+  onDragStart: (event: DragStartEvent) => void;
+  onDragOver: (event: DragOverEvent) => void;
+  onDragEnd: (event: DragEndEvent) => void;
   onRemove: (index: number) => void;
   onAdd: () => void;
 };
@@ -15,8 +22,9 @@ type Props = {
 function StatusList({
   editing,
   onLabelChange,
-  onMoveUp,
-  onMoveDown,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
   onRemove,
   onAdd,
 }: Props) {
@@ -25,21 +33,24 @@ function StatusList({
       <span className="mb-2 block text-xs font-medium text-cork-muted uppercase tracking-wider">
         Statuses
       </span>
-      <div className="flex flex-col gap-1.5">
-        {editing.map((s, i) => (
-          <StatusRow
-            key={s._key}
-            label={s.label}
-            index={i}
-            isFirst={i === 0}
-            isLast={i === editing.length - 1}
-            onLabelChange={onLabelChange}
-            onMoveUp={onMoveUp}
-            onMoveDown={onMoveDown}
-            onRemove={onRemove}
-          />
-        ))}
-      </div>
+      <DragDropProvider
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+      >
+        <div className="flex flex-col gap-1.5">
+          {editing.map((s, i) => (
+            <StatusRow
+              key={s.id}
+              id={s.id}
+              index={i}
+              label={s.label}
+              onLabelChange={onLabelChange}
+              onRemove={onRemove}
+            />
+          ))}
+        </div>
+      </DragDropProvider>
       <Button
         variant="dashed"
         size="md"
