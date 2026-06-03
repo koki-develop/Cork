@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { FolderOpen } from "lucide-react";
 
 type Props = {
   onDirectorySelected: (path: string) => void;
@@ -13,15 +14,24 @@ function DirectoryPicker({ onDirectorySelected }: Props) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-900 text-white">
-      <h1 className="text-3xl font-bold">Cork</h1>
-      <p className="text-gray-400">Select a workspace directory to start</p>
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 select-none">
+      <div className="flex flex-col items-center gap-3">
+        <div className="flex size-16 items-center justify-center rounded-2xl bg-cork-accent/10 ring-1 ring-cork-accent/20">
+          <FolderOpen className="size-8 text-cork-accent" />
+        </div>
+        <h1 className="text-4xl font-bold tracking-tight">Cork</h1>
+        <p className="text-cork-muted text-sm">
+          Kanban board for local Markdown files
+        </p>
+      </div>
+
       <button
         type="button"
         onClick={handleSelect}
-        className="rounded bg-blue-600 px-6 py-3 font-semibold hover:bg-blue-500 transition-colors"
+        className="group relative inline-flex items-center gap-2 rounded-xl bg-cork-accent px-6 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-cork-accent-hover active:scale-[0.98] cursor-pointer"
       >
-        Select Directory
+        <FolderOpen className="size-4 transition-transform duration-200 group-hover:-translate-y-0.5" />
+        Select Workspace Directory
       </button>
     </main>
   );

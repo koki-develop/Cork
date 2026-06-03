@@ -1,1 +1,41 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-cork-bg: #020617;
+  --color-cork-surface: #0f172a;
+  --color-cork-elevated: #1e293b;
+  --color-cork-border: #334155;
+  --color-cork-muted: #94a3b8;
+  --color-cork-text: #f1f5f9;
+  --color-cork-accent: #6366f1;
+  --color-cork-accent-hover: #818cf8;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-cork-bg text-cork-text font-sans;
+  }
+
+  ::selection {
+    @apply bg-cork-accent/30 text-cork-text;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms;
+      animation-iteration-count: 1;
+      transition-duration: 0.01ms;
+    }
+  }
+}

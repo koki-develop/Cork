@@ -5,22 +5,9 @@ import type { StatusEntry, Task } from "../../types";
 import SettingsPanel from "../settings/SettingsPanel";
 import Column from "./Column";
 
-const STATUS_COLORS = [
-  "bg-gray-600",
-  "bg-blue-600",
-  "bg-green-600",
-  "bg-yellow-600",
-  "bg-purple-600",
-  "bg-pink-600",
-  "bg-indigo-600",
-  "bg-red-600",
-  "bg-teal-600",
-];
-
 type Props = {
   tasks: Task[];
   statuses: StatusEntry[];
-  onStatusChange: () => void;
   onStatusesChange: () => void;
   currentDir: string;
   onDirectoryChange: (path: string) => void;
@@ -30,7 +17,6 @@ type Props = {
 function Board({
   tasks,
   statuses,
-  onStatusChange,
   onStatusesChange,
   currentDir,
   onDirectoryChange,
@@ -54,25 +40,38 @@ function Board({
   return (
     <>
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="relative flex min-h-screen gap-4 overflow-x-auto bg-gray-900 p-6">
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="absolute right-4 top-4 rounded p-2 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-            aria-label="Settings"
-          >
-            <Settings className="size-5" />
-          </button>
-          {statuses.map((s, i) => (
-            <Column
-              key={s.label}
-              title={s.label}
-              tasks={tasks.filter((t) => t.status === s.label)}
-              color={STATUS_COLORS[i % STATUS_COLORS.length]}
-              statuses={statuses}
-              onStatusChange={onStatusChange}
-            />
-          ))}
+        <div className="flex h-screen flex-col overflow-hidden">
+          <header className="flex shrink-0 items-center justify-between border-b border-cork-border/50 px-6 py-3">
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-bold tracking-tight">Cork</h1>
+              <span className="text-cork-muted text-xs font-mono truncate max-w-64">
+                {currentDir}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-cork-muted">
+                {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="rounded-lg p-2 text-cork-muted transition-colors duration-200 hover:bg-cork-elevated hover:text-cork-text cursor-pointer"
+                aria-label="Settings"
+              >
+                <Settings className="size-4" />
+              </button>
+            </div>
+          </header>
+
+          <div className="flex flex-1 gap-5 overflow-x-auto overflow-y-hidden p-6">
+            {statuses.map((s) => (
+              <Column
+                key={s.label}
+                title={s.label}
+                tasks={tasks.filter((t) => t.status === s.label)}
+              />
+            ))}
+          </div>
         </div>
       </DragDropContext>
       <SettingsPanel

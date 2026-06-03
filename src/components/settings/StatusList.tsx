@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import type { EditingEntry } from "../../types/settings";
 import StatusRow from "./StatusRow";
 
@@ -19,8 +20,10 @@ function StatusList({
   onAdd,
 }: Props) {
   return (
-    <div className="mb-6">
-      <span className="mb-2 block text-sm text-gray-400">Statuses</span>
+    <div className="mb-5">
+      <span className="mb-2 block text-xs font-medium text-cork-muted uppercase tracking-wider">
+        Statuses
+      </span>
       <div className="flex flex-col gap-1.5">
         {editing.map((s, i) => (
           <StatusRow
@@ -39,9 +42,10 @@ function StatusList({
       <button
         type="button"
         onClick={onAdd}
-        className="mt-2 w-full rounded bg-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 transition-colors"
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-cork-border/40 px-3 py-2 text-xs text-cork-muted transition-colors duration-200 hover:border-cork-border hover:bg-cork-elevated/50 hover:text-cork-text cursor-pointer"
       >
-        + Add Status
+        <Plus className="size-3.5" />
+        Add Status
       </button>
     </div>
   );

@@ -68,13 +68,21 @@ export function useWorkspace() {
 
   const updateTaskStatus = useCallback(
     async (taskId: string, newStatus: string) => {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
+      const prev = tasks;
+      setTasks((prevTasks) =>
+        prevTasks.map((t) =>
+          t.id === taskId ? { ...t, status: newStatus } : t,
+        ),
       );
-      await invoke("update_task_status", { path: taskId, status: newStatus });
-      await loadTasks();
+      try {
+        await invoke("update_task_status", { path: taskId, status: newStatus });
+        await loadTasks();
+      } catch (err) {
+        console.error("failed to update task status:", err);
+        setTasks(prev);
+      }
     },
-    [loadTasks],
+    [loadTasks, tasks],
   );
 
   return {

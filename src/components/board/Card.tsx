@@ -1,28 +1,19 @@
 import { Draggable } from "@hello-pangea/dnd";
-import { invoke } from "@tauri-apps/api/core";
-import type { StatusEntry, Task } from "../../types";
+import { GripHorizontal } from "lucide-react";
+import { memo } from "react";
+import type { Task } from "../../types";
 
 type Props = {
   task: Task;
   index: number;
-  statuses: StatusEntry[];
-  onStatusChange: () => void;
 };
 
-function Card({ task, index, statuses, onStatusChange }: Props) {
-  async function handleStatusClick(nextStatus: string) {
-    if (nextStatus === task.status) return;
-    await invoke("update_task_status", { path: task.id, status: nextStatus });
-    onStatusChange();
-  }
-
+function Card({ task, index }: Props) {
   const bodyPreview = task.body
     .split("\n")
     .slice(0, 3)
     .filter((l) => l.trim())
     .join("\n");
-
-  const otherStatuses = statuses.filter((s) => s.label !== task.status);
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -31,25 +22,20 @@ function Card({ task, index, statuses, onStatusChange }: Props) {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className="rounded-lg bg-gray-700 p-3 shadow"
+          className="group cursor-pointer rounded-xl border border-cork-border/30 bg-cork-elevated/80 p-3.5 transition-all duration-200 hover:border-cork-border hover:bg-cork-elevated"
         >
-          <h3 className="font-semibold text-white mb-1">{task.title}</h3>
-          {bodyPreview && (
-            <pre className="text-sm text-gray-400 whitespace-pre-wrap line-clamp-3">
-              {bodyPreview}
-            </pre>
-          )}
-          <div className="mt-2 flex gap-1">
-            {otherStatuses.map((s) => (
-              <button
-                type="button"
-                key={s.label}
-                onClick={() => handleStatusClick(s.label)}
-                className="text-xs rounded bg-gray-600 px-2 py-0.5 text-gray-300 hover:bg-gray-500 transition-colors"
-              >
-                Move to {s.label}
-              </button>
-            ))}
+          <div className="flex items-start gap-2">
+            <GripHorizontal className="mt-0.5 size-3.5 shrink-0 text-cork-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-medium leading-snug text-cork-text">
+                {task.title}
+              </h3>
+              {bodyPreview && (
+                <p className="mt-1.5 text-xs leading-relaxed text-cork-muted line-clamp-2">
+                  {bodyPreview}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -57,4 +43,6 @@ function Card({ task, index, statuses, onStatusChange }: Props) {
   );
 }
 
-export default Card;
+const MemoizedCard = memo(Card);
+
+export default MemoizedCard;

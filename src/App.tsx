@@ -3,15 +3,8 @@ import DirectoryPicker from "./components/directory/DirectoryPicker";
 import { useWorkspace } from "./hooks/useWorkspace";
 
 function App() {
-  const {
-    dir,
-    tasks,
-    statuses,
-    loadTasks,
-    loadStatuses,
-    setDir,
-    updateTaskStatus,
-  } = useWorkspace();
+  const { dir, tasks, statuses, loadStatuses, setDir, updateTaskStatus } =
+    useWorkspace();
 
   if (!dir) {
     return <DirectoryPicker onDirectorySelected={setDir} />;
@@ -21,7 +14,6 @@ function App() {
     <Board
       tasks={tasks}
       statuses={statuses}
-      onStatusChange={loadTasks}
       onStatusesChange={loadStatuses}
       currentDir={dir}
       onDirectoryChange={setDir}
