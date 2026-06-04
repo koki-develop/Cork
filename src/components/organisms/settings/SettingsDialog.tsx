@@ -5,7 +5,7 @@ import type {
 } from "@dnd-kit/react";
 import { X } from "lucide-react";
 import { Heading } from "@/components/atoms";
-import { ErrorBanner, IconButton } from "@/components/molecules";
+import { IconButton } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import type { EditingEntry } from "@/types";
 import { StatusList } from "./StatusList";
@@ -60,10 +60,9 @@ export function SettingsDialog({
         onPickDirectory={onPickDirectory}
       />
 
-      {error && <ErrorBanner className="mb-4">{error}</ErrorBanner>}
-
       <StatusList
         editing={editing}
+        error={error}
         onLabelChange={onLabelChange}
         onLabelBlur={onLabelBlur}
         onAdd={onAdd}

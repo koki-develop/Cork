@@ -6,11 +6,13 @@ import {
 } from "@dnd-kit/react";
 import { Plus } from "lucide-react";
 import { Button, Text } from "@/components/atoms";
+import { ErrorBanner } from "@/components/molecules";
 import type { EditingEntry } from "@/types";
 import { StatusRow } from "./StatusRow";
 
 export type StatusListProps = {
   editing: EditingEntry[];
+  error: string | null;
   onLabelChange: (index: number, label: string) => void;
   onLabelBlur: (index: number) => void;
   onDragStart: (event: DragStartEvent) => void;
@@ -22,6 +24,7 @@ export type StatusListProps = {
 
 export function StatusList({
   editing,
+  error,
   onLabelChange,
   onLabelBlur,
   onDragStart,
@@ -35,6 +38,9 @@ export function StatusList({
       <Text variant="label" size="xs" className="mb-2 block">
         Statuses
       </Text>
+
+      {error && <ErrorBanner className="mb-4">{error}</ErrorBanner>}
+
       <DragDropProvider
         onDragStart={onDragStart}
         onDragOver={onDragOver}
