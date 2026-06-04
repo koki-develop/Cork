@@ -1,7 +1,11 @@
 import { move } from "@dnd-kit/helpers";
 import type { DragEndEvent, DragOverEvent } from "@dnd-kit/react";
 import { useState } from "react";
-import { calculateMidpoint, groupTasksByStatus } from "@/lib/board";
+import {
+  calculateMidpoint,
+  groupTasksByStatus,
+  UNKNOWN_STATUS,
+} from "@/lib/board";
 import type { StatusEntry, Task } from "@/types";
 
 type Params = {
@@ -22,7 +26,7 @@ export function useBoardDragState({
   onRenumberTasks,
 }: Params) {
   const tasksById = new Map(tasks.map((t) => [t.id, t]));
-  const derivedColumnOrder = statuses.map((s) => s.label);
+  const derivedColumnOrder = [UNKNOWN_STATUS, ...statuses.map((s) => s.label)];
   const derivedTasksByColumn = groupTasksByStatus(statuses, tasks);
 
   const [columnOrder, setColumnOrder] = useState(derivedColumnOrder);
@@ -52,10 +56,14 @@ export function useBoardDragState({
 
     if (source.type === "column") {
       const statusByLabel = new Map(statuses.map((s) => [s.label, s]));
-      const reordered = columnOrder
+      const reorderedLabels = columnOrder.filter((label) =>
+        statusByLabel.has(label),
+      );
+      const reordered = reorderedLabels
         .map((label) => statusByLabel.get(label))
         .filter((s): s is StatusEntry => s != null);
       await onReorderStatuses(reordered);
+      setColumnOrder([UNKNOWN_STATUS, ...reorderedLabels]);
       return;
     }
 
@@ -68,6 +76,11 @@ export function useBoardDragState({
 
       const targetColumn = newStatus ?? task?.status;
       if (!targetColumn) return;
+
+      if (newStatus === UNKNOWN_STATUS) {
+        setTasksByColumn(groupTasksByStatus(statuses, tasks));
+        return;
+      }
 
       const columnIds = tasksByColumn[targetColumn];
       const idx = columnIds.indexOf(taskId);

@@ -27,8 +27,7 @@ struct StatusEntry {
 
 #[derive(Deserialize)]
 struct Frontmatter {
-    #[serde(default)]
-    status: String,
+    status: Option<String>,
     #[serde(default)]
     order: Option<f64>,
 }
@@ -104,11 +103,6 @@ fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
     };
     drop(dir_guard);
 
-    let default_status = read_statuses_from_workspace(&dir)
-        .first()
-        .map(|s| s.label.clone())
-        .unwrap_or_default();
-
     let path = PathBuf::from(&dir);
     let mut tasks = Vec::new();
 
@@ -123,15 +117,17 @@ fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
                         .unwrap_or("")
                         .to_string();
                     let (fm, body) = parse_frontmatter(&content);
+                    let Some(f) = fm else { continue };
+                    let Some(status) = f.status else { continue };
+                    if status.is_empty() {
+                        continue;
+                    }
                     tasks.push(Task {
                         id: file_path.to_string_lossy().to_string(),
                         title,
-                        status: fm
-                            .as_ref()
-                            .map(|f| f.status.clone())
-                            .unwrap_or_else(|| default_status.clone()),
+                        status,
                         body,
-                        order: fm.and_then(|f| f.order),
+                        order: f.order,
                     });
                 }
             }
@@ -357,13 +353,12 @@ fn save_statuses(
     md_files.par_iter().try_for_each(|path| -> Result<(), String> {
         let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
         let (fm, _) = parse_frontmatter(&content);
-        let Some(current_status) = fm.as_ref().map(|f| f.status.as_str()) else {
+        let Some(f) = fm else { return Ok(()) };
+        let Some(status) = f.status.as_ref() else { return Ok(()) };
+        let Some(new_label) = rename_map.get(status.as_str()) else {
             return Ok(());
         };
-        let Some(new_label) = rename_map.get(current_status) else {
-            return Ok(());
-        };
-        if new_label == current_status {
+        if new_label == status {
             return Ok(());
         }
         let updated =

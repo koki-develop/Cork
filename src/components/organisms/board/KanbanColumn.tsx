@@ -15,6 +15,9 @@ export type KanbanColumnProps = {
   taskIds: string[];
   tasksById: Map<string, Task>;
   onCreateTask: (status: string) => void;
+  showNewTaskButton?: boolean;
+  draggable?: boolean;
+  displayLabel?: string;
 };
 
 export function KanbanColumn({
@@ -23,17 +26,21 @@ export function KanbanColumn({
   taskIds,
   tasksById,
   onCreateTask,
+  showNewTaskButton = true,
+  draggable = true,
+  displayLabel,
 }: KanbanColumnProps) {
   const { ref, handleRef } = useSortable({
     id: label,
     index,
     type: "column",
-    accept: ["column", "card"],
+    accept: draggable ? ["column", "card"] : [],
     collisionPriority: CollisionPriority.Low,
   });
 
   const { source, target } = useDragOperation();
   const isCardDropTarget =
+    draggable &&
     source?.type === "card" &&
     target != null &&
     (target.id === label || (isSortable(target) && target.group === label));
@@ -44,12 +51,16 @@ export function KanbanColumn({
       className="flex w-72 shrink-0 flex-col rounded-xl border border-cork-border/40 bg-cork-surface/60 min-h-0 max-h-full"
     >
       <div className="flex items-center gap-2 border-b border-cork-border/40 px-4 py-3">
-        <DragHandle
-          handleRef={handleRef as Ref<HTMLButtonElement>}
-          aria-label={`Drag to reorder column ${label}`}
-        />
+        {draggable && handleRef ? (
+          <DragHandle
+            handleRef={handleRef as Ref<HTMLButtonElement>}
+            aria-label={`Drag to reorder column ${label}`}
+          />
+        ) : (
+          <div className="size-8" />
+        )}
         <Heading level={2} variant="section" className="truncate min-w-0">
-          {label}
+          {displayLabel ?? label}
         </Heading>
         <Badge className="ml-auto">{taskIds.length}</Badge>
       </div>
@@ -60,15 +71,17 @@ export function KanbanColumn({
             "bg-cork-accent/[0.06] ring-1 ring-inset ring-cork-accent/30",
         )}
       >
-        <Button
-          variant="dashed"
-          size="sm"
-          onClick={() => onCreateTask(label)}
-          className="w-full shrink-0"
-        >
-          <Plus className="size-3.5" />
-          New Task
-        </Button>
+        {showNewTaskButton && (
+          <Button
+            variant="dashed"
+            size="sm"
+            onClick={() => onCreateTask(label)}
+            className="w-full shrink-0"
+          >
+            <Plus className="size-3.5" />
+            New Task
+          </Button>
+        )}
         <div className="flex flex-col gap-2 flex-1 overflow-y-auto min-h-24">
           {taskIds.map((id, i) => {
             const task = tasksById.get(id);

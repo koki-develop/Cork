@@ -1,12 +1,22 @@
 import type { StatusEntry, Task } from "@/types";
 
+export const UNKNOWN_STATUS = "__unknown__";
+
 export function groupTasksByStatus(
   statuses: StatusEntry[],
   tasks: Task[],
 ): Record<string, string[]> {
+  const definedLabels = new Set(statuses.map((s) => s.label));
   const grouped: Record<string, string[]> = {};
   for (const s of statuses) grouped[s.label] = [];
-  for (const t of tasks) grouped[t.status]?.push(t.id);
+  grouped[UNKNOWN_STATUS] = [];
+  for (const t of tasks) {
+    if (definedLabels.has(t.status)) {
+      grouped[t.status]?.push(t.id);
+    } else {
+      grouped[UNKNOWN_STATUS]?.push(t.id);
+    }
+  }
   return grouped;
 }
 

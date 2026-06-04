@@ -8,6 +8,7 @@ import { AppHeader } from "@/components/organisms/shell";
 import { BoardLayout } from "@/components/templates";
 import { useBoardDragState } from "@/hooks/useBoardDragState";
 import { useStatusEdit } from "@/hooks/useStatusEdit";
+import { UNKNOWN_STATUS } from "@/lib/board";
 import type { StatusEntry, Task } from "@/types";
 
 export type BoardPageProps = {
@@ -116,16 +117,24 @@ export function BoardPage({
             />
           }
         >
-          {columnOrder.map((label, i) => (
-            <KanbanColumn
-              key={label}
-              label={label}
-              index={i}
-              taskIds={tasksByColumn[label] ?? []}
-              tasksById={tasksById}
-              onCreateTask={openCreateDialog}
-            />
-          ))}
+          {columnOrder.map((label, i) => {
+            const isUnknown = label === UNKNOWN_STATUS;
+            if (isUnknown && (tasksByColumn[label] ?? []).length === 0)
+              return null;
+            return (
+              <KanbanColumn
+                key={label}
+                label={label}
+                displayLabel={isUnknown ? "Unknown" : undefined}
+                index={i}
+                taskIds={tasksByColumn[label] ?? []}
+                tasksById={tasksById}
+                onCreateTask={openCreateDialog}
+                showNewTaskButton={!isUnknown}
+                draggable={!isUnknown}
+              />
+            );
+          })}
         </BoardLayout>
       </DragDropProvider>
       <CreateTaskDialog

@@ -97,23 +97,31 @@ statuses 設定はグローバル `settings.json` ではなく、現在選択中
 - **THEN** `Err("No directory selected")` 相当のエラーが返る
 - **AND** ファイルシステムに副作用は無い
 
-### Requirement: `list_tasks` のデフォルトステータスは `.cork.json` から読まれる
+### Requirement: frontmatter に `status` を持たない `.md` ファイルは `list_tasks` に含めない
 
-frontmatter に `status` を持たない `.md` ファイルにマッピングするデフォルトステータスは、グローバルストアではなく作業ディレクトリの `.cork.json` から取得しなければならない (MUST)。デフォルトは `.cork.json` の `statuses` 配列の先頭要素の `label` を使用する (SHALL)。
+frontmatter に `status` キーを持たない `.md` ファイルは Cork の管理対象外とみなし、`list_tasks` の結果に含めてはならない (MUST NOT)。従来の「`.cork.json` の先頭ステータスをデフォルトとして割り当てる」挙動は廃止される。
 
-#### Scenario: `.cork.json` の最初のステータスがデフォルトになる
+frontmatter に `status` キーが存在するが、その値が `.cork.json` に定義されたいずれのステータスラベルとも一致しない場合は、タスクはその値を持ったまま `list_tasks` の結果に含めなければならず (MUST)、board 上では Unknown レーン（別途定義）に表示される。
 
-- **GIVEN** 作業ディレクトリの `.cork.json` の `statuses` が `[{"label": "Backlog"}, {"label": "Done"}]`
-- **AND** 作業ディレクトリに frontmatter `status` を持たない `task.md` が存在する
+#### Scenario: `status:` なしのファイルが除外される
+
+- **GIVEN** 作業ディレクトリに `---\ntitle: Hello\n---\n` という内容の `hello.md` が存在する（frontmatter はあるが `status:` キーがない）
 - **WHEN** フロントエンドが `list_tasks` を invoke する
-- **THEN** `task.md` に対応する `Task.status` は `"Backlog"` になる
+- **THEN** 戻り値の配列に `hello.md` に対応する要素は含まれない
 
-#### Scenario: `.cork.json` が存在しない場合のデフォルト
+#### Scenario: frontmatter 自体がないファイルが除外される
 
-- **GIVEN** 作業ディレクトリに `.cork.json` が無い
-- **AND** frontmatter `status` を持たない `.md` ファイルが存在する
+- **GIVEN** 作業ディレクトリに frontmatter を持たない `readme.md` が存在する
 - **WHEN** フロントエンドが `list_tasks` を invoke する
-- **THEN** 該当タスクの `status` は空文字列（旧仕様の `unwrap_or_default()` と同じ挙動）になる
+- **THEN** 戻り値の配列に `readme.md` に対応する要素は含まれない
+
+#### Scenario: 未定義ステータス値を持つタスクは結果に含まれる
+
+- **GIVEN** `.cork.json` の statuses が `[{"label": "Todo"}, {"label": "Done"}]`
+- **AND** 作業ディレクトリに `---\nstatus: Doing\n---\n` の `task.md`（`Doing` は定義済みステータスに存在しない）
+- **WHEN** フロントエンドが `list_tasks` を invoke する
+- **THEN** 戻り値の配列に `task.md` に対応する要素が含まれる
+- **AND** その要素の `status` は `"Doing"` である
 
 ### Requirement: `.cork.json` の外部編集は即時 UI に反映される
 
