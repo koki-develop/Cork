@@ -41,7 +41,7 @@ export function KanbanColumn({
   return (
     <div
       ref={ref}
-      className="flex w-72 shrink-0 flex-col rounded-xl border border-cork-border/40 bg-cork-surface/60"
+      className="flex w-72 shrink-0 flex-col rounded-xl border border-cork-border/40 bg-cork-surface/60 min-h-0 max-h-full"
     >
       <div className="flex items-center gap-2 border-b border-cork-border/40 px-4 py-3">
         <DragHandle
@@ -55,7 +55,7 @@ export function KanbanColumn({
       </div>
       <div
         className={clsx(
-          "flex flex-col gap-2 p-3 min-h-24 flex-1 transition-colors duration-200",
+          "flex flex-1 flex-col min-h-0 p-3 gap-2 transition-colors duration-200",
           isCardDropTarget &&
             "bg-cork-accent/[0.06] ring-1 ring-inset ring-cork-accent/30",
         )}
@@ -64,16 +64,18 @@ export function KanbanColumn({
           variant="dashed"
           size="sm"
           onClick={() => onCreateTask(label)}
-          className="w-full"
+          className="w-full shrink-0"
         >
           <Plus className="size-3.5" />
           New Task
         </Button>
-        {taskIds.map((id, i) => {
-          const task = tasksById.get(id);
-          if (!task) return null;
-          return <KanbanCard key={id} task={task} group={label} index={i} />;
-        })}
+        <div className="flex flex-col gap-2 flex-1 overflow-y-auto min-h-24">
+          {taskIds.map((id, i) => {
+            const task = tasksById.get(id);
+            if (!task) return null;
+            return <KanbanCard key={id} task={task} group={label} index={i} />;
+          })}
+        </div>
       </div>
     </div>
   );
