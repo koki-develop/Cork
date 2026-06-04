@@ -18,6 +18,7 @@ export type SettingsDialogProps = {
   onPickDirectory: () => void;
   editing: EditingEntry[];
   error: string | null;
+  focusId: string | null;
   onLabelChange: (index: number, label: string) => void;
   onLabelBlur: (index: number) => void;
   onAdd: () => void;
@@ -34,6 +35,7 @@ export function SettingsDialog({
   onPickDirectory,
   editing,
   error,
+  focusId,
   onLabelChange,
   onLabelBlur,
   onAdd,
@@ -63,6 +65,7 @@ export function SettingsDialog({
       <StatusList
         editing={editing}
         error={error}
+        focusId={focusId}
         onLabelChange={onLabelChange}
         onLabelBlur={onLabelBlur}
         onAdd={onAdd}

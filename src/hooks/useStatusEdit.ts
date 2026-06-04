@@ -23,6 +23,7 @@ export function useStatusEdit(
   );
   const [dragSnapshot, setDragSnapshot] = useState<EditingEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   const lastPersisted = useRef<StatusEntry[]>(
     initialStatuses.map((s) => ({ label: s.label })),
@@ -96,7 +97,9 @@ export function useStatusEdit(
   };
 
   const handleAdd = () => {
-    setEditing((prev) => [...prev, { label: "", id: crypto.randomUUID() }]);
+    const id = crypto.randomUUID();
+    setFocusId(id);
+    setEditing((prev) => [...prev, { label: "", id }]);
   };
 
   const handleRemove = async (index: number) => {
@@ -153,6 +156,7 @@ export function useStatusEdit(
   return {
     editing,
     error,
+    focusId,
     flush,
     reset,
     handleLabelChange,

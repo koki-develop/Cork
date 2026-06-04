@@ -13,6 +13,7 @@ import { StatusRow } from "./StatusRow";
 export type StatusListProps = {
   editing: EditingEntry[];
   error: string | null;
+  focusId: string | null;
   onLabelChange: (index: number, label: string) => void;
   onLabelBlur: (index: number) => void;
   onDragStart: (event: DragStartEvent) => void;
@@ -25,6 +26,7 @@ export type StatusListProps = {
 export function StatusList({
   editing,
   error,
+  focusId,
   onLabelChange,
   onLabelBlur,
   onDragStart,
@@ -53,6 +55,7 @@ export function StatusList({
               id={s.id}
               index={i}
               label={s.label}
+              autoFocus={focusId === s.id}
               onLabelChange={onLabelChange}
               onLabelBlur={onLabelBlur}
               onRemove={onRemove}

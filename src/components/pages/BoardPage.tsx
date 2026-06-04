@@ -107,6 +107,7 @@ export function BoardPage({
   const {
     editing,
     error,
+    focusId,
     flush: flushStatuses,
     reset: resetStatuses,
     handleLabelChange,
@@ -218,6 +219,7 @@ export function BoardPage({
         onPickDirectory={handlePickDirectory}
         editing={editing}
         error={error}
+        focusId={focusId}
         onLabelChange={handleLabelChange}
         onLabelBlur={handleLabelBlur}
         onAdd={handleAdd}

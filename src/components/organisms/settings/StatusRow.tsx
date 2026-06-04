@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/react/sortable";
 import { Trash2 } from "lucide-react";
-import type { Ref } from "react";
+import { type Ref, useEffect, useRef } from "react";
 import { Input } from "@/components/atoms";
 import { DragHandle, IconButton } from "@/components/molecules";
 
@@ -8,6 +8,7 @@ export type StatusRowProps = {
   id: string;
   index: number;
   label: string;
+  autoFocus?: boolean;
   onLabelChange: (index: number, label: string) => void;
   onLabelBlur: (index: number) => void;
   onRemove: (index: number) => void;
@@ -17,6 +18,7 @@ export function StatusRow({
   id,
   index,
   label,
+  autoFocus,
   onLabelChange,
   onLabelBlur,
   onRemove,
@@ -28,6 +30,11 @@ export function StatusRow({
     accept: "status-row",
   });
 
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
+
   return (
     <div ref={ref} className="flex items-center gap-1.5">
       <DragHandle
@@ -35,6 +42,7 @@ export function StatusRow({
         aria-label={`Drag to reorder status ${index + 1}`}
       />
       <Input
+        ref={inputRef}
         value={label}
         onChange={(e) => onLabelChange(index, e.target.value)}
         onBlur={() => onLabelBlur(index)}
