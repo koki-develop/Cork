@@ -4,6 +4,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::io::BufRead;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -112,26 +113,27 @@ fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
         for entry in entries.flatten() {
             let file_path = entry.path();
             if file_path.extension().and_then(|s| s.to_str()) == Some("md") {
-                if let Ok(content) = fs::read_to_string(&file_path) {
-                    let title = file_path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let (fm, body) = parse_frontmatter(&content);
-                    let Some(f) = fm else { continue };
-                    let Some(status) = f.status else { continue };
-                    if status.is_empty() {
-                        continue;
-                    }
-                    tasks.push(Task {
-                        id: file_path.to_string_lossy().to_string(),
-                        title,
-                        status,
-                        body,
-                        order: f.order,
-                    });
+                let Some(content) = read_task_preview(&file_path) else {
+                    continue;
+                };
+                let title = file_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_string();
+                let (fm, body) = parse_frontmatter(&content);
+                let Some(f) = fm else { continue };
+                let Some(status) = f.status else { continue };
+                if status.is_empty() {
+                    continue;
                 }
+                tasks.push(Task {
+                    id: file_path.to_string_lossy().to_string(),
+                    title,
+                    status,
+                    body,
+                    order: f.order,
+                });
             }
         }
     }
@@ -381,6 +383,79 @@ fn renumber_tasks(
     Ok(())
 }
 
+#[tauri::command]
+fn get_task(path: String, state: tauri::State<'_, AppState>) -> Result<Task, String> {
+    let dir_guard = state.workspace_dir.lock().unwrap();
+    let dir = match dir_guard.as_ref() {
+        Some(d) => d,
+        None => return Err("No directory selected".to_string()),
+    };
+    let dir_canonical = std::fs::canonicalize(dir).map_err(|e| e.to_string())?;
+    let path_canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
+    if !path_canonical.starts_with(&dir_canonical) {
+        return Err("Access denied".to_string());
+    }
+    drop(dir_guard);
+
+    let content = fs::read_to_string(&path_canonical).map_err(|e| e.to_string())?;
+    let title = path_canonical
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let (fm, body) = parse_frontmatter(&content);
+    let f = fm.ok_or_else(|| "No frontmatter".to_string())?;
+    let status = f.status.unwrap_or_default();
+    Ok(Task {
+        id: path_canonical.to_string_lossy().to_string(),
+        title,
+        status,
+        body,
+        order: f.order,
+    })
+}
+
+// Reads only frontmatter + up to 2 non-empty body lines from a file.
+// Returns None if the file does not start with "---" (no frontmatter).
+fn read_task_preview(file_path: &Path) -> Option<String> {
+    let file = fs::File::open(file_path).ok()?;
+    let reader = std::io::BufReader::new(file);
+    let mut lines = reader.lines();
+
+    let first = lines.next()?.ok()?;
+    if first.trim_end() != "---" {
+        return None;
+    }
+
+    let mut fm_lines: Vec<String> = Vec::new();
+    loop {
+        let line = lines.next()?.ok()?;
+        if line.trim_end() == "---" {
+            break;
+        }
+        fm_lines.push(line);
+    }
+
+    let mut body_lines: Vec<String> = Vec::new();
+    let mut non_empty = 0u32;
+    for line in lines {
+        let Ok(line) = line else { break };
+        if !line.trim().is_empty() {
+            non_empty += 1;
+        }
+        body_lines.push(line);
+        if non_empty >= 2 {
+            break;
+        }
+    }
+
+    Some(format!(
+        "---\n{}\n---\n{}",
+        fm_lines.join("\n"),
+        body_lines.join("\n")
+    ))
+}
+
 fn parse_frontmatter(content: &str) -> (Option<Frontmatter>, String) {
     let matter = Matter::<YAML>::new();
     match matter.parse::<Frontmatter>(content) {
@@ -614,6 +689,7 @@ pub fn run() {
             get_statuses,
             save_statuses,
             delete_task,
+            get_task,
         ])
         .setup(|app| {
             let settings_item = MenuItemBuilder::with_id("settings", "Settings...")

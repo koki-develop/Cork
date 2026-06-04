@@ -21,8 +21,8 @@ export function KanbanCard({ task, group, index, onClick }: KanbanCardProps) {
 
   const bodyPreview = task.body
     .split("\n")
-    .slice(0, 3)
     .filter((l) => l.trim())
+    .slice(0, 2)
     .join("\n");
 
   return (

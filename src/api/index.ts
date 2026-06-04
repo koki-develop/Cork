@@ -3,6 +3,7 @@ export { getStatuses, saveStatuses } from "./statuses";
 export {
   createTask,
   deleteTask,
+  getTask,
   listTasks,
   renumberTasks,
   updateTask,

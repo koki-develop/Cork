@@ -3,6 +3,8 @@ import type { Task } from "@/types";
 
 export const listTasks = () => invoke<Task[]>("list_tasks");
 
+export const getTask = (path: string) => invoke<Task>("get_task", { path });
+
 export const createTask = (
   title: string,
   status: string,

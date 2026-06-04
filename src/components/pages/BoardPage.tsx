@@ -1,7 +1,12 @@
 import { DragDropProvider } from "@dnd-kit/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { onOpenSettings, pickDirectory, setWorkspaceDirectory } from "@/api";
+import {
+  getTask,
+  onOpenSettings,
+  pickDirectory,
+  setWorkspaceDirectory,
+} from "@/api";
 import {
   CreateTaskDialog,
   KanbanColumn,
@@ -70,9 +75,11 @@ export function BoardPage({
   if (detailDialogTask && detailDialogTask !== lastDetailDialogTask) {
     setLastDetailDialogTask(detailDialogTask);
   }
-  const openDetailDialog = (taskId: string) => {
+  const openDetailDialog = async (taskId: string) => {
     const task = tasksById.get(taskId);
-    if (task) setDetailDialogTask(task);
+    if (!task) return;
+    const fullTask = await getTask(task.id);
+    setDetailDialogTask(fullTask);
   };
   const closeDetailDialog = () => setDetailDialogTask(null);
 
