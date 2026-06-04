@@ -17,6 +17,9 @@
     "enabled": true,
     "rules": {
       "recommended": true,
+      "nursery": {
+        "useSortedClasses": "warn"
+      },
       "style": {
         "noRestrictedImports": {
           "level": "error",
