@@ -26,7 +26,6 @@ export function CreateTaskDialog({
   );
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   const prevOpenRef = useRef(false);
   useEffect(() => {
@@ -35,7 +34,6 @@ export function CreateTaskDialog({
       setBody("");
       setStatus(preselectedStatus ?? statuses[0]?.label ?? "");
       setError(null);
-      setSubmitting(false);
     }
     prevOpenRef.current = isOpen;
   }, [isOpen, preselectedStatus, statuses]);
@@ -48,16 +46,12 @@ export function CreateTaskDialog({
       return;
     }
     setError(null);
-    setSubmitting(true);
     onCreateTask(trimmed, status, body.trim())
       .then(() => {
         onClose();
       })
       .catch((err) => {
         setError(String(err));
-      })
-      .finally(() => {
-        setSubmitting(false);
       });
   };
 
@@ -120,12 +114,7 @@ export function CreateTaskDialog({
           <Button type="button" variant="secondary" size="md" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            disabled={submitting}
-          >
+          <Button type="submit" variant="primary" size="md">
             <Plus className="size-3.5" />
             Create
           </Button>
