@@ -45,7 +45,7 @@ export function KanbanColumn({
           handleRef={handleRef as Ref<HTMLButtonElement>}
           aria-label={`Drag to reorder column ${label}`}
         />
-        <Heading level={2} variant="section">
+        <Heading level={2} variant="section" className="truncate min-w-0">
           {label}
         </Heading>
         <Badge className="ml-auto">{taskIds.length}</Badge>

@@ -32,7 +32,7 @@ export function KanbanCard({ task, group, index }: KanbanCardProps) {
         isDragging && "opacity-50 ring-2 ring-cork-accent/30",
       )}
     >
-      <Heading level={3} variant="card">
+      <Heading level={3} variant="card" className="truncate">
         {task.title}
       </Heading>
       {bodyPreview && (
