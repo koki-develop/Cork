@@ -57,7 +57,7 @@ export function KanbanCard({ task, group, index, onClick }: KanbanCardProps) {
           as="p"
           variant="muted"
           size="xs"
-          className="mt-1.5 leading-relaxed line-clamp-2"
+          className="mt-1.5 line-clamp-2 leading-relaxed"
         >
           {bodyPreview}
         </Text>

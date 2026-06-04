@@ -36,7 +36,7 @@ export function Modal({
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <m.button
             type="button"
-            className="absolute inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
+            className="absolute inset-0 cursor-pointer bg-black/60 backdrop-blur-xs"
             onClick={onClose}
             aria-label={closeAriaLabel}
             initial={{ opacity: 0 }}
@@ -46,7 +46,7 @@ export function Modal({
           />
           <m.div
             className={clsx(
-              "relative w-full max-w-md mx-4 max-h-[85vh] overflow-y-auto rounded-2xl border border-cork-border/60 bg-cork-surface/95 backdrop-blur-xl p-6 shadow-2xl",
+              "relative mx-4 max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-cork-border/60 bg-cork-surface/95 p-6 shadow-2xl backdrop-blur-xl",
               containerClassName,
             )}
             initial={{ opacity: 0, scale: 0.96, y: 8 }}

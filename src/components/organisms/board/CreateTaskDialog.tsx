@@ -112,7 +112,7 @@ export function CreateTaskDialog({
             placeholder="Body (optional)"
             aria-label="Body"
             rows={5}
-            className="min-w-0 flex-1 resize-none rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-1.5 text-sm text-cork-text outline-none transition-colors duration-200 placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-1 focus:ring-cork-accent/30"
+            className="min-w-0 flex-1 resize-none rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-1.5 text-cork-text text-sm outline-none transition-colors duration-200 placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-1 focus:ring-cork-accent/30"
           />
         </div>
 

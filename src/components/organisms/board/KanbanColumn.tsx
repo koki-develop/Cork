@@ -50,9 +50,9 @@ export function KanbanColumn({
   return (
     <div
       ref={ref}
-      className="flex w-72 shrink-0 flex-col rounded-xl border border-cork-border/40 bg-cork-surface/60 min-h-0 max-h-full"
+      className="flex max-h-full min-h-0 w-72 shrink-0 flex-col rounded-xl border border-cork-border/40 bg-cork-surface/60"
     >
-      <div className="flex items-center gap-2 border-b border-cork-border/40 px-4 py-3">
+      <div className="flex items-center gap-2 border-cork-border/40 border-b px-4 py-3">
         {draggable && handleRef ? (
           <DragHandle
             handleRef={handleRef as Ref<HTMLButtonElement>}
@@ -61,16 +61,16 @@ export function KanbanColumn({
         ) : (
           <div className="size-8" />
         )}
-        <Heading level={2} variant="section" className="truncate min-w-0">
+        <Heading level={2} variant="section" className="min-w-0 truncate">
           {displayLabel ?? label}
         </Heading>
         <Badge className="ml-auto">{taskIds.length}</Badge>
       </div>
       <div
         className={clsx(
-          "flex flex-1 flex-col min-h-0 p-3 gap-2 transition-colors duration-200",
+          "flex min-h-0 flex-1 flex-col gap-2 p-3 transition-colors duration-200",
           isCardDropTarget &&
-            "bg-cork-accent/[0.06] ring-1 ring-inset ring-cork-accent/30",
+            "bg-cork-accent/[0.06] ring-1 ring-cork-accent/30 ring-inset",
         )}
       >
         {showNewTaskButton && (
@@ -84,7 +84,7 @@ export function KanbanColumn({
             New Task
           </Button>
         )}
-        <div className="flex flex-col gap-2 flex-1 overflow-y-auto min-h-24">
+        <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto">
           {taskIds.map((id, i) => {
             const task = tasksById.get(id);
             if (!task) return null;

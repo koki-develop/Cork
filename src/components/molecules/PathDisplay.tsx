@@ -30,7 +30,7 @@ export function PathDisplay(props: PathDisplayProps) {
         onClick={onClick}
         aria-label={ariaLabel}
         className={clsx(
-          "flex w-full items-center gap-2 rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-2 text-left text-xs font-mono text-cork-text cursor-pointer transition-colors hover:bg-cork-elevated/90 hover:border-cork-border/60",
+          "flex w-full cursor-pointer items-center gap-2 rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-2 text-left font-mono text-cork-text text-xs transition-colors hover:border-cork-border/60 hover:bg-cork-elevated/90",
           className,
         )}
       >

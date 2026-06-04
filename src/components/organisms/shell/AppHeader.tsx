@@ -14,7 +14,7 @@ export function AppHeader({
   onOpenSettings,
 }: AppHeaderProps) {
   return (
-    <header className="flex shrink-0 items-center justify-between border-b border-cork-border/50 px-6 py-3">
+    <header className="flex shrink-0 items-center justify-between border-cork-border/50 border-b px-6 py-3">
       <div className="flex items-center gap-3">
         <Heading level={1} variant="page">
           Cork

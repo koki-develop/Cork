@@ -6,7 +6,7 @@ export type WelcomeLayoutProps = {
 
 export function WelcomeLayout({ children }: WelcomeLayoutProps) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center select-none">
+    <main className="flex min-h-screen select-none flex-col items-center justify-center">
       {children}
     </main>
   );

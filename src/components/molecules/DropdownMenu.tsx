@@ -62,7 +62,7 @@ export function DropdownMenu({
       <AnimatePresence>
         {open && (
           <m.div
-            className="absolute right-0 top-full z-20 mt-1 w-max origin-top-right overflow-hidden rounded-lg border border-cork-border/40 bg-cork-elevated shadow-xl"
+            className="absolute top-full right-0 z-20 mt-1 w-max origin-top-right overflow-hidden rounded-lg border border-cork-border/40 bg-cork-elevated shadow-xl"
             initial={{ opacity: 0, scale: 0.95, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -4 }}
