@@ -1,6 +1,7 @@
 import { watch } from "@tauri-apps/plugin-fs";
 import { useEffect, useState } from "react";
 import {
+  createTask as createTaskApi,
   getStatuses,
   getWorkspaceDirectory,
   listTasks,
@@ -74,6 +75,17 @@ export function useWorkspace() {
     // biome-ignore lint/correctness/useExhaustiveDependencies: auto-memoized by React Compiler
   }, [dir, loadTasks, loadStatuses]);
 
+  const createTask = async (title: string, status: string, body?: string) => {
+    const orders = tasks
+      .filter((t) => t.status === status)
+      .map((t) => t.order)
+      .filter((o): o is number => o !== null);
+    const order = orders.length === 0 ? 0 : Math.min(...orders) - 1;
+    const task = await createTaskApi(title, status, body, order);
+    setTasks((prev) => [...prev, task]);
+    await loadTasks();
+  };
+
   const updateTaskStatus = async (taskId: string, newStatus: string) => {
     setTasks((prevTasks) =>
       prevTasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
@@ -102,6 +114,7 @@ export function useWorkspace() {
     loadTasks,
     loadStatuses,
     setDir,
+    createTask,
     updateTaskStatus,
     updateTaskOrder,
     renumberTasks,

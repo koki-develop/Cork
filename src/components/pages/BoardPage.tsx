@@ -1,7 +1,7 @@
 import { DragDropProvider } from "@dnd-kit/react";
 import { useEffect, useState } from "react";
 import { onOpenSettings, pickDirectory, setWorkspaceDirectory } from "@/api";
-import { KanbanColumn } from "@/components/organisms/board";
+import { CreateTaskDialog, KanbanColumn } from "@/components/organisms/board";
 import { SettingsDialog } from "@/components/organisms/settings";
 import { AppHeader } from "@/components/organisms/shell";
 import { BoardLayout } from "@/components/templates";
@@ -16,6 +16,7 @@ export type BoardPageProps = {
   loadTasks: () => void;
   loadStatuses: () => void;
   setDir: (path: string) => void;
+  createTask: (title: string, status: string, body?: string) => Promise<void>;
   updateTaskStatus: (taskId: string, newStatus: string) => Promise<void>;
   updateTaskOrder: (taskId: string, order: number) => Promise<void>;
   renumberTasks: (paths: string[]) => Promise<void>;
@@ -29,6 +30,7 @@ export function BoardPage({
   loadTasks,
   loadStatuses,
   setDir,
+  createTask,
   updateTaskStatus,
   updateTaskOrder,
   renumberTasks,
@@ -37,6 +39,16 @@ export function BoardPage({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => setSettingsOpen(true);
   const closeSettings = () => setSettingsOpen(false);
+
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [preselectedStatus, setPreselectedStatus] = useState<
+    string | undefined
+  >(undefined);
+  const openCreateDialog = (status?: string) => {
+    setPreselectedStatus(status);
+    setCreateDialogOpen(true);
+  };
+  const closeCreateDialog = () => setCreateDialogOpen(false);
 
   useEffect(() => {
     const unlisten = onOpenSettings(() => setSettingsOpen(true));
@@ -101,10 +113,19 @@ export function BoardPage({
               index={i}
               taskIds={tasksByColumn[label] ?? []}
               tasksById={tasksById}
+              onCreateTask={openCreateDialog}
             />
           ))}
         </BoardLayout>
       </DragDropProvider>
+      <CreateTaskDialog
+        key={String(createDialogOpen)}
+        isOpen={createDialogOpen}
+        onClose={closeCreateDialog}
+        statuses={statuses}
+        preselectedStatus={preselectedStatus}
+        onCreateTask={createTask}
+      />
       <SettingsDialog
         key={String(settingsOpen)}
         isOpen={settingsOpen}

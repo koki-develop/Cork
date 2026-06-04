@@ -2,8 +2,9 @@ import { CollisionPriority } from "@dnd-kit/abstract";
 import { useDragOperation } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { clsx } from "clsx";
+import { Plus } from "lucide-react";
 import type { Ref } from "react";
-import { Badge, Heading } from "@/components/atoms";
+import { Badge, Button, Heading } from "@/components/atoms";
 import { DragHandle } from "@/components/molecules";
 import type { Task } from "@/types";
 import { KanbanCard } from "./KanbanCard";
@@ -13,6 +14,7 @@ export type KanbanColumnProps = {
   index: number;
   taskIds: string[];
   tasksById: Map<string, Task>;
+  onCreateTask: (status: string) => void;
 };
 
 export function KanbanColumn({
@@ -20,6 +22,7 @@ export function KanbanColumn({
   index,
   taskIds,
   tasksById,
+  onCreateTask,
 }: KanbanColumnProps) {
   const { ref, handleRef } = useSortable({
     id: label,
@@ -57,6 +60,15 @@ export function KanbanColumn({
             "bg-cork-accent/[0.06] ring-1 ring-inset ring-cork-accent/30",
         )}
       >
+        <Button
+          variant="dashed"
+          size="sm"
+          onClick={() => onCreateTask(label)}
+          className="w-full"
+        >
+          <Plus className="size-3.5" />
+          New Task
+        </Button>
         {taskIds.map((id, i) => {
           const task = tasksById.get(id);
           if (!task) return null;

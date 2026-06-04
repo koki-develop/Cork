@@ -1,6 +1,7 @@
 export { onOpenSettings } from "./menu";
 export { getStatuses, saveStatuses } from "./statuses";
 export {
+  createTask,
   listTasks,
   renumberTasks,
   updateTaskOrder,

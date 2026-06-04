@@ -196,6 +196,58 @@ fn update_task_order(
 }
 
 #[tauri::command]
+fn create_task(
+    title: String,
+    status: String,
+    body: Option<String>,
+    order: Option<f64>,
+    state: tauri::State<'_, AppState>,
+) -> Result<Task, String> {
+    let dir_guard = state.workspace_dir.lock().unwrap();
+    let dir = match dir_guard.as_ref() {
+        Some(d) => d.clone(),
+        None => return Err("No directory selected".to_string()),
+    };
+    drop(dir_guard);
+
+    let dir_canonical = std::fs::canonicalize(&dir).map_err(|e| e.to_string())?;
+
+    let sanitized: String = title
+        .chars()
+        .map(|c| if c == '/' { '-' } else { c })
+        .filter(|&c| c != '\0')
+        .collect();
+    let sanitized = sanitized.trim().to_string();
+    if sanitized.is_empty() {
+        return Err("Title cannot be empty".to_string());
+    }
+
+    let file_path = dir_canonical.join(format!("{}.md", sanitized));
+    if file_path.exists() {
+        return Err("A task with this title already exists".to_string());
+    }
+
+    let body = body.unwrap_or_default();
+    let mut frontmatter = serde_json::json!({ "status": status });
+    if let Some(o) = order {
+        if let Some(obj) = frontmatter.as_object_mut() {
+            obj.insert("order".to_string(), serde_json::json!(o));
+        }
+    }
+    let yaml = serde_yaml::to_string(&frontmatter).unwrap_or_default();
+    let content = format!("---\n{}---\n\n{}", yaml, body);
+    fs::write(&file_path, content).map_err(|e| e.to_string())?;
+
+    Ok(Task {
+        id: file_path.to_string_lossy().to_string(),
+        title: sanitized,
+        status,
+        body,
+        order,
+    })
+}
+
+#[tauri::command]
 fn renumber_tasks(
     paths: Vec<String>,
     state: tauri::State<'_, AppState>,
@@ -377,6 +429,7 @@ pub fn run() {
             pick_directory,
             set_workspace_directory,
             list_tasks,
+            create_task,
             update_task_status,
             update_task_order,
             renumber_tasks,
