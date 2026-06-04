@@ -15,6 +15,7 @@ export type KanbanColumnProps = {
   taskIds: string[];
   tasksById: Map<string, Task>;
   onCreateTask: (status: string) => void;
+  onCardClick?: (taskId: string) => void;
   showNewTaskButton?: boolean;
   draggable?: boolean;
   displayLabel?: string;
@@ -26,6 +27,7 @@ export function KanbanColumn({
   taskIds,
   tasksById,
   onCreateTask,
+  onCardClick,
   showNewTaskButton = true,
   draggable = true,
   displayLabel,
@@ -86,7 +88,15 @@ export function KanbanColumn({
           {taskIds.map((id, i) => {
             const task = tasksById.get(id);
             if (!task) return null;
-            return <KanbanCard key={id} task={task} group={label} index={i} />;
+            return (
+              <KanbanCard
+                key={id}
+                task={task}
+                group={label}
+                index={i}
+                onClick={onCardClick ? () => onCardClick(id) : undefined}
+              />
+            );
           })}
         </div>
       </div>

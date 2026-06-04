@@ -2,7 +2,11 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { onOpenSettings, pickDirectory, setWorkspaceDirectory } from "@/api";
-import { CreateTaskDialog, KanbanColumn } from "@/components/organisms/board";
+import {
+  CreateTaskDialog,
+  KanbanColumn,
+  TaskDetailDialog,
+} from "@/components/organisms/board";
 import { SettingsDialog } from "@/components/organisms/settings";
 import { AppHeader } from "@/components/organisms/shell";
 import { BoardLayout } from "@/components/templates";
@@ -19,6 +23,10 @@ export type BoardPageProps = {
   loadStatuses: () => void;
   setDir: (path: string) => void;
   createTask: (title: string, status: string, body?: string) => Promise<void>;
+  updateTask: (
+    taskId: string,
+    updates: { title?: string; status?: string; body?: string },
+  ) => Promise<Task>;
   updateTaskStatus: (taskId: string, newStatus: string) => Promise<void>;
   updateTaskOrder: (taskId: string, order: number) => Promise<void>;
   renumberTasks: (paths: string[]) => Promise<void>;
@@ -33,6 +41,7 @@ export function BoardPage({
   loadStatuses,
   setDir,
   createTask,
+  updateTask,
   updateTaskStatus,
   updateTaskOrder,
   renumberTasks,
@@ -51,6 +60,13 @@ export function BoardPage({
     setCreateDialogOpen(true);
   };
   const closeCreateDialog = () => setCreateDialogOpen(false);
+
+  const [detailDialogTask, setDetailDialogTask] = useState<Task | null>(null);
+  const openDetailDialog = (taskId: string) => {
+    const task = tasksById.get(taskId);
+    if (task) setDetailDialogTask(task);
+  };
+  const closeDetailDialog = () => setDetailDialogTask(null);
 
   useEffect(() => {
     const unlisten = onOpenSettings(() => setSettingsOpen(true));
@@ -98,6 +114,14 @@ export function BoardPage({
     toast.success("Task created");
   };
 
+  const handleSaveTask = async (
+    taskId: string,
+    updates: { title?: string; status?: string; body?: string },
+  ) => {
+    const result = await updateTask(taskId, updates);
+    setDetailDialogTask(result);
+  };
+
   const handlePickDirectory = async () => {
     const path = await pickDirectory();
     if (path === null || path === dir) return;
@@ -130,6 +154,7 @@ export function BoardPage({
                 taskIds={tasksByColumn[label] ?? []}
                 tasksById={tasksById}
                 onCreateTask={openCreateDialog}
+                onCardClick={openDetailDialog}
                 showNewTaskButton={!isUnknown}
                 draggable={!isUnknown}
               />
@@ -145,6 +170,15 @@ export function BoardPage({
         preselectedStatus={preselectedStatus}
         onCreateTask={handleCreateTask}
       />
+      {detailDialogTask && (
+        <TaskDetailDialog
+          isOpen
+          onClose={closeDetailDialog}
+          task={detailDialogTask}
+          statuses={statuses}
+          onSaveTask={handleSaveTask}
+        />
+      )}
       <SettingsDialog
         key={String(settingsOpen)}
         isOpen={settingsOpen}

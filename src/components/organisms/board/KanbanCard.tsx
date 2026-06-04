@@ -7,9 +7,10 @@ export type KanbanCardProps = {
   task: Task;
   group: string;
   index: number;
+  onClick?: () => void;
 };
 
-export function KanbanCard({ task, group, index }: KanbanCardProps) {
+export function KanbanCard({ task, group, index, onClick }: KanbanCardProps) {
   const { ref, isDragging } = useSortable({
     id: task.id,
     index,
@@ -25,10 +26,26 @@ export function KanbanCard({ task, group, index }: KanbanCardProps) {
     .join("\n");
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: clickable+draggable card needs a div for dnd-kit sortable ref
     <div
       ref={ref}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
       className={clsx(
-        "cursor-grab active:cursor-grabbing rounded-xl border border-cork-border/30 bg-cork-elevated/80 p-3.5 transition-all duration-200 hover:border-cork-border hover:bg-cork-elevated",
+        "rounded-xl border border-cork-border/30 bg-cork-elevated/80 p-3.5 transition-all duration-200 hover:border-cork-border hover:bg-cork-elevated",
+        onClick && "cursor-pointer",
+        !onClick && "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50 ring-2 ring-cork-accent/30",
       )}
     >

@@ -192,6 +192,102 @@ fn update_task_order(
 }
 
 #[tauri::command]
+fn update_task(
+    path: String,
+    title: Option<String>,
+    status: Option<String>,
+    body: Option<String>,
+    order: Option<f64>,
+    state: tauri::State<'_, AppState>,
+) -> Result<Task, String> {
+    let dir_guard = state.workspace_dir.lock().unwrap();
+    let dir = match dir_guard.as_ref() {
+        Some(d) => d,
+        None => return Err("No directory selected".to_string()),
+    };
+    let dir_canonical = std::fs::canonicalize(dir).map_err(|e| e.to_string())?;
+    let path_canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
+    if !path_canonical.starts_with(&dir_canonical) {
+        return Err("Access denied".to_string());
+    }
+    drop(dir_guard);
+
+    let content = fs::read_to_string(&path_canonical).map_err(|e| e.to_string())?;
+    let (fm, current_body) = parse_frontmatter(&content);
+
+    let body_provided = body.is_some();
+    let new_body = body.unwrap_or(current_body);
+
+    let current_status = fm.as_ref().and_then(|f| f.status.as_deref()).unwrap_or("");
+    let new_status = status.unwrap_or_else(|| current_status.to_string());
+    let current_order = order.or_else(|| fm.as_ref().and_then(|f| f.order));
+    let current_title = path_canonical
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+
+    let title_changed;
+    let new_title = if let Some(t) = title {
+        let sanitized: String = t
+            .chars()
+            .map(|c| if c == '/' { '-' } else { c })
+            .filter(|&c| c != '\0')
+            .collect();
+        let sanitized = sanitized.trim().to_string();
+        if sanitized.is_empty() {
+            return Err("Title cannot be empty".to_string());
+        }
+        title_changed = sanitized != current_title;
+        sanitized
+    } else {
+        title_changed = false;
+        current_title.clone()
+    };
+
+    // Build frontmatter preserving unknown fields, then optionally swap body
+    let mut fm_updates: Vec<(&str, serde_json::Value)> =
+        vec![("status", serde_json::json!(new_status))];
+    if let Some(o) = current_order {
+        fm_updates.push(("order", serde_json::json!(o)));
+    }
+    let new_content = if body_provided {
+        // update_frontmatter keeps the original body; replace with new_body
+        let with_updates = update_frontmatter(&content, &fm_updates);
+        let marker = "\n---\n";
+        match with_updates.find(marker) {
+            Some(pos) => format!("{}---\n{}", &with_updates[..pos + marker.len()], new_body),
+            None => format!("---\n---\n{}", new_body),
+        }
+    } else {
+        update_frontmatter(&content, &fm_updates)
+    };
+
+    let target_path = if title_changed {
+        let new_path = dir_canonical.join(format!("{}.md", new_title));
+        if new_path.exists() && new_path != path_canonical {
+            return Err("A task with this title already exists".to_string());
+        }
+        std::fs::write(&new_path, &new_content).map_err(|e| e.to_string())?;
+        if new_path != path_canonical {
+            std::fs::remove_file(&path_canonical).map_err(|e| e.to_string())?;
+        }
+        new_path
+    } else {
+        std::fs::write(&path_canonical, &new_content).map_err(|e| e.to_string())?;
+        path_canonical
+    };
+
+    Ok(Task {
+        id: target_path.to_string_lossy().to_string(),
+        title: new_title,
+        status: new_status,
+        body: new_body,
+        order: current_order,
+    })
+}
+
+#[tauri::command]
 fn create_task(
     title: String,
     status: String,
@@ -425,6 +521,7 @@ pub fn run() {
             set_workspace_directory,
             list_tasks,
             create_task,
+            update_task,
             update_task_status,
             update_task_order,
             renumber_tasks,

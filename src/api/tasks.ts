@@ -18,3 +18,8 @@ export const updateTaskOrder = (path: string, order: number) =>
 
 export const renumberTasks = (paths: string[]) =>
   invoke<void>("renumber_tasks", { paths });
+
+export const updateTask = (
+  path: string,
+  updates: { title?: string; status?: string; body?: string; order?: number },
+) => invoke<Task>("update_task", { path, ...updates });

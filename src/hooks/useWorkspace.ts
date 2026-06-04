@@ -7,6 +7,7 @@ import {
   listTasks,
   renumberTasks as renumberTasksApi,
   saveStatuses,
+  updateTask as updateTaskApi,
   updateTaskOrder as updateTaskOrderApi,
   updateTaskStatus as updateTaskStatusApi,
 } from "@/api";
@@ -102,6 +103,52 @@ export function useWorkspace() {
     await renumberTasksApi(paths);
   };
 
+  const updateTask = async (
+    taskId: string,
+    updates: { title?: string; status?: string; body?: string; order?: number },
+  ) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const updatesWithOrder: {
+      title?: string;
+      status?: string;
+      body?: string;
+      order?: number;
+    } = { ...updates };
+    if (
+      updates.status !== undefined &&
+      task &&
+      updates.status !== task.status
+    ) {
+      const ordersInNewColumn = tasks
+        .filter((t) => t.status === updates.status)
+        .map((t) => t.order)
+        .filter((o): o is number => o !== null);
+      updatesWithOrder.order =
+        ordersInNewColumn.length === 0 ? 0 : Math.min(...ordersInNewColumn) - 1;
+    }
+
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              ...(updates.title !== undefined ? { title: updates.title } : {}),
+              ...(updates.status !== undefined
+                ? { status: updates.status }
+                : {}),
+              ...(updates.body !== undefined ? { body: updates.body } : {}),
+              ...(updatesWithOrder.order !== undefined
+                ? { order: updatesWithOrder.order }
+                : {}),
+            }
+          : t,
+      ),
+    );
+    const result = await updateTaskApi(taskId, updatesWithOrder);
+    await loadTasks();
+    return result;
+  };
+
   const reorderStatuses = async (newStatuses: StatusEntry[]) => {
     await saveStatuses(newStatuses);
     await loadStatuses();
@@ -115,6 +162,7 @@ export function useWorkspace() {
     loadStatuses,
     setDir,
     createTask,
+    updateTask,
     updateTaskStatus,
     updateTaskOrder,
     renumberTasks,

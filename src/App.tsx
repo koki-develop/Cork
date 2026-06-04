@@ -11,6 +11,7 @@ function App() {
     loadStatuses,
     setDir,
     createTask,
+    updateTask,
     updateTaskStatus,
     updateTaskOrder,
     renumberTasks,
@@ -28,6 +29,7 @@ function App() {
       loadStatuses={loadStatuses}
       setDir={setDir}
       createTask={createTask}
+      updateTask={updateTask}
       updateTaskStatus={updateTaskStatus}
       updateTaskOrder={updateTaskOrder}
       renumberTasks={renumberTasks}

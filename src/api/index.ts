@@ -4,6 +4,7 @@ export {
   createTask,
   listTasks,
   renumberTasks,
+  updateTask,
   updateTaskOrder,
   updateTaskStatus,
 } from "./tasks";
