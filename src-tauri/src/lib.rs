@@ -258,7 +258,7 @@ fn update_task(
         let with_updates = update_frontmatter(&content, &fm_updates);
         let marker = "\n---\n";
         match with_updates.find(marker) {
-            Some(pos) => format!("{}---\n{}", &with_updates[..pos + marker.len()], new_body),
+            Some(pos) => format!("{}{}", &with_updates[..pos + marker.len()], new_body),
             None => format!("---\n---\n{}", new_body),
         }
     } else {
