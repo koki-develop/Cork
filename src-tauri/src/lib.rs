@@ -107,36 +107,38 @@ fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
     drop(dir_guard);
 
     let path = PathBuf::from(&dir);
-    let mut tasks = Vec::new();
 
-    if let Ok(entries) = fs::read_dir(&path) {
-        for entry in entries.flatten() {
-            let file_path = entry.path();
-            if file_path.extension().and_then(|s| s.to_str()) == Some("md") {
-                let Some(content) = read_task_preview(&file_path) else {
-                    continue;
-                };
-                let title = file_path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string();
-                let (fm, body) = parse_frontmatter(&content);
-                let Some(f) = fm else { continue };
-                let Some(status) = f.status else { continue };
-                if status.is_empty() {
-                    continue;
-                }
-                tasks.push(Task {
-                    id: file_path.to_string_lossy().to_string(),
-                    title,
-                    status,
-                    body,
-                    order: f.order,
-                });
-            }
-        }
-    }
+    let md_files: Vec<_> = fs::read_dir(&path)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("md"))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut tasks: Vec<Task> = md_files
+        .par_iter()
+        .filter_map(|file_path| {
+            let content = read_task_preview(file_path)?;
+            let title = file_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let (fm, body) = parse_frontmatter(&content);
+            let f = fm?;
+            let status = f.status.filter(|s| !s.is_empty())?;
+            Some(Task {
+                id: file_path.to_string_lossy().to_string(),
+                title,
+                status,
+                body,
+                order: f.order,
+            })
+        })
+        .collect();
 
     tasks.sort_by(|a, b| {
         let a_order = a.order.unwrap_or(f64::MAX);
