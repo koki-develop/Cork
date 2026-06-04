@@ -23,3 +23,6 @@ export const updateTask = (
   path: string,
   updates: { title?: string; status?: string; body?: string; order?: number },
 ) => invoke<Task>("update_task", { path, ...updates });
+
+export const deleteTask = (path: string) =>
+  invoke<void>("delete_task", { path });

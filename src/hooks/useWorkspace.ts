@@ -2,6 +2,7 @@ import { watch } from "@tauri-apps/plugin-fs";
 import { useEffect, useState } from "react";
 import {
   createTask as createTaskApi,
+  deleteTask as deleteTaskApi,
   getStatuses,
   getWorkspaceDirectory,
   listTasks,
@@ -149,6 +150,11 @@ export function useWorkspace() {
     return result;
   };
 
+  const deleteTask = async (taskId: string) => {
+    await deleteTaskApi(taskId);
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  };
+
   const reorderStatuses = async (newStatuses: StatusEntry[]) => {
     await saveStatuses(newStatuses);
     await loadStatuses();
@@ -163,6 +169,7 @@ export function useWorkspace() {
     setDir,
     createTask,
     updateTask,
+    deleteTask,
     updateTaskStatus,
     updateTaskOrder,
     renumberTasks,

@@ -27,6 +27,7 @@ export type BoardPageProps = {
     taskId: string,
     updates: { title?: string; status?: string; body?: string },
   ) => Promise<Task>;
+  deleteTask: (taskId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, newStatus: string) => Promise<void>;
   updateTaskOrder: (taskId: string, order: number) => Promise<void>;
   renumberTasks: (paths: string[]) => Promise<void>;
@@ -42,6 +43,7 @@ export function BoardPage({
   setDir,
   createTask,
   updateTask,
+  deleteTask,
   updateTaskStatus,
   updateTaskOrder,
   renumberTasks,
@@ -122,6 +124,12 @@ export function BoardPage({
     setDetailDialogTask(result);
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    await deleteTask(taskId);
+    toast.success("Task deleted");
+    closeDetailDialog();
+  };
+
   const handlePickDirectory = async () => {
     const path = await pickDirectory();
     if (path === null || path === dir) return;
@@ -177,6 +185,7 @@ export function BoardPage({
           task={detailDialogTask}
           statuses={statuses}
           onSaveTask={handleSaveTask}
+          onDeleteTask={() => handleDeleteTask(detailDialogTask.id)}
         />
       )}
       <SettingsDialog

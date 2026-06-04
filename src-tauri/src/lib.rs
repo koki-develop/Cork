@@ -340,6 +340,22 @@ fn create_task(
 }
 
 #[tauri::command]
+fn delete_task(path: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let dir_guard = state.workspace_dir.lock().unwrap();
+    let dir = match dir_guard.as_ref() {
+        Some(d) => d,
+        None => return Err("No directory selected".to_string()),
+    };
+    let dir_canonical = std::fs::canonicalize(dir).map_err(|e| e.to_string())?;
+    let path_canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
+    if !path_canonical.starts_with(&dir_canonical) {
+        return Err("Access denied".to_string());
+    }
+    drop(dir_guard);
+    fs::remove_file(&path_canonical).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn renumber_tasks(
     paths: Vec<String>,
     state: tauri::State<'_, AppState>,
@@ -528,6 +544,7 @@ pub fn run() {
             get_workspace_directory,
             get_statuses,
             save_statuses,
+            delete_task,
         ])
         .setup(|app| {
             let settings_item = MenuItemBuilder::with_id("settings", "Settings...")

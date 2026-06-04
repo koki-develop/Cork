@@ -72,3 +72,11 @@ The dialog SHALL follow the same design conventions as the existing `CreateTaskD
 - **THEN** it SHALL use the same `cork-*` design tokens
 - **THEN** it SHALL use the same `rounded-2xl`, `border`, `backdrop-blur` patterns as `Modal`
 - **THEN** it SHALL use `lucide-react` icons (not emojis)
+
+### Requirement: Task detail dialog header has a menu button
+The task detail dialog header SHALL include a `DropdownMenu` trigger button alongside the existing close button, providing access to task-level actions.
+
+#### Scenario: Header layout includes both menu and close buttons
+- **WHEN** the task detail dialog is open
+- **THEN** the header SHALL display the "Task" heading on the left
+- **AND** a `MoreHorizontal` icon menu button and the `X` close button SHALL be grouped on the right side
