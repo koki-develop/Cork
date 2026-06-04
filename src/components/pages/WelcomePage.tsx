@@ -11,12 +11,8 @@ export function WelcomePage({ onDirectorySelected }: WelcomePageProps) {
   const handleSelect = async () => {
     const path = await pickDirectory();
     if (!path) return;
-    try {
-      await setWorkspaceDirectory(path);
-      onDirectorySelected(path);
-    } catch (err) {
-      console.error("failed to set workspace directory:", err);
-    }
+    await setWorkspaceDirectory(path);
+    onDirectorySelected(path);
   };
 
   return (

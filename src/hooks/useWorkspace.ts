@@ -33,27 +33,21 @@ export function useWorkspace() {
   }, []);
 
   useEffect(() => {
-    getWorkspaceDirectory()
-      .then((path) => setDir(path))
-      .catch((err) => console.error("failed to restore directory:", err));
+    getWorkspaceDirectory().then((path) => setDir(path));
   }, []);
 
   useEffect(() => {
     if (!dir) return;
 
     const loadData = async () => {
-      try {
-        const [loadedTasks, loadedStatuses] = await Promise.all([
-          listTasks(),
-          getStatuses(),
-        ]);
-        setTasks(loadedTasks);
-        setStatuses(
-          loadedStatuses.length > 0 ? loadedStatuses : DEFAULT_STATUSES,
-        );
-      } catch (err) {
-        console.error("failed to load workspace:", err);
-      }
+      const [loadedTasks, loadedStatuses] = await Promise.all([
+        listTasks(),
+        getStatuses(),
+      ]);
+      setTasks(loadedTasks);
+      setStatuses(
+        loadedStatuses.length > 0 ? loadedStatuses : DEFAULT_STATUSES,
+      );
     };
     loadData();
 
@@ -73,7 +67,6 @@ export function useWorkspace() {
       },
       { recursive: false, delayMs: 300 },
     );
-    watchPromise.catch((err) => console.error("watch failed:", err));
 
     return () => {
       watchPromise.then((unwatch) => unwatch());
@@ -82,37 +75,23 @@ export function useWorkspace() {
 
   const updateTaskStatus = useCallback(
     async (taskId: string, newStatus: string) => {
-      const prev = tasks;
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
           t.id === taskId ? { ...t, status: newStatus } : t,
         ),
       );
-      try {
-        await updateTaskStatusApi(taskId, newStatus);
-        await loadTasks();
-      } catch (err) {
-        console.error("failed to update task status:", err);
-        setTasks(prev);
-      }
+      await updateTaskStatusApi(taskId, newStatus);
+      await loadTasks();
     },
-    [loadTasks, tasks],
+    [loadTasks],
   );
 
   const updateTaskOrder = useCallback(async (taskId: string, order: number) => {
-    try {
-      await updateTaskOrderApi(taskId, order);
-    } catch (err) {
-      console.error("failed to update task order:", err);
-    }
+    await updateTaskOrderApi(taskId, order);
   }, []);
 
   const renumberTasks = useCallback(async (paths: string[]) => {
-    try {
-      await renumberTasksApi(paths);
-    } catch (err) {
-      console.error("failed to renumber tasks:", err);
-    }
+    await renumberTasksApi(paths);
   }, []);
 
   const reorderStatuses = useCallback(
