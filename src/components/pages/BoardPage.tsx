@@ -13,6 +13,7 @@ export type BoardPageProps = {
   dir: string;
   tasks: Task[];
   statuses: StatusEntry[];
+  loadTasks: () => void;
   loadStatuses: () => void;
   setDir: (path: string) => void;
   updateTaskStatus: (taskId: string, newStatus: string) => Promise<void>;
@@ -25,6 +26,7 @@ export function BoardPage({
   dir,
   tasks,
   statuses,
+  loadTasks,
   loadStatuses,
   setDir,
   updateTaskStatus,
@@ -68,7 +70,10 @@ export function BoardPage({
     handleDragStart: handleStatusDragStart,
     handleDragOver: handleStatusDragOver,
     handleDragEnd: handleStatusDragEnd,
-  } = useStatusEdit(statuses, { onStatusesChange: loadStatuses });
+  } = useStatusEdit(statuses, {
+    onStatusesChange: loadStatuses,
+    onTasksChange: loadTasks,
+  });
 
   const handlePickDirectory = async () => {
     const path = await pickDirectory();

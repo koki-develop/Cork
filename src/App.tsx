@@ -6,6 +6,7 @@ function App() {
     dir,
     tasks,
     statuses,
+    loadTasks,
     loadStatuses,
     setDir,
     updateTaskStatus,
@@ -23,6 +24,7 @@ function App() {
       dir={dir}
       tasks={tasks}
       statuses={statuses}
+      loadTasks={loadTasks}
       loadStatuses={loadStatuses}
       setDir={setDir}
       updateTaskStatus={updateTaskStatus}

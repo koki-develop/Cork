@@ -1,6 +1,7 @@
 use gray_matter::engine::YAML;
 use gray_matter::Matter;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -264,12 +265,59 @@ fn get_statuses(state: tauri::State<'_, AppState>) -> Vec<StatusEntry> {
 fn save_statuses(
     state: tauri::State<'_, AppState>,
     statuses: Vec<StatusEntry>,
+    rename_map: Option<HashMap<String, String>>,
 ) -> Result<(), String> {
-    let dir = match state.workspace_dir.lock().unwrap().clone() {
-        Some(d) => d,
+    let dir_guard = state.workspace_dir.lock().unwrap();
+    let dir = match dir_guard.as_ref() {
+        Some(d) => d.clone(),
         None => return Err("No directory selected".to_string()),
     };
-    write_statuses_to_workspace(&dir, &statuses)
+    drop(dir_guard);
+
+    write_statuses_to_workspace(&dir, &statuses)?;
+
+    let rename_map = match rename_map {
+        Some(map) => map,
+        None => return Ok(()),
+    };
+
+    if rename_map.is_empty() {
+        return Ok(());
+    }
+
+    let dir_canonical = std::fs::canonicalize(&dir).map_err(|e| e.to_string())?;
+
+    let mut md_files = Vec::new();
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let file_path = entry.path();
+            if file_path.extension().and_then(|s| s.to_str()) != Some("md") {
+                continue;
+            }
+            let path_canonical = std::fs::canonicalize(&file_path).map_err(|e| e.to_string())?;
+            if path_canonical.starts_with(&dir_canonical) {
+                md_files.push(path_canonical);
+            }
+        }
+    }
+
+    for path in &md_files {
+        let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let (fm, _) = parse_frontmatter(&content);
+        if let Some(current_status) = fm.as_ref().map(|f| f.status.as_str()) {
+            if let Some(new_label) = rename_map.get(current_status) {
+                if new_label != current_status {
+                    let updated = update_frontmatter(
+                        &content,
+                        &[("status", serde_json::json!(new_label))],
+                    );
+                    fs::write(path, updated).map_err(|e| e.to_string())?;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn cork_config_path(dir: &str) -> PathBuf {

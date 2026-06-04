@@ -11,11 +11,12 @@ import type { EditingEntry, StatusEntry } from "@/types";
 
 type Options = {
   onStatusesChange: () => void;
+  onTasksChange?: () => void;
 };
 
 export function useStatusEdit(
   initialStatuses: StatusEntry[],
-  { onStatusesChange }: Options,
+  { onStatusesChange, onTasksChange }: Options,
 ) {
   const [editing, setEditing] = useState<EditingEntry[]>(() =>
     initialStatuses.map((s) => ({ ...s, id: crypto.randomUUID() })),
@@ -55,9 +56,21 @@ export function useStatusEdit(
       candidate.every((c, i) => c.label === prev[i]?.label);
     if (isSame) return true;
 
-    await saveStatuses(candidate);
+    const renameMap: Record<string, string> = {};
+    if (prev.length === candidate.length) {
+      for (let i = 0; i < prev.length; i++) {
+        if (prev[i].label !== candidate[i].label) {
+          renameMap[prev[i].label] = candidate[i].label;
+        }
+      }
+    }
+
+    await saveStatuses(candidate, renameMap);
     lastPersisted.current = candidate;
     onStatusesChange();
+    if (Object.keys(renameMap).length > 0) {
+      onTasksChange?.();
+    }
     return true;
   };
 
