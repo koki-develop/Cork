@@ -27,15 +27,24 @@ export function useStatusEdit(
   const lastPersisted = useRef<StatusEntry[]>(
     initialStatuses.map((s) => ({ label: s.label })),
   );
+  const persistedLabelsById = useRef<Map<string, string> | null>(null);
+  if (persistedLabelsById.current === null) {
+    persistedLabelsById.current = new Map(editing.map((e) => [e.id, e.label]));
+  }
 
   const initialKey = labelKey(initialStatuses);
 
   useEffect(() => {
     if (initialKey === labelKey(lastPersisted.current)) return;
-    setEditing(initialStatuses.map((s) => ({ ...s, id: crypto.randomUUID() })));
+    const mapped = initialStatuses.map((s) => ({
+      ...s,
+      id: crypto.randomUUID(),
+    }));
+    setEditing(mapped);
     setDragSnapshot(null);
     setError(null);
     lastPersisted.current = initialStatuses.map((s) => ({ label: s.label }));
+    persistedLabelsById.current = new Map(mapped.map((e) => [e.id, e.label]));
   }, [initialKey, initialStatuses]);
 
   const persist = async (next: EditingEntry[]): Promise<boolean> => {
@@ -58,15 +67,19 @@ export function useStatusEdit(
 
     const renameMap: Record<string, string> = {};
     if (prev.length === candidate.length) {
-      for (let i = 0; i < prev.length; i++) {
-        if (prev[i].label !== candidate[i].label) {
-          renameMap[prev[i].label] = candidate[i].label;
+      for (const entry of next) {
+        const prevLabel = persistedLabelsById.current?.get(entry.id);
+        if (prevLabel !== undefined && prevLabel !== entry.label.trim()) {
+          renameMap[prevLabel] = entry.label.trim();
         }
       }
     }
 
     await saveStatuses(candidate, renameMap);
     lastPersisted.current = candidate;
+    persistedLabelsById.current = new Map(
+      next.map((e) => [e.id, e.label.trim()]),
+    );
     onStatusesChange();
     if (Object.keys(renameMap).length > 0) {
       onTasksChange?.();
