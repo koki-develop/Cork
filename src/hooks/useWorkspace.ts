@@ -145,9 +145,16 @@ export function useWorkspace() {
           : t,
       ),
     );
-    const result = await updateTaskApi(taskId, updatesWithOrder);
-    await loadTasks();
-    return result;
+    try {
+      const result = await updateTaskApi(taskId, updatesWithOrder);
+      await loadTasks();
+      return result;
+    } catch (e) {
+      if (task) {
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+      }
+      throw e;
+    }
   };
 
   const deleteTask = async (taskId: string) => {
