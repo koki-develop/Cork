@@ -145,29 +145,24 @@ export function TaskDetailDialog({
         closeAriaLabel="Close"
         containerClassName="max-w-2xl"
       >
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <Heading level={2} variant="page">
-            Task
-          </Heading>
-          <div className="flex items-center gap-1">
-            <DropdownMenu
-              trigger={<MoreHorizontal className="size-4" />}
-              triggerAriaLabel="Task actions"
-              items={[
-                {
-                  label: "Delete",
-                  icon: <Trash2 className="size-3.5" />,
-                  color: "danger",
-                  onClick: () => setDeleteConfirmOpen(true),
-                },
-              ]}
-            />
-            <IconButton
-              icon={<X className="size-4" />}
-              aria-label="Close"
-              onClick={handleClose}
-            />
-          </div>
+        <div className="flex items-center justify-end gap-1">
+          <DropdownMenu
+            trigger={<MoreHorizontal className="size-4" />}
+            triggerAriaLabel="Task actions"
+            items={[
+              {
+                label: "Delete",
+                icon: <Trash2 className="size-3.5" />,
+                color: "danger",
+                onClick: () => setDeleteConfirmOpen(true),
+              },
+            ]}
+          />
+          <IconButton
+            icon={<X className="size-4" />}
+            aria-label="Close"
+            onClick={handleClose}
+          />
         </div>
 
         <div className="flex flex-col gap-4">
