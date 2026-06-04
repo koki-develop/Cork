@@ -56,7 +56,6 @@ export function BoardPage({
 }: BoardPageProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => setSettingsOpen(true);
-  const closeSettings = () => setSettingsOpen(false);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [preselectedStatus, setPreselectedStatus] = useState<
@@ -108,6 +107,8 @@ export function BoardPage({
   const {
     editing,
     error,
+    flush: flushStatuses,
+    reset: resetStatuses,
     handleLabelChange,
     handleLabelBlur,
     handleAdd,
@@ -141,6 +142,16 @@ export function BoardPage({
     await deleteTask(taskId);
     toast.success("Task deleted");
     closeDetailDialog();
+  };
+
+  const handleSettingsClose = async () => {
+    try {
+      await flushStatuses();
+    } catch (e) {
+      toast.error(String(e));
+      resetStatuses();
+    }
+    setSettingsOpen(false);
   };
 
   const handlePickDirectory = async () => {
@@ -202,7 +213,7 @@ export function BoardPage({
       )}
       <SettingsDialog
         isOpen={settingsOpen}
-        onClose={closeSettings}
+        onClose={handleSettingsClose}
         currentDir={dir}
         onPickDirectory={handlePickDirectory}
         editing={editing}

@@ -135,9 +135,26 @@ export function useStatusEdit(
     await persist(editing);
   };
 
+  const flush = async () => {
+    const ok = await persist(editing);
+    if (!ok) throw new Error("Duplicate labels are not allowed.");
+  };
+
+  const reset = () => {
+    const mapped = initialStatuses.map((s) => ({
+      ...s,
+      id: crypto.randomUUID(),
+    }));
+    setEditing(mapped);
+    persistedLabelsById.current = new Map(mapped.map((e) => [e.id, e.label]));
+    setError(null);
+  };
+
   return {
     editing,
     error,
+    flush,
+    reset,
     handleLabelChange,
     handleLabelBlur,
     handleAdd,
