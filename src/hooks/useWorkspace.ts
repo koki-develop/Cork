@@ -1,7 +1,15 @@
-import { invoke } from "@tauri-apps/api/core";
 import { watch } from "@tauri-apps/plugin-fs";
 import { useCallback, useEffect, useState } from "react";
-import type { StatusEntry, Task } from "../types";
+import {
+  getStatuses,
+  getWorkspaceDirectory,
+  listTasks,
+  renumberTasks as renumberTasksApi,
+  saveStatuses,
+  updateTaskOrder as updateTaskOrderApi,
+  updateTaskStatus as updateTaskStatusApi,
+} from "@/api";
+import type { StatusEntry, Task } from "@/types";
 
 const DEFAULT_STATUSES: StatusEntry[] = [
   { label: "Todo" },
@@ -15,17 +23,17 @@ export function useWorkspace() {
   const [statuses, setStatuses] = useState<StatusEntry[]>(DEFAULT_STATUSES);
 
   const loadTasks = useCallback(async () => {
-    const result = await invoke<Task[]>("list_tasks");
+    const result = await listTasks();
     setTasks(result);
   }, []);
 
   const loadStatuses = useCallback(async () => {
-    const result = await invoke<StatusEntry[]>("get_statuses");
+    const result = await getStatuses();
     setStatuses(result.length > 0 ? result : DEFAULT_STATUSES);
   }, []);
 
   useEffect(() => {
-    invoke<string | null>("get_workspace_directory")
+    getWorkspaceDirectory()
       .then((path) => setDir(path))
       .catch((err) => console.error("failed to restore directory:", err));
   }, []);
@@ -36,8 +44,8 @@ export function useWorkspace() {
     const loadData = async () => {
       try {
         const [loadedTasks, loadedStatuses] = await Promise.all([
-          invoke<Task[]>("list_tasks"),
-          invoke<StatusEntry[]>("get_statuses"),
+          listTasks(),
+          getStatuses(),
         ]);
         setTasks(loadedTasks);
         setStatuses(
@@ -81,7 +89,7 @@ export function useWorkspace() {
         ),
       );
       try {
-        await invoke("update_task_status", { path: taskId, status: newStatus });
+        await updateTaskStatusApi(taskId, newStatus);
         await loadTasks();
       } catch (err) {
         console.error("failed to update task status:", err);
@@ -93,7 +101,7 @@ export function useWorkspace() {
 
   const updateTaskOrder = useCallback(async (taskId: string, order: number) => {
     try {
-      await invoke("update_task_order", { path: taskId, order });
+      await updateTaskOrderApi(taskId, order);
     } catch (err) {
       console.error("failed to update task order:", err);
     }
@@ -101,7 +109,7 @@ export function useWorkspace() {
 
   const renumberTasks = useCallback(async (paths: string[]) => {
     try {
-      await invoke("renumber_tasks", { paths });
+      await renumberTasksApi(paths);
     } catch (err) {
       console.error("failed to renumber tasks:", err);
     }
@@ -109,7 +117,7 @@ export function useWorkspace() {
 
   const reorderStatuses = useCallback(
     async (newStatuses: StatusEntry[]) => {
-      await invoke("save_statuses", { statuses: newStatuses });
+      await saveStatuses(newStatuses);
       await loadStatuses();
     },
     [loadStatuses],

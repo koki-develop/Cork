@@ -1,6 +1,5 @@
-import Board from "./components/board/Board";
-import DirectoryPicker from "./components/directory/DirectoryPicker";
-import { useWorkspace } from "./hooks/useWorkspace";
+import { BoardPage, WelcomePage } from "@/components/pages";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 function App() {
   const {
@@ -16,20 +15,20 @@ function App() {
   } = useWorkspace();
 
   if (!dir) {
-    return <DirectoryPicker onDirectorySelected={setDir} />;
+    return <WelcomePage onDirectorySelected={setDir} />;
   }
 
   return (
-    <Board
+    <BoardPage
+      dir={dir}
       tasks={tasks}
       statuses={statuses}
-      onStatusesChange={loadStatuses}
-      currentDir={dir}
-      onDirectoryChange={setDir}
-      onTaskStatusUpdate={updateTaskStatus}
-      onTaskOrderUpdate={updateTaskOrder}
-      onRenumberTasks={renumberTasks}
-      onReorderStatuses={reorderStatuses}
+      loadStatuses={loadStatuses}
+      setDir={setDir}
+      updateTaskStatus={updateTaskStatus}
+      updateTaskOrder={updateTaskOrder}
+      renumberTasks={renumberTasks}
+      reorderStatuses={reorderStatuses}
     />
   );
 }

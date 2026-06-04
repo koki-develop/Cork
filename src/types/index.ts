@@ -1,11 +1,2 @@
-export interface StatusEntry {
-  label: string;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  status: string;
-  body: string;
-  order: number | null;
-}
+export type { EditingEntry, StatusEntry } from "./status";
+export type { Task } from "./task";

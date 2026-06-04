@@ -1,7 +1,8 @@
 import { move } from "@dnd-kit/helpers";
 import type { DragEndEvent, DragOverEvent } from "@dnd-kit/react";
 import { useState } from "react";
-import type { StatusEntry, Task } from "../types";
+import { calculateMidpoint, groupTasksByStatus } from "@/lib/board";
+import type { StatusEntry, Task } from "@/types";
 
 type Params = {
   statuses: StatusEntry[];
@@ -11,23 +12,6 @@ type Params = {
   onTaskOrderUpdate: (taskId: string, order: number) => Promise<void>;
   onRenumberTasks: (paths: string[]) => Promise<void>;
 };
-
-function groupTasksByStatus(
-  statuses: StatusEntry[],
-  tasks: Task[],
-): Record<string, string[]> {
-  const grouped: Record<string, string[]> = {};
-  for (const s of statuses) grouped[s.label] = [];
-  for (const t of tasks) grouped[t.status]?.push(t.id);
-  return grouped;
-}
-
-function calculateMidpoint(prev: number | null, next: number | null): number {
-  if (prev === null && next === null) return 0.0;
-  if (prev === null) return next! / 2.0;
-  if (next === null) return prev + 1.0;
-  return (prev + next) / 2.0;
-}
 
 export function useBoardDragState({
   statuses,

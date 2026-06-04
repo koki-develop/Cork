@@ -16,7 +16,24 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["@tauri-apps/api/core", "@tauri-apps/api/event"],
+                "message": "Wrap Tauri invoke/listen calls in src/api/. Direct @tauri-apps/api/{core,event} imports are not allowed outside src/api/."
+              },
+              {
+                "group": ["@tauri-apps/plugin-fs"],
+                "message": "@tauri-apps/plugin-fs is only allowed in src/hooks/ and src/api/."
+              }
+            ]
+          }
+        }
+      }
     }
   },
   "javascript": {
@@ -36,5 +53,277 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/api/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components",
+                      "@/components/**",
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/lib",
+                      "@/lib/**"
+                    ],
+                    "message": "src/api/ may only depend on @/types and @tauri-apps/*."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/lib/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components",
+                      "@/components/**",
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/api",
+                      "@/api/**",
+                      "@tauri-apps/**",
+                      "react",
+                      "react-dom"
+                    ],
+                    "message": "src/lib/ must be pure helpers. Only @/types and small utility libs (clsx, date helpers, etc.) are allowed."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/hooks/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components",
+                      "@/components/**",
+                      "@tauri-apps/api/core",
+                      "@tauri-apps/api/event"
+                    ],
+                    "message": "Hooks must not import from components. Tauri invoke/event must go through @/api."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/atoms/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components/molecules",
+                      "@/components/molecules/**",
+                      "@/components/organisms",
+                      "@/components/organisms/**",
+                      "@/components/templates",
+                      "@/components/templates/**",
+                      "@/components/pages",
+                      "@/components/pages/**",
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/api",
+                      "@/api/**",
+                      "@tauri-apps/**"
+                    ],
+                    "message": "Atoms cannot depend on molecules, organisms, templates, pages, hooks, api, or Tauri. Only @/types and pure UI libraries (clsx, react) are allowed."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/molecules/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components/organisms",
+                      "@/components/organisms/**",
+                      "@/components/templates",
+                      "@/components/templates/**",
+                      "@/components/pages",
+                      "@/components/pages/**",
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/api",
+                      "@/api/**",
+                      "@tauri-apps/**"
+                    ],
+                    "message": "Molecules may only compose atoms. No organisms, templates, pages, hooks, api, or Tauri imports."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/organisms/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components/templates",
+                      "@/components/templates/**",
+                      "@/components/pages",
+                      "@/components/pages/**",
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/api",
+                      "@/api/**",
+                      "@tauri-apps/**"
+                    ],
+                    "message": "Organisms compose atoms/molecules (and shell/ organisms). No templates, pages, hooks, api, or Tauri — receive side-effect handlers via props."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/organisms/board/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components/organisms/settings",
+                      "@/components/organisms/settings/**",
+                      "@/components/templates",
+                      "@/components/templates/**",
+                      "@/components/pages",
+                      "@/components/pages/**",
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/api",
+                      "@/api/**",
+                      "@tauri-apps/**"
+                    ],
+                    "message": "board/ organisms cannot import settings/ organisms (cross-domain). Standard organism restrictions also apply."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/organisms/settings/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components/organisms/board",
+                      "@/components/organisms/board/**",
+                      "@/components/templates",
+                      "@/components/templates/**",
+                      "@/components/pages",
+                      "@/components/pages/**",
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/api",
+                      "@/api/**",
+                      "@tauri-apps/**"
+                    ],
+                    "message": "settings/ organisms cannot import board/ organisms (cross-domain). Standard organism restrictions also apply."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/templates/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/components/pages",
+                      "@/components/pages/**",
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/api",
+                      "@/api/**",
+                      "@tauri-apps/**"
+                    ],
+                    "message": "Templates are pure layout shells. Receive content via slots/props — no data fetching, hooks, api, or Tauri."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

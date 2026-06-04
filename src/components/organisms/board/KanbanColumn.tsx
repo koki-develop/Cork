@@ -2,18 +2,25 @@ import { CollisionPriority } from "@dnd-kit/abstract";
 import { useDragOperation } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { clsx } from "clsx";
-import { GripVertical } from "lucide-react";
-import type { Task } from "../../types";
-import Card from "./Card";
+import type { Ref } from "react";
+import { Badge, Heading } from "@/components/atoms";
+import { DragHandle } from "@/components/molecules";
+import type { Task } from "@/types";
+import { KanbanCard } from "./KanbanCard";
 
-type Props = {
+export type KanbanColumnProps = {
   label: string;
   index: number;
   taskIds: string[];
   tasksById: Map<string, Task>;
 };
 
-function Column({ label, index, taskIds, tasksById }: Props) {
+export function KanbanColumn({
+  label,
+  index,
+  taskIds,
+  tasksById,
+}: KanbanColumnProps) {
   const { ref, handleRef } = useSortable({
     id: label,
     index,
@@ -34,14 +41,14 @@ function Column({ label, index, taskIds, tasksById }: Props) {
       className="flex w-72 shrink-0 flex-col rounded-xl border border-cork-border/40 bg-cork-surface/60"
     >
       <div className="flex items-center gap-2 border-b border-cork-border/40 px-4 py-3">
-        <GripVertical
-          ref={handleRef}
-          className="size-3.5 text-cork-muted shrink-0 cursor-grab active:cursor-grabbing"
+        <DragHandle
+          handleRef={handleRef as Ref<HTMLButtonElement>}
+          aria-label={`Drag to reorder column ${label}`}
         />
-        <h2 className="text-sm font-semibold text-cork-text">{label}</h2>
-        <span className="ml-auto flex size-5 items-center justify-center rounded-md bg-cork-elevated text-xs font-medium text-cork-muted">
-          {taskIds.length}
-        </span>
+        <Heading level={2} variant="section">
+          {label}
+        </Heading>
+        <Badge className="ml-auto">{taskIds.length}</Badge>
       </div>
       <div
         className={clsx(
@@ -53,11 +60,9 @@ function Column({ label, index, taskIds, tasksById }: Props) {
         {taskIds.map((id, i) => {
           const task = tasksById.get(id);
           if (!task) return null;
-          return <Card key={id} task={task} group={label} index={i} />;
+          return <KanbanCard key={id} task={task} group={label} index={i} />;
         })}
       </div>
     </div>
   );
 }
-
-export default Column;

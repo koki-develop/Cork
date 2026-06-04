@@ -5,11 +5,11 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/react";
 import { Plus } from "lucide-react";
-import type { EditingEntry } from "../../types/settings";
-import Button from "../ui/Button";
-import StatusRow from "./StatusRow";
+import { Button, Text } from "@/components/atoms";
+import type { EditingEntry } from "@/types";
+import { StatusRow } from "./StatusRow";
 
-type Props = {
+export type StatusListProps = {
   editing: EditingEntry[];
   onLabelChange: (index: number, label: string) => void;
   onLabelBlur: (index: number) => void;
@@ -20,7 +20,7 @@ type Props = {
   onAdd: () => void;
 };
 
-function StatusList({
+export function StatusList({
   editing,
   onLabelChange,
   onLabelBlur,
@@ -29,12 +29,12 @@ function StatusList({
   onDragEnd,
   onRemove,
   onAdd,
-}: Props) {
+}: StatusListProps) {
   return (
     <div className="mb-5">
-      <span className="mb-2 block text-xs font-medium text-cork-muted uppercase tracking-wider">
+      <Text variant="label" size="xs" className="mb-2 block">
         Statuses
-      </span>
+      </Text>
       <DragDropProvider
         onDragStart={onDragStart}
         onDragOver={onDragOver}
@@ -66,5 +66,3 @@ function StatusList({
     </div>
   );
 }
-
-export default StatusList;

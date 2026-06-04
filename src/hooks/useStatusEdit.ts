@@ -4,13 +4,10 @@ import type {
   DragOverEvent,
   DragStartEvent,
 } from "@dnd-kit/react";
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { StatusEntry } from "../types";
-import type { EditingEntry } from "../types/settings";
-
-const labelKey = (entries: { label: string }[]) =>
-  entries.map((e) => e.label).join("\x00");
+import { saveStatuses } from "@/api";
+import { labelKey } from "@/lib/statuses";
+import type { EditingEntry, StatusEntry } from "@/types";
 
 type Options = {
   onStatusesChange: () => void;
@@ -61,7 +58,7 @@ export function useStatusEdit(
       candidate.every((c, i) => c.label === prev[i]?.label);
     if (isSame) return true;
 
-    await invoke("save_statuses", { statuses: candidate });
+    await saveStatuses(candidate);
     lastPersisted.current = candidate;
     onStatusesChange();
     return true;

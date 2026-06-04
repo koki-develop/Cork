@@ -1,14 +1,15 @@
 import { useSortable } from "@dnd-kit/react/sortable";
 import { clsx } from "clsx";
-import type { Task } from "../../types";
+import { Heading, Text } from "@/components/atoms";
+import type { Task } from "@/types";
 
-type Props = {
+export type KanbanCardProps = {
   task: Task;
   group: string;
   index: number;
 };
 
-function Card({ task, group, index }: Props) {
+export function KanbanCard({ task, group, index }: KanbanCardProps) {
   const { ref, isDragging } = useSortable({
     id: task.id,
     index,
@@ -31,16 +32,19 @@ function Card({ task, group, index }: Props) {
         isDragging && "opacity-50 ring-2 ring-cork-accent/30",
       )}
     >
-      <h3 className="text-sm font-medium leading-snug text-cork-text">
+      <Heading level={3} variant="card">
         {task.title}
-      </h3>
+      </Heading>
       {bodyPreview && (
-        <p className="mt-1.5 text-xs leading-relaxed text-cork-muted line-clamp-2">
+        <Text
+          as="p"
+          variant="muted"
+          size="xs"
+          className="mt-1.5 leading-relaxed line-clamp-2"
+        >
           {bodyPreview}
-        </p>
+        </Text>
       )}
     </div>
   );
 }
-
-export default Card;

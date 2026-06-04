@@ -5,7 +5,7 @@ type Variant = "primary" | "secondary" | "ghost" | "dashed";
 type Color = "default" | "danger";
 type Size = "sm" | "md" | "lg";
 
-type ButtonProps = {
+export type ButtonProps = {
   variant?: Variant;
   color?: Color;
   size?: Size;
@@ -40,16 +40,17 @@ const sizeStyles: Record<Size, string> = {
   lg: "px-6 py-3 text-sm",
 };
 
-function Button({
+export function Button({
   variant = "ghost",
   color = "default",
   size = "md",
   className,
+  type = "button",
   ...props
 }: ButtonProps) {
   return (
     <button
-      type="button"
+      type={type}
       className={clsx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg transition-colors duration-200 cursor-pointer",
         "disabled:opacity-40 disabled:pointer-events-none",
@@ -61,6 +62,3 @@ function Button({
     />
   );
 }
-
-Button.displayName = "Button";
-export default Button;
