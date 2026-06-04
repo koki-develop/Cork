@@ -1,3 +1,4 @@
+import { Toaster } from "sonner";
 import { BoardPage, WelcomePage } from "@/components/pages";
 import { useWorkspace } from "@/hooks/useWorkspace";
 
@@ -16,11 +17,9 @@ function App() {
     reorderStatuses,
   } = useWorkspace();
 
-  if (!dir) {
-    return <WelcomePage onDirectorySelected={setDir} />;
-  }
-
-  return (
+  const page = !dir ? (
+    <WelcomePage onDirectorySelected={setDir} />
+  ) : (
     <BoardPage
       dir={dir}
       tasks={tasks}
@@ -34,6 +33,25 @@ function App() {
       renumberTasks={renumberTasks}
       reorderStatuses={reorderStatuses}
     />
+  );
+
+  return (
+    <>
+      {page}
+      <Toaster
+        theme="dark"
+        position="bottom-right"
+        duration={4000}
+        toastOptions={{
+          style: {
+            background: "var(--color-cork-surface)",
+            border: "1px solid var(--color-cork-border)",
+            color: "var(--color-cork-text)",
+            fontSize: "14px",
+          },
+        }}
+      />
+    </>
   );
 }
 

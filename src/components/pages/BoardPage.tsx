@@ -1,5 +1,6 @@
 import { DragDropProvider } from "@dnd-kit/react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { onOpenSettings, pickDirectory, setWorkspaceDirectory } from "@/api";
 import { CreateTaskDialog, KanbanColumn } from "@/components/organisms/board";
 import { SettingsDialog } from "@/components/organisms/settings";
@@ -87,6 +88,15 @@ export function BoardPage({
     onTasksChange: loadTasks,
   });
 
+  const handleCreateTask = async (
+    title: string,
+    status: string,
+    body?: string,
+  ) => {
+    await createTask(title, status, body);
+    toast.success("Task created");
+  };
+
   const handlePickDirectory = async () => {
     const path = await pickDirectory();
     if (path === null || path === dir) return;
@@ -124,7 +134,7 @@ export function BoardPage({
         onClose={closeCreateDialog}
         statuses={statuses}
         preselectedStatus={preselectedStatus}
-        onCreateTask={createTask}
+        onCreateTask={handleCreateTask}
       />
       <SettingsDialog
         key={String(settingsOpen)}
