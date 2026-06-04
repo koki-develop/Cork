@@ -1,5 +1,6 @@
 use gray_matter::engine::YAML;
 use gray_matter::Matter;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -301,21 +302,22 @@ fn save_statuses(
         }
     }
 
-    for path in &md_files {
+    md_files.par_iter().try_for_each(|path| -> Result<(), String> {
         let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
         let (fm, _) = parse_frontmatter(&content);
-        if let Some(current_status) = fm.as_ref().map(|f| f.status.as_str()) {
-            if let Some(new_label) = rename_map.get(current_status) {
-                if new_label != current_status {
-                    let updated = update_frontmatter(
-                        &content,
-                        &[("status", serde_json::json!(new_label))],
-                    );
-                    fs::write(path, updated).map_err(|e| e.to_string())?;
-                }
-            }
+        let Some(current_status) = fm.as_ref().map(|f| f.status.as_str()) else {
+            return Ok(());
+        };
+        let Some(new_label) = rename_map.get(current_status) else {
+            return Ok(());
+        };
+        if new_label == current_status {
+            return Ok(());
         }
-    }
+        let updated =
+            update_frontmatter(&content, &[("status", serde_json::json!(new_label))]);
+        fs::write(path, updated).map_err(|e| e.to_string())
+    })?;
 
     Ok(())
 }
