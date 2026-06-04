@@ -1,4 +1,5 @@
 import { clsx } from "clsx";
+import { AnimatePresence, m } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 export type DropdownMenuItem = {
@@ -58,27 +59,35 @@ export function DropdownMenu({
       >
         {trigger}
       </button>
-      {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-max overflow-hidden rounded-lg border border-cork-border/40 bg-cork-elevated shadow-xl">
-          {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                item.onClick();
-              }}
-              className={clsx(
-                "flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150",
-                itemColorStyles[item.color ?? "default"],
-              )}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <AnimatePresence>
+        {open && (
+          <m.div
+            className="absolute right-0 top-full z-20 mt-1 w-max origin-top-right overflow-hidden rounded-lg border border-cork-border/40 bg-cork-elevated shadow-xl"
+            initial={{ opacity: 0, scale: 0.95, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -4 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+          >
+            {items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick();
+                }}
+                className={clsx(
+                  "flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150",
+                  itemColorStyles[item.color ?? "default"],
+                )}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </m.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

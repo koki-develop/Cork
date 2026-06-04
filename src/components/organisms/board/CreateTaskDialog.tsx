@@ -1,5 +1,5 @@
 import { Plus, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Button, Heading, Input, Text } from "@/components/atoms";
 import { ErrorBanner, IconButton, Select } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
@@ -28,6 +28,18 @@ export function CreateTaskDialog({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const prevOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !prevOpenRef.current) {
+      setTitle("");
+      setBody("");
+      setStatus(preselectedStatus ?? statuses[0]?.label ?? "");
+      setError(null);
+      setSubmitting(false);
+    }
+    prevOpenRef.current = isOpen;
+  }, [isOpen, preselectedStatus, statuses]);
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const trimmed = title.trim();
@@ -39,9 +51,6 @@ export function CreateTaskDialog({
     setSubmitting(true);
     onCreateTask(trimmed, status, body.trim())
       .then(() => {
-        setTitle("");
-        setBody("");
-        setStatus(preselectedStatus ?? statuses[0]?.label ?? "");
         onClose();
       })
       .catch((err) => {
@@ -52,15 +61,8 @@ export function CreateTaskDialog({
       });
   };
 
-  const handleClose = () => {
-    setTitle("");
-    setBody("");
-    setError(null);
-    onClose();
-  };
-
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} closeAriaLabel="Cancel">
+    <Modal isOpen={isOpen} onClose={onClose} closeAriaLabel="Cancel">
       <div className="mb-6 flex items-center justify-between gap-3">
         <Heading level={2} variant="page">
           New Task
@@ -68,7 +70,7 @@ export function CreateTaskDialog({
         <IconButton
           icon={<X className="size-4" />}
           aria-label="Cancel"
-          onClick={handleClose}
+          onClick={onClose}
         />
       </div>
 
@@ -115,12 +117,7 @@ export function CreateTaskDialog({
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="md"
-            onClick={handleClose}
-          >
+          <Button type="button" variant="secondary" size="md" onClick={onClose}>
             Cancel
           </Button>
           <Button

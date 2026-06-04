@@ -108,6 +108,7 @@ export function TaskDetailDialog({
     setDeleteError(null);
     try {
       await onDeleteTask();
+      setDeleteConfirmOpen(false);
     } catch (e) {
       setDeleteError(String(e));
     }

@@ -64,6 +64,12 @@ export function BoardPage({
   const closeCreateDialog = () => setCreateDialogOpen(false);
 
   const [detailDialogTask, setDetailDialogTask] = useState<Task | null>(null);
+  const [lastDetailDialogTask, setLastDetailDialogTask] = useState<Task | null>(
+    null,
+  );
+  if (detailDialogTask && detailDialogTask !== lastDetailDialogTask) {
+    setLastDetailDialogTask(detailDialogTask);
+  }
   const openDetailDialog = (taskId: string) => {
     const task = tasksById.get(taskId);
     if (task) setDetailDialogTask(task);
@@ -171,25 +177,23 @@ export function BoardPage({
         </BoardLayout>
       </DragDropProvider>
       <CreateTaskDialog
-        key={String(createDialogOpen)}
         isOpen={createDialogOpen}
         onClose={closeCreateDialog}
         statuses={statuses}
         preselectedStatus={preselectedStatus}
         onCreateTask={handleCreateTask}
       />
-      {detailDialogTask && (
+      {lastDetailDialogTask && (
         <TaskDetailDialog
-          isOpen
+          isOpen={detailDialogTask != null}
           onClose={closeDetailDialog}
-          task={detailDialogTask}
+          task={lastDetailDialogTask}
           statuses={statuses}
           onSaveTask={handleSaveTask}
-          onDeleteTask={() => handleDeleteTask(detailDialogTask.id)}
+          onDeleteTask={() => handleDeleteTask(lastDetailDialogTask.id)}
         />
       )}
       <SettingsDialog
-        key={String(settingsOpen)}
         isOpen={settingsOpen}
         onClose={closeSettings}
         currentDir={dir}
