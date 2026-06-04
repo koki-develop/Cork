@@ -123,7 +123,7 @@ pub fn create_task(
         }
     }
     let yaml = frontmatter::serialize(&fm_value);
-    let content = format!("---\n{}---\n\n{}", yaml, body);
+    let content = frontmatter::ensure_trailing_newline(format!("---\n{}---\n\n{}", yaml, body));
     fs::write(&file_path, content)?;
 
     Ok(Task {
@@ -180,10 +180,11 @@ pub fn update_task(
     let new_content = if body_provided {
         let with_updates = frontmatter::update(&content, &fm_updates);
         let marker = "\n---\n";
-        match with_updates.find(marker) {
+        let rebuilt = match with_updates.find(marker) {
             Some(pos) => format!("{}{}", &with_updates[..pos + marker.len()], new_body),
             None => format!("---\n---\n{}", new_body),
-        }
+        };
+        frontmatter::ensure_trailing_newline(rebuilt)
     } else {
         frontmatter::update(&content, &fm_updates)
     };
@@ -316,4 +317,178 @@ fn read_task_preview(file_path: &Path) -> Option<String> {
         fm_lines.join("\n"),
         body_lines.join("\n")
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    // --- sanitize_title ------------------------------------------------------
+
+    #[test]
+    fn sanitize_title_replaces_path_separators() {
+        assert_eq!(sanitize_title("foo/bar").unwrap(), "foo-bar");
+        assert_eq!(sanitize_title("a/b/c").unwrap(), "a-b-c");
+    }
+
+    #[test]
+    fn sanitize_title_filters_null_bytes() {
+        assert_eq!(sanitize_title("hello\0world").unwrap(), "helloworld");
+    }
+
+    #[test]
+    fn sanitize_title_trims_surrounding_whitespace() {
+        assert_eq!(sanitize_title("  hi  ").unwrap(), "hi");
+        assert_eq!(sanitize_title("\t\nhi\n\t").unwrap(), "hi");
+    }
+
+    #[test]
+    fn sanitize_title_preserves_unicode() {
+        assert_eq!(sanitize_title("日本語タイトル").unwrap(), "日本語タイトル");
+        assert_eq!(sanitize_title("emoji-🎉").unwrap(), "emoji-🎉");
+    }
+
+    #[test]
+    fn sanitize_title_rejects_empty_string() {
+        assert!(matches!(
+            sanitize_title("").unwrap_err(),
+            CommandError::EmptyTitle
+        ));
+    }
+
+    #[test]
+    fn sanitize_title_rejects_whitespace_only() {
+        assert!(matches!(
+            sanitize_title("   ").unwrap_err(),
+            CommandError::EmptyTitle
+        ));
+    }
+
+    #[test]
+    fn sanitize_title_rejects_only_null_bytes() {
+        assert!(matches!(
+            sanitize_title("\0\0\0").unwrap_err(),
+            CommandError::EmptyTitle
+        ));
+    }
+
+    #[test]
+    fn sanitize_title_composes_replacements_with_trim() {
+        // Slash replacement happens before trim.
+        assert_eq!(sanitize_title(" foo/bar ").unwrap(), "foo-bar");
+    }
+
+    // --- read_task_preview ---------------------------------------------------
+
+    fn write(dir: &Path, name: &str, content: &str) -> PathBuf {
+        let p = dir.join(name);
+        fs::write(&p, content).unwrap();
+        p
+    }
+
+    #[test]
+    fn preview_returns_none_for_missing_file() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("nope.md");
+        assert!(read_task_preview(&missing).is_none());
+    }
+
+    #[test]
+    fn preview_returns_none_when_first_line_is_not_fence() {
+        let dir = TempDir::new().unwrap();
+        let f = write(dir.path(), "a.md", "# heading\nbody\n");
+        assert!(read_task_preview(&f).is_none());
+    }
+
+    #[test]
+    fn preview_returns_none_when_frontmatter_unterminated() {
+        let dir = TempDir::new().unwrap();
+        let f = write(dir.path(), "a.md", "---\nstatus: todo\n");
+        // No closing `---` before EOF → None.
+        assert!(read_task_preview(&f).is_none());
+    }
+
+    #[test]
+    fn preview_extracts_frontmatter_and_short_body() {
+        let dir = TempDir::new().unwrap();
+        let f = write(
+            dir.path(),
+            "a.md",
+            "---\nstatus: todo\norder: 1\n---\nfirst line\nsecond line\n",
+        );
+        let preview = read_task_preview(&f).unwrap();
+        assert!(preview.starts_with("---\n"));
+        assert!(preview.contains("status: todo"));
+        assert!(preview.contains("first line"));
+        assert!(preview.contains("second line"));
+    }
+
+    #[test]
+    fn preview_stops_after_two_non_empty_body_lines() {
+        let dir = TempDir::new().unwrap();
+        let f = write(
+            dir.path(),
+            "a.md",
+            "---\nstatus: todo\n---\nL1\nL2\nL3-should-not-appear\n",
+        );
+        let preview = read_task_preview(&f).unwrap();
+        assert!(preview.contains("L1"));
+        assert!(preview.contains("L2"));
+        assert!(!preview.contains("L3-should-not-appear"));
+    }
+
+    #[test]
+    fn preview_includes_blank_lines_between_non_empty_lines() {
+        let dir = TempDir::new().unwrap();
+        let f = write(
+            dir.path(),
+            "a.md",
+            "---\nstatus: todo\n---\nfirst\n\nsecond\nthird-excluded\n",
+        );
+        let preview = read_task_preview(&f).unwrap();
+        // Blank line is included as part of body, "third" is excluded.
+        assert!(preview.contains("first"));
+        assert!(preview.contains("second"));
+        assert!(!preview.contains("third-excluded"));
+    }
+
+    #[test]
+    fn preview_handles_empty_body() {
+        let dir = TempDir::new().unwrap();
+        let f = write(dir.path(), "a.md", "---\nstatus: todo\n---\n");
+        let preview = read_task_preview(&f).unwrap();
+        assert!(preview.contains("status: todo"));
+        // Body section is present but empty (just trailing newline).
+        let body_marker = "\n---\n";
+        let body_idx = preview.find(body_marker).unwrap() + body_marker.len();
+        assert_eq!(&preview[body_idx..], "");
+    }
+
+    #[test]
+    fn preview_handles_frontmatter_only_file_no_trailing_body() {
+        // Same as above but verify the preview parses back as valid frontmatter.
+        let dir = TempDir::new().unwrap();
+        let f = write(dir.path(), "a.md", "---\nstatus: blocked\n---\n");
+        let preview = read_task_preview(&f).unwrap();
+        let (fm, body) = frontmatter::parse::<TaskFrontmatter>(&preview);
+        assert_eq!(fm.unwrap().status.as_deref(), Some("blocked"));
+        assert_eq!(body.trim(), "");
+    }
+
+    #[test]
+    fn preview_is_round_trip_parseable() {
+        let dir = TempDir::new().unwrap();
+        let f = write(
+            dir.path(),
+            "a.md",
+            "---\nstatus: doing\norder: 2.5\n---\nbody first\n",
+        );
+        let preview = read_task_preview(&f).unwrap();
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(&preview);
+        let fm = fm.unwrap();
+        assert_eq!(fm.status.as_deref(), Some("doing"));
+        assert_eq!(fm.order, Some(2.5));
+    }
 }

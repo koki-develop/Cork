@@ -26,7 +26,9 @@ Backend = Tauri v2 + Rust (see `src-tauri/AGENTS.md`).
 
 ## Tests
 
-No test framework. No CI. Verification of changes is `bunx tsc --noEmit` + `bunx biome check src` + `bun run tauri dev` for visual smoke tests.
+- **Rust (`src-tauri/`)**: `cargo test` runs unit tests for the testable helpers (frontmatter, security, state, errors, etc.). `#[tauri::command]` bodies and GUI code aren't covered — see `src-tauri/AGENTS.md`.
+- **Frontend (`src/`)**: no test framework. Verification of changes is `bunx tsc --noEmit` + `bunx biome check src` + `bun run tauri dev` for visual smoke tests.
+- **CI**: none.
 
 ## Change workflow
 

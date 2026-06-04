@@ -29,3 +29,6 @@ gray_matter = "0.3"
 yaml-rust2 = "0.10"
 rayon = "1.12"
 
+[dev-dependencies]
+tempfile = "3"
+

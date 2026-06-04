@@ -44,7 +44,21 @@ Capabilities are declared in `capabilities/default.json`. Current grants: `core:
 
 ## Cargo deps
 
-`tauri-plugin-fs = { version = "2", features = ["watch"] }` — the `"watch"` feature is required by the frontend `useWorkspace` hook. Other plugins are stock.
+`tauri-plugin-fs = { version = "2", features = ["watch"] }` — the `"watch"` feature is required by the frontend `useWorkspace` hook. Other plugins are stock. `tempfile` is a dev-dependency used by unit tests that touch the filesystem.
+
+## Tests
+
+Unit tests live inline at the bottom of each module under `#[cfg(test)] mod tests`. Run them with `cargo test` (from `src-tauri/` or via `bun run tauri` won't trigger them — use cargo directly).
+
+Covered modules:
+
+- `error.rs` — Display / Serialize / `From<io::Error>` / `CommandError::other`
+- `state.rs` — `AppState` API + cross-thread sharing via `Arc`
+- `security.rs` — `canonical_workspace` / `ensure_in_workspace` / `check_in_workspace`, including symlink and `..` escape rejection
+- `frontmatter.rs` — `parse` / `update` / `serialize` and the private `format_yaml_float`
+- `task.rs` — `sanitize_title` and `read_task_preview`
+
+Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime), `menu::setup`, `workspace::pick_directory` (GUI), and `workspace::set/get_workspace_directory` (need `AppHandle`). The commands are thin wrappers over the tested helpers, so the practical risk of skipping them is small.
 
 ## Adding a command
 

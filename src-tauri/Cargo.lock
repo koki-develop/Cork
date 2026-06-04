@@ -554,6 +554,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-plugin-store",
+ "tempfile",
  "yaml-rust2",
 ]
 
