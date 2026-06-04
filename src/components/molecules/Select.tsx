@@ -64,7 +64,7 @@ export function Select({ value, onChange, options }: SelectProps) {
                   onChange(option.value);
                   setOpen(false);
                 }}
-                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-cork-text transition-colors duration-150 hover:bg-cork-accent/10"
+                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-cork-text hover:bg-cork-accent/10"
               >
                 {option.value === value && (
                   <Check className="size-3.5 shrink-0 text-cork-accent" />
