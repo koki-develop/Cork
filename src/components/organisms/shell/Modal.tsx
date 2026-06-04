@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useEffectEvent } from "react";
 
 export type ModalProps = {
   isOpen: boolean;
@@ -16,16 +16,18 @@ export function Modal({
   closeAriaLabel = "Close",
   containerClassName,
 }: ModalProps) {
+  const onCloseEvent = useEffectEvent(onClose);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) {
-        onClose();
+        onCloseEvent();
       }
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

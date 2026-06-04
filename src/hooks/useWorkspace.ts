@@ -1,5 +1,5 @@
 import { watch } from "@tauri-apps/plugin-fs";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getStatuses,
   getWorkspaceDirectory,
@@ -22,15 +22,15 @@ export function useWorkspace() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [statuses, setStatuses] = useState<StatusEntry[]>(DEFAULT_STATUSES);
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = async () => {
     const result = await listTasks();
     setTasks(result);
-  }, []);
+  };
 
-  const loadStatuses = useCallback(async () => {
+  const loadStatuses = async () => {
     const result = await getStatuses();
     setStatuses(result.length > 0 ? result : DEFAULT_STATUSES);
-  }, []);
+  };
 
   useEffect(() => {
     getWorkspaceDirectory().then((path) => setDir(path));
@@ -71,36 +71,29 @@ export function useWorkspace() {
     return () => {
       watchPromise.then((unwatch) => unwatch());
     };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: auto-memoized by React Compiler
   }, [dir, loadTasks, loadStatuses]);
 
-  const updateTaskStatus = useCallback(
-    async (taskId: string, newStatus: string) => {
-      setTasks((prevTasks) =>
-        prevTasks.map((t) =>
-          t.id === taskId ? { ...t, status: newStatus } : t,
-        ),
-      );
-      await updateTaskStatusApi(taskId, newStatus);
-      await loadTasks();
-    },
-    [loadTasks],
-  );
+  const updateTaskStatus = async (taskId: string, newStatus: string) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
+    );
+    await updateTaskStatusApi(taskId, newStatus);
+    await loadTasks();
+  };
 
-  const updateTaskOrder = useCallback(async (taskId: string, order: number) => {
+  const updateTaskOrder = async (taskId: string, order: number) => {
     await updateTaskOrderApi(taskId, order);
-  }, []);
+  };
 
-  const renumberTasks = useCallback(async (paths: string[]) => {
+  const renumberTasks = async (paths: string[]) => {
     await renumberTasksApi(paths);
-  }, []);
+  };
 
-  const reorderStatuses = useCallback(
-    async (newStatuses: StatusEntry[]) => {
-      await saveStatuses(newStatuses);
-      await loadStatuses();
-    },
-    [loadStatuses],
-  );
+  const reorderStatuses = async (newStatuses: StatusEntry[]) => {
+    await saveStatuses(newStatuses);
+    await loadStatuses();
+  };
 
   return {
     dir,

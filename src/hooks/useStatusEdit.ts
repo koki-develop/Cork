@@ -4,7 +4,7 @@ import type {
   DragOverEvent,
   DragStartEvent,
 } from "@dnd-kit/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { saveStatuses } from "@/api";
 import { labelKey } from "@/lib/statuses";
 import type { EditingEntry, StatusEntry } from "@/types";
@@ -27,10 +27,7 @@ export function useStatusEdit(
     initialStatuses.map((s) => ({ label: s.label })),
   );
 
-  const initialKey = useMemo(
-    () => labelKey(initialStatuses),
-    [initialStatuses],
-  );
+  const initialKey = labelKey(initialStatuses);
 
   useEffect(() => {
     if (initialKey === labelKey(lastPersisted.current)) return;

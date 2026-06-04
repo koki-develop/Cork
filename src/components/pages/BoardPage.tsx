@@ -1,5 +1,5 @@
 import { DragDropProvider } from "@dnd-kit/react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { onOpenSettings, pickDirectory, setWorkspaceDirectory } from "@/api";
 import { KanbanColumn } from "@/components/organisms/board";
 import { SettingsDialog } from "@/components/organisms/settings";
@@ -33,15 +33,15 @@ export function BoardPage({
   reorderStatuses,
 }: BoardPageProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const openSettings = () => setSettingsOpen(true);
+  const closeSettings = () => setSettingsOpen(false);
 
   useEffect(() => {
-    const unlisten = onOpenSettings(openSettings);
+    const unlisten = onOpenSettings(() => setSettingsOpen(true));
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [openSettings]);
+  }, []);
 
   const {
     columnOrder,
