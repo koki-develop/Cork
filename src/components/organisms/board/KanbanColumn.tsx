@@ -63,7 +63,7 @@ export function KanbanColumn({
             aria-label={`Drag to reorder column ${label}`}
           />
         ) : (
-          <div className="size-8" />
+          <span />
         )}
         <Heading level={2} variant="section" className="min-w-0 truncate">
           {displayLabel ?? label}
