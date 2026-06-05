@@ -15,6 +15,8 @@ function App() {
     tasks,
     statuses,
     query,
+    filters,
+    availableTags,
     loadTasks,
     loadStatuses,
     setDir,
@@ -26,6 +28,7 @@ function App() {
     renumberTasks,
     reorderStatuses,
     handleQueryChange,
+    handleFiltersChange,
   } = useWorkspace();
 
   const pageKey = dir ? "board" : "welcome";
@@ -37,10 +40,13 @@ function App() {
       tasks={tasks}
       statuses={statuses}
       searchQuery={query}
+      filters={filters}
+      availableTags={availableTags}
       loadTasks={loadTasks}
       loadStatuses={loadStatuses}
       setDir={setDir}
       onSearchChange={handleQueryChange}
+      onFiltersChange={handleFiltersChange}
       createTask={createTask}
       updateTask={updateTask}
       deleteTask={deleteTask}

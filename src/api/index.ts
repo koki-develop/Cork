@@ -4,6 +4,7 @@ export {
   createTask,
   deleteTask,
   getTask,
+  listAllTags,
   listTasks,
   renumberTasks,
   updateTask,
@@ -12,6 +13,8 @@ export {
 } from "./tasks";
 export {
   getWorkspaceDirectory,
+  getWorkspaceFilters,
   pickDirectory,
   setWorkspaceDirectory,
+  setWorkspaceFilters,
 } from "./workspace";

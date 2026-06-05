@@ -5,6 +5,7 @@ import {
   deleteTask as deleteTaskApi,
   getStatuses,
   getWorkspaceDirectory,
+  listAllTags,
   listTasks,
   renumberTasks as renumberTasksApi,
   saveStatuses,
@@ -12,7 +13,8 @@ import {
   updateTaskOrder as updateTaskOrderApi,
   updateTaskStatus as updateTaskStatusApi,
 } from "@/api";
-import type { StatusEntry, Task, TaskUpdates } from "@/types";
+import { useFilterStore } from "@/hooks/useFilterStore";
+import type { StatusEntry, TagFilter, Task, TaskUpdates } from "@/types";
 
 const DEFAULT_STATUSES: StatusEntry[] = [
   { label: "Todo" },
@@ -28,9 +30,28 @@ export function useWorkspace() {
   queryRef.current = query;
   const [statuses, setStatuses] = useState<StatusEntry[]>(DEFAULT_STATUSES);
 
+  const [filters, setFilters] = useState<TagFilter[]>([]);
+  const filtersRef = useRef<TagFilter[]>([]);
+  filtersRef.current = filters;
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+
+  const filterStore = useFilterStore(dir);
+  const storedFilters = filterStore.filters;
+
+  const requestIdRef = useRef(0);
+
   const loadTasks = useCallback(async () => {
-    const result = await listTasks(queryRef.current || undefined);
-    setTasks(result);
+    const id = ++requestIdRef.current;
+    const result = await listTasks(
+      queryRef.current || undefined,
+      filtersRef.current.length > 0 ? filtersRef.current : undefined,
+    );
+    if (id === requestIdRef.current) setTasks(result);
+  }, []);
+
+  const loadAvailableTags = useCallback(async () => {
+    const tags = await listAllTags();
+    setAvailableTags(tags);
   }, []);
 
   const loadStatuses = useCallback(async () => {
@@ -42,18 +63,30 @@ export function useWorkspace() {
     getWorkspaceDirectory().then((path) => setDir(path));
   }, []);
 
+  // Mirror filters from the store into local state. The store loads filters
+  // asynchronously after `dir` changes; when that resolves we update filters,
+  // which in turn triggers the data-loading effect below.
+  useEffect(() => {
+    setFilters(storedFilters);
+    filtersRef.current = storedFilters;
+  }, [storedFilters]);
+
+  // Main data loading effect — re-fetches tasks whenever dir or filters
+  // change. `filters` is in deps to trigger the effect (loadTasks reads
+  // filtersRef.current).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `filters` is read via ref inside loadTasks, but listed here to trigger re-runs
   useEffect(() => {
     if (!dir) return;
 
     const loadData = async () => {
-      const [loadedTasks, loadedStatuses] = await Promise.all([
-        listTasks(queryRef.current || undefined),
+      const [, loadedStatuses] = await Promise.all([
+        loadTasks(),
         getStatuses(),
       ]);
-      setTasks(loadedTasks);
       setStatuses(
         loadedStatuses.length > 0 ? loadedStatuses : DEFAULT_STATUSES,
       );
+      await loadAvailableTags();
     };
     loadData();
 
@@ -66,9 +99,9 @@ export function useWorkspace() {
         const hasMdFile = event.paths.some((p: string) => p.endsWith(".md"));
         if (hasCorkConfig) {
           loadStatuses();
-          loadTasks();
+          loadTasks().then(loadAvailableTags);
         } else if (hasMdFile) {
-          loadTasks();
+          loadTasks().then(loadAvailableTags);
         }
       },
       { recursive: false, delayMs: 300 },
@@ -77,7 +110,7 @@ export function useWorkspace() {
     return () => {
       watchPromise.then((unwatch) => unwatch());
     };
-  }, [dir, loadTasks, loadStatuses]);
+  }, [dir, filters, loadTasks, loadAvailableTags, loadStatuses]);
 
   const createTask = async (
     title: string,
@@ -93,6 +126,7 @@ export function useWorkspace() {
     const task = await createTaskApi(title, status, body, order, tags);
     setTasks((prev) => [...prev, task]);
     await loadTasks();
+    await loadAvailableTags();
   };
 
   const updateTaskStatus = async (taskId: string, newStatus: string) => {
@@ -148,6 +182,7 @@ export function useWorkspace() {
     try {
       const result = await updateTaskApi(taskId, updatesWithOrder);
       await loadTasks();
+      await loadAvailableTags();
       return result;
     } catch (e) {
       if (task) {
@@ -160,6 +195,7 @@ export function useWorkspace() {
   const deleteTask = async (taskId: string) => {
     await deleteTaskApi(taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    await loadAvailableTags();
   };
 
   const reorderStatuses = async (newStatuses: StatusEntry[]) => {
@@ -167,13 +203,28 @@ export function useWorkspace() {
     await loadStatuses();
   };
 
-  const queryIdRef = useRef(0);
-
   const handleQueryChange = (q: string) => {
     setQuery(q);
-    const id = ++queryIdRef.current;
-    listTasks(q || undefined).then((result) => {
-      if (id === queryIdRef.current) setTasks(result);
+    queryRef.current = q;
+    const id = ++requestIdRef.current;
+    listTasks(
+      q || undefined,
+      filtersRef.current.length > 0 ? filtersRef.current : undefined,
+    ).then((result) => {
+      if (id === requestIdRef.current) setTasks(result);
+    });
+  };
+
+  const handleFiltersChange = (next: TagFilter[]) => {
+    setFilters(next);
+    filtersRef.current = next;
+    filterStore.scheduleSave(next);
+    const id = ++requestIdRef.current;
+    listTasks(
+      queryRef.current || undefined,
+      next.length > 0 ? next : undefined,
+    ).then((result) => {
+      if (id === requestIdRef.current) setTasks(result);
     });
   };
 
@@ -182,6 +233,8 @@ export function useWorkspace() {
     tasks,
     query,
     statuses,
+    filters,
+    availableTags,
     loadTasks,
     loadStatuses,
     setDir,
@@ -193,5 +246,6 @@ export function useWorkspace() {
     renumberTasks,
     reorderStatuses,
     handleQueryChange,
+    handleFiltersChange,
   };
 }

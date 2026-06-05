@@ -1,8 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Task, TaskUpdates } from "@/types";
+import type { StoredFilter, TagFilter, Task, TaskUpdates } from "@/types";
 
-export const listTasks = (query?: string) =>
-  invoke<Task[]>("list_tasks", query !== undefined ? { query } : {});
+const toPayload = (f: TagFilter): StoredFilter =>
+  "tags" in f
+    ? { operator: f.operator, tags: f.tags }
+    : { operator: f.operator };
+
+export const listTasks = (query?: string, filters?: TagFilter[]) => {
+  const payload: { query?: string; filters?: StoredFilter[] } = {};
+  if (query) payload.query = query;
+  if (filters && filters.length > 0) {
+    payload.filters = filters.map(toPayload);
+  }
+  return invoke<Task[]>("list_tasks", payload);
+};
+
+export const listAllTags = () => invoke<string[]>("list_all_tags");
 
 export const getTask = (path: string) => invoke<Task>("get_task", { path });
 

@@ -6,9 +6,15 @@ export {
   type DropdownMenuProps,
 } from "./DropdownMenu";
 export { ErrorBanner, type ErrorBannerProps } from "./ErrorBanner";
+export { FilterButton, type FilterButtonProps } from "./FilterButton";
+export { FilterRow, type FilterRowProps } from "./FilterRow";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { PathDisplay, type PathDisplayProps } from "./PathDisplay";
-export { SearchBar, type SearchBarProps } from "./SearchBar";
+export {
+  SearchBar,
+  type SearchBarHandle,
+  type SearchBarProps,
+} from "./SearchBar";
 export { Select, type SelectOption, type SelectProps } from "./Select";
 export {
   TagEditor,
@@ -16,4 +22,9 @@ export {
   type TagEditorProps,
 } from "./TagEditor";
 export { TagList, type TagListProps } from "./TagList";
+export {
+  TagOperandInput,
+  type TagOperandInputMode,
+  type TagOperandInputProps,
+} from "./TagOperandInput";
 export { WelcomeHero, type WelcomeHeroProps } from "./WelcomeHero";

@@ -1,6 +1,6 @@
 import { DragDropProvider } from "@dnd-kit/react";
 import { Copy, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   getTask,
@@ -9,29 +9,42 @@ import {
   setWorkspaceDirectory,
 } from "@/api";
 import { Button, Heading, Text } from "@/components/atoms";
-import { ContextMenu, SearchBar } from "@/components/molecules";
+import {
+  ContextMenu,
+  FilterButton,
+  SearchBar,
+  type SearchBarHandle,
+} from "@/components/molecules";
 import {
   CreateTaskDialog,
   KanbanColumn,
   TaskDetailDialog,
 } from "@/components/organisms/board";
 import { SettingsDialog } from "@/components/organisms/settings";
-import { AppHeader, Modal } from "@/components/organisms/shell";
+import {
+  AppHeader,
+  Modal,
+  TagFilterPopover,
+} from "@/components/organisms/shell";
 import { BoardLayout } from "@/components/templates";
 import { useBoardDragState } from "@/hooks/useBoardDragState";
 import { useStatusEdit } from "@/hooks/useStatusEdit";
 import { UNKNOWN_STATUS } from "@/lib/board";
-import type { StatusEntry, Task, TaskUpdates } from "@/types";
+import { isValidFilter } from "@/lib/filter";
+import type { StatusEntry, TagFilter, Task, TaskUpdates } from "@/types";
 
 export type BoardPageProps = {
   dir: string;
   tasks: Task[];
   statuses: StatusEntry[];
   searchQuery: string;
+  filters: TagFilter[];
+  availableTags: string[];
   loadTasks: () => void;
   loadStatuses: () => void;
   setDir: (path: string) => void;
   onSearchChange: (value: string) => void;
+  onFiltersChange: (next: TagFilter[]) => void;
   createTask: (
     title: string,
     status: string,
@@ -51,10 +64,13 @@ export function BoardPage({
   tasks,
   statuses,
   searchQuery,
+  filters,
+  availableTags,
   loadTasks,
   loadStatuses,
   setDir,
   onSearchChange,
+  onFiltersChange,
   createTask,
   updateTask,
   deleteTask,
@@ -65,6 +81,14 @@ export function BoardPage({
 }: BoardPageProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => setSettingsOpen(true);
+
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const searchBarRef = useRef<SearchBarHandle>(null);
+  const validFilterCount = useMemo(
+    () => filters.filter(isValidFilter).length,
+    [filters],
+  );
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [preselectedStatus, setPreselectedStatus] = useState<
@@ -128,6 +152,26 @@ export function BoardPage({
       unlisten.then((fn) => fn());
     };
   }, []);
+
+  const anyDialogOpen =
+    settingsOpen ||
+    createDialogOpen ||
+    detailDialogTask !== null ||
+    deleteConfirmTaskId !== null ||
+    contextMenu !== null;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (anyDialogOpen) return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.shiftKey) return;
+      if (e.key.toLowerCase() !== "f") return;
+      e.preventDefault();
+      searchBarRef.current?.focus();
+    };
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => globalThis.removeEventListener("keydown", handleKeyDown);
+  }, [anyDialogOpen]);
 
   const {
     columnOrder,
@@ -212,8 +256,20 @@ export function BoardPage({
             />
           }
           toolbar={
-            <div className="px-6 pt-6 pb-0">
-              <SearchBar value={searchQuery} onChange={onSearchChange} />
+            <div className="flex items-center gap-4 px-6 pt-6 pb-0">
+              <div className="min-w-0 flex-1">
+                <SearchBar
+                  ref={searchBarRef}
+                  value={searchQuery}
+                  onChange={onSearchChange}
+                />
+              </div>
+              <FilterButton
+                ref={filterButtonRef}
+                count={validFilterCount}
+                isOpen={filterOpen}
+                onClick={() => setFilterOpen((prev) => !prev)}
+              />
             </div>
           }
         >
@@ -239,6 +295,14 @@ export function BoardPage({
           })}
         </BoardLayout>
       </DragDropProvider>
+      <TagFilterPopover
+        isOpen={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        anchorRef={filterButtonRef}
+        filters={filters}
+        onFiltersChange={onFiltersChange}
+        availableTags={availableTags}
+      />
       <CreateTaskDialog
         isOpen={createDialogOpen}
         onClose={closeCreateDialog}

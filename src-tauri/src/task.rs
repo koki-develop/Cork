@@ -6,6 +6,7 @@ use nucleo_matcher::pattern::{AtomKind, CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
@@ -20,6 +21,50 @@ pub struct Task {
     pub order: Option<f64>,
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+/// Tag filter — discriminated by the `operator` field. Tag-based variants
+/// carry a `tags` array; empty/non-empty checks have no operand. The
+/// `#[serde(tag = "operator", rename_all = "snake_case")]` attribute makes
+/// the wire format `{"operator":"contains","tags":[...]}` /
+/// `{"operator":"is_empty"}`.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(tag = "operator", rename_all = "snake_case")]
+pub enum TagFilter {
+    Contains { tags: Vec<String> },
+    NotContains { tags: Vec<String> },
+    ContainsAny { tags: Vec<String> },
+    ContainsAll { tags: Vec<String> },
+    IsEmpty,
+    IsNotEmpty,
+}
+
+fn tags_contains_any(task_tags: &[String], targets: &[String]) -> bool {
+    targets.iter().any(|t| task_tags.iter().any(|x| x == t))
+}
+
+/// Match a single filter. Empty operand on tag-based variants is treated as
+/// a no-op (returns true), matching the frontend's "still being typed"
+/// convention — the UI prunes such filters before persisting them, but the
+/// backend tolerates them defensively.
+fn matches_filter(task: &Task, filter: &TagFilter) -> bool {
+    match filter {
+        TagFilter::Contains { tags } | TagFilter::ContainsAny { tags } => {
+            tags.is_empty() || tags_contains_any(&task.tags, tags)
+        }
+        TagFilter::NotContains { tags } => {
+            tags.is_empty() || !tags_contains_any(&task.tags, tags)
+        }
+        TagFilter::ContainsAll { tags } => {
+            tags.is_empty() || tags.iter().all(|t| task.tags.iter().any(|x| x == t))
+        }
+        TagFilter::IsEmpty => task.tags.is_empty(),
+        TagFilter::IsNotEmpty => !task.tags.is_empty(),
+    }
+}
+
+fn matches_all_filters(task: &Task, filters: &[TagFilter]) -> bool {
+    filters.iter().all(|f| matches_filter(task, f))
 }
 
 #[derive(Deserialize)]
@@ -54,22 +99,16 @@ where
     Ok(out)
 }
 
-#[tauri::command]
-pub fn list_tasks(
-    query: Option<String>,
-    state: tauri::State<'_, AppState>,
+/// Apply title-fuzzy query + tag filters to a task list. Empty `query` /
+/// empty `filters` skip their respective passes. Sort order is preserved
+/// from the input (caller must pre-sort).
+fn apply_query_and_filters(
+    tasks: Vec<Task>,
+    query: Option<&str>,
+    filters: &[TagFilter],
 ) -> Vec<Task> {
-    let Some(dir) = state.workspace() else {
-        return Vec::new();
-    };
-
-    let tasks: Vec<Task> = match query {
-        Some(ref q) if !q.is_empty() => {
-            let cached = state.get_cached_tasks().unwrap_or_else(|| {
-                let all = read_all_tasks(&dir);
-                state.set_cached_tasks(all);
-                state.get_cached_tasks().unwrap()
-            });
+    let after_query: Vec<Task> = match query {
+        Some(q) if !q.is_empty() => {
             let mut matcher = Matcher::new(Config::DEFAULT);
             let pattern = Pattern::new(
                 q,
@@ -77,7 +116,7 @@ pub fn list_tasks(
                 Normalization::Smart,
                 AtomKind::Fuzzy,
             );
-            cached
+            tasks
                 .into_iter()
                 .filter(|task| {
                     let mut buf = Vec::new();
@@ -87,14 +126,76 @@ pub fn list_tasks(
                 })
                 .collect()
         }
-        _ => {
-            let all = read_all_tasks(&dir);
-            state.set_cached_tasks(all.clone());
-            all
-        }
+        _ => tasks,
     };
 
-    tasks
+    if filters.is_empty() {
+        after_query
+    } else {
+        after_query
+            .into_iter()
+            .filter(|task| matches_all_filters(task, filters))
+            .collect()
+    }
+}
+
+/// Collect unique tags from a task slice, sorted case-insensitively while
+/// preserving each tag's original case. Dedup is case-sensitive — `Bug`
+/// and `bug` are kept as separate entries.
+fn collect_unique_tags_sorted(tasks: &[Task]) -> Vec<String> {
+    let mut set: HashSet<String> = HashSet::new();
+    for task in tasks {
+        for tag in &task.tags {
+            set.insert(tag.clone());
+        }
+    }
+    let mut tags: Vec<String> = set.into_iter().collect();
+    tags.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()).then_with(|| a.cmp(b)));
+    tags
+}
+
+#[tauri::command]
+pub fn list_tasks(
+    query: Option<String>,
+    filters: Option<Vec<TagFilter>>,
+    state: tauri::State<'_, AppState>,
+) -> Vec<Task> {
+    let Some(dir) = state.workspace() else {
+        return Vec::new();
+    };
+
+    let has_query = query.as_ref().is_some_and(|q| !q.is_empty());
+    let filters_slice: &[TagFilter] = filters.as_deref().unwrap_or(&[]);
+    let has_filters = !filters_slice.is_empty();
+
+    let cached = if has_query || has_filters {
+        state.get_cached_tasks().unwrap_or_else(|| {
+            let all = read_all_tasks(&dir);
+            state.set_cached_tasks(all);
+            state.get_cached_tasks().unwrap()
+        })
+    } else {
+        let all = read_all_tasks(&dir);
+        state.set_cached_tasks(all.clone());
+        all
+    };
+
+    apply_query_and_filters(cached, query.as_deref(), filters_slice)
+}
+
+#[tauri::command]
+pub fn list_all_tags(state: tauri::State<'_, AppState>) -> Vec<String> {
+    let Some(dir) = state.workspace() else {
+        return Vec::new();
+    };
+
+    let cached = state.get_cached_tasks().unwrap_or_else(|| {
+        let all = read_all_tasks(&dir);
+        state.set_cached_tasks(all);
+        state.get_cached_tasks().unwrap()
+    });
+
+    collect_unique_tags_sorted(&cached)
 }
 
 fn read_all_tasks(dir: &Path) -> Vec<Task> {
@@ -806,5 +907,322 @@ mod tests {
         let p = Pattern::new("", CaseMatching::Ignore, Normalization::Smart, AtomKind::Fuzzy);
         assert!(score(&p, "anything", &mut matcher).is_some());
         assert!(score(&p, "", &mut matcher).is_some());
+    }
+
+    // --- tag filters --------------------------------------------------------
+
+    fn make_task(tags: &[&str]) -> Task {
+        Task {
+            id: "id".into(),
+            title: "t".into(),
+            status: "Todo".into(),
+            body: String::new(),
+            order: None,
+            tags: tags.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn tags_vec(tags: &[&str]) -> Vec<String> {
+        tags.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn contains(tags: &[&str]) -> TagFilter {
+        TagFilter::Contains {
+            tags: tags_vec(tags),
+        }
+    }
+    fn not_contains(tags: &[&str]) -> TagFilter {
+        TagFilter::NotContains {
+            tags: tags_vec(tags),
+        }
+    }
+    fn contains_any(tags: &[&str]) -> TagFilter {
+        TagFilter::ContainsAny {
+            tags: tags_vec(tags),
+        }
+    }
+    fn contains_all(tags: &[&str]) -> TagFilter {
+        TagFilter::ContainsAll {
+            tags: tags_vec(tags),
+        }
+    }
+
+    #[test]
+    fn tags_contains_any_empty_targets_is_false() {
+        let task_tags: Vec<String> = vec!["a".into()];
+        let targets: Vec<String> = vec![];
+        assert!(!tags_contains_any(&task_tags, &targets));
+    }
+
+    #[test]
+    fn tags_contains_any_single_match() {
+        let task_tags: Vec<String> = vec!["a".into(), "b".into()];
+        let targets: Vec<String> = vec!["a".into()];
+        assert!(tags_contains_any(&task_tags, &targets));
+    }
+
+    #[test]
+    fn tags_contains_any_one_of_many_matches() {
+        let task_tags: Vec<String> = vec!["a".into()];
+        let targets: Vec<String> = vec!["x".into(), "y".into(), "a".into()];
+        assert!(tags_contains_any(&task_tags, &targets));
+    }
+
+    #[test]
+    fn tags_contains_any_no_match() {
+        let task_tags: Vec<String> = vec!["a".into(), "b".into()];
+        let targets: Vec<String> = vec!["x".into(), "y".into()];
+        assert!(!tags_contains_any(&task_tags, &targets));
+    }
+
+    // matches_filter: 6 operators × tag有/無 × operand 有/空
+
+    #[test]
+    fn contains_with_match() {
+        assert!(matches_filter(&make_task(&["bug", "p0"]), &contains(&["bug"])));
+    }
+
+    #[test]
+    fn contains_without_match() {
+        assert!(!matches_filter(&make_task(&["feature"]), &contains(&["bug"])));
+    }
+
+    #[test]
+    fn contains_empty_operand_passes_all() {
+        assert!(matches_filter(&make_task(&["bug"]), &contains(&[])));
+        assert!(matches_filter(&make_task(&[]), &contains(&[])));
+    }
+
+    #[test]
+    fn contains_is_case_sensitive() {
+        assert!(!matches_filter(&make_task(&["Bug"]), &contains(&["bug"])));
+    }
+
+    #[test]
+    fn not_contains_with_match_fails() {
+        assert!(!matches_filter(&make_task(&["bug"]), &not_contains(&["bug"])));
+    }
+
+    #[test]
+    fn not_contains_without_match_passes() {
+        assert!(matches_filter(&make_task(&["feature"]), &not_contains(&["bug"])));
+    }
+
+    #[test]
+    fn not_contains_empty_tags_passes() {
+        assert!(matches_filter(&make_task(&[]), &not_contains(&["bug"])));
+    }
+
+    #[test]
+    fn not_contains_empty_operand_passes_all() {
+        assert!(matches_filter(&make_task(&["bug"]), &not_contains(&[])));
+    }
+
+    #[test]
+    fn contains_any_matches_any() {
+        assert!(matches_filter(&make_task(&["bug"]), &contains_any(&["bug", "feature"])));
+    }
+
+    #[test]
+    fn contains_any_no_match() {
+        assert!(!matches_filter(&make_task(&["docs"]), &contains_any(&["bug", "feature"])));
+    }
+
+    #[test]
+    fn contains_any_empty_operand_passes_all() {
+        assert!(matches_filter(&make_task(&[]), &contains_any(&[])));
+    }
+
+    #[test]
+    fn contains_all_full_match() {
+        assert!(matches_filter(
+            &make_task(&["bug", "p0", "frontend"]),
+            &contains_all(&["bug", "p0"])
+        ));
+    }
+
+    #[test]
+    fn contains_all_partial_match_fails() {
+        assert!(!matches_filter(
+            &make_task(&["bug"]),
+            &contains_all(&["bug", "p0"])
+        ));
+    }
+
+    #[test]
+    fn contains_all_empty_operand_passes_all() {
+        assert!(matches_filter(&make_task(&[]), &contains_all(&[])));
+    }
+
+    #[test]
+    fn is_empty_passes_empty_tags_only() {
+        assert!(matches_filter(&make_task(&[]), &TagFilter::IsEmpty));
+        assert!(!matches_filter(&make_task(&["bug"]), &TagFilter::IsEmpty));
+    }
+
+    #[test]
+    fn is_not_empty_passes_tagged_tasks_only() {
+        assert!(!matches_filter(&make_task(&[]), &TagFilter::IsNotEmpty));
+        assert!(matches_filter(&make_task(&["bug"]), &TagFilter::IsNotEmpty));
+    }
+
+    // matches_all_filters
+
+    #[test]
+    fn matches_all_filters_empty_is_true() {
+        let t = make_task(&["bug"]);
+        assert!(matches_all_filters(&t, &[]));
+    }
+
+    #[test]
+    fn matches_all_filters_all_pass() {
+        let t = make_task(&["bug", "p0"]);
+        let filters = vec![contains(&["bug"]), contains(&["p0"])];
+        assert!(matches_all_filters(&t, &filters));
+    }
+
+    #[test]
+    fn matches_all_filters_one_fails() {
+        let t = make_task(&["bug"]);
+        let filters = vec![contains(&["bug"]), contains(&["p0"])];
+        assert!(!matches_all_filters(&t, &filters));
+    }
+
+    // apply_query_and_filters
+
+    fn titled_task(title: &str, tags: &[&str]) -> Task {
+        Task {
+            id: title.into(),
+            title: title.into(),
+            status: "Todo".into(),
+            body: String::new(),
+            order: None,
+            tags: tags_vec(tags),
+        }
+    }
+
+    #[test]
+    fn apply_no_query_no_filters_returns_input_order() {
+        let tasks = vec![
+            titled_task("A", &["bug"]),
+            titled_task("B", &["feature"]),
+            titled_task("C", &[]),
+        ];
+        let result = apply_query_and_filters(tasks, None, &[]);
+        assert_eq!(result.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(), vec!["A", "B", "C"]);
+    }
+
+    #[test]
+    fn apply_query_only_filters_by_title() {
+        let tasks = vec![
+            titled_task("Implement search", &[]),
+            titled_task("Fix bug", &[]),
+        ];
+        let result = apply_query_and_filters(tasks, Some("search"), &[]);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].title, "Implement search");
+    }
+
+    #[test]
+    fn apply_filters_only_filters_by_tags() {
+        let tasks = vec![
+            titled_task("A", &["bug"]),
+            titled_task("B", &["feature"]),
+        ];
+        let result = apply_query_and_filters(tasks, None, &[contains(&["bug"])]);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].title, "A");
+    }
+
+    #[test]
+    fn apply_query_and_filters_combined_is_and() {
+        let tasks = vec![
+            titled_task("Fix bug", &["bug"]),
+            titled_task("Fix typo", &["bug"]),
+            titled_task("Fix bug", &["feature"]),
+        ];
+        let result = apply_query_and_filters(tasks, Some("bug"), &[contains(&["bug"])]);
+        // Only "Fix bug" with tag "bug" passes both
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].title, "Fix bug");
+        assert_eq!(result[0].tags, vec!["bug"]);
+    }
+
+    #[test]
+    fn apply_empty_query_string_is_treated_as_no_query() {
+        let tasks = vec![titled_task("anything", &[])];
+        let result = apply_query_and_filters(tasks, Some(""), &[]);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn apply_preserves_input_order_after_filtering() {
+        let tasks = vec![
+            titled_task("Z", &["x"]),
+            titled_task("A", &["x"]),
+            titled_task("M", &["x"]),
+        ];
+        let result = apply_query_and_filters(tasks, None, &[contains(&["x"])]);
+        // Order preserved as-is (caller pre-sorts)
+        assert_eq!(result.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(), vec!["Z", "A", "M"]);
+    }
+
+    // collect_unique_tags_sorted
+
+    #[test]
+    fn collect_tags_sorts_case_insensitively() {
+        let tasks = vec![
+            titled_task("a", &["Zebra"]),
+            titled_task("b", &["apple"]),
+            titled_task("c", &["Banana"]),
+        ];
+        let result = collect_unique_tags_sorted(&tasks);
+        assert_eq!(result, vec!["apple", "Banana", "Zebra"]);
+    }
+
+    #[test]
+    fn collect_tags_preserves_original_case() {
+        let tasks = vec![titled_task("a", &["Feature"])];
+        let result = collect_unique_tags_sorted(&tasks);
+        assert_eq!(result, vec!["Feature"]);
+    }
+
+    #[test]
+    fn collect_tags_dedups_exact_case_matches() {
+        let tasks = vec![
+            titled_task("a", &["bug"]),
+            titled_task("b", &["bug"]),
+        ];
+        let result = collect_unique_tags_sorted(&tasks);
+        assert_eq!(result, vec!["bug"]);
+    }
+
+    #[test]
+    fn collect_tags_keeps_case_variants_separate() {
+        // Bug and bug differ only in case — dedup is case-sensitive
+        let tasks = vec![
+            titled_task("a", &["Bug"]),
+            titled_task("b", &["bug"]),
+        ];
+        let result = collect_unique_tags_sorted(&tasks);
+        // Both kept; tiebreaker puts uppercase first ('B' < 'b' in ASCII)
+        assert_eq!(result, vec!["Bug", "bug"]);
+    }
+
+    #[test]
+    fn collect_tags_empty_when_no_tags() {
+        let tasks = vec![titled_task("a", &[]), titled_task("b", &[])];
+        let result = collect_unique_tags_sorted(&tasks);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn collect_tags_dedups_across_tasks() {
+        let tasks = vec![
+            titled_task("a", &["bug", "p0"]),
+            titled_task("b", &["bug", "feature"]),
+        ];
+        let result = collect_unique_tags_sorted(&tasks);
+        assert_eq!(result, vec!["bug", "feature", "p0"]);
     }
 }
