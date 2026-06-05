@@ -11,6 +11,7 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 設定パネルでステータス行をマウス/タッチドラッグで縦方向に並び替えられる
 - 既存のボードと同じ `@dnd-kit/react` スタック・同じビジュアルコンセプト（`GripVertical` ハンドル）で UI を一貫させる
 - テキスト入力欄での編集体験を一切壊さない（カーソル移動・テキスト選択・Backspace 等）
@@ -18,6 +19,7 @@
 - 永続化・状態管理レイヤー（`save_statuses`、`StatusEntry` 型、`useWorkspace`）には触れない
 
 **Non-Goals:**
+
 - 設定画面の他の項目（ワークスペースディレクトリ変更、ラベル編集、削除、追加）への変更
 - ステータスの「ボード列」自体のドラッグ並び替えロジック変更（`column-drag-reorder` 側の挙動は不変）
 - アクセシビリティ（キーボード並び替え）の追加実装。`@dnd-kit` のデフォルトキーボードセンサーが提供する範囲のみとし、専用 UI は導入しない
@@ -30,6 +32,7 @@
 行全体をドラッグソースにすると、`<input>` 内の選択ドラッグや削除ボタンのクリックと競合する。`useSortable` の `handleRef` を `GripVertical` アイコンにのみ割り当てることで、入力欄やボタンの挙動を一切奪わない。これはボード側の `Column.tsx:37-40` と同じパターン。
 
 **Alternatives considered:**
+
 - 行全体ドラッグ + テキスト入力で `pointerdown` を `stopPropagation`: 実装は単純だが、`<input>` 外（余白）でのドラッグ可否がユーザーに見えにくく、削除ボタンとの干渉も別途対処が必要。却下。
 
 ### Decision 2: sortable id には `EditingEntry._key`（UUID）を使う
@@ -37,6 +40,7 @@
 `label` は空文字・重複が許容されており id 一意性を保証できない。`_key` はすでに React の key として行ごとに発行済みで、行の追加・並び替え・編集を通じて安定。これを `useSortable({ id: s._key, ... })` に渡し、`handleDragEnd` でも `_key` ベースで `editing` 配列を並び替える。
 
 **Alternatives considered:**
+
 - インデックスを id にする: `move()` ヘルパーは index 推論できるが、`useSortable` の `id` がレンダーごとに変わると DnD の内部状態が壊れるため不適。
 - 並び替え時のみ `label` を使う: 上記の通り一意性なし。
 
@@ -45,6 +49,7 @@
 ボタンが消えるためインデックスベースの move API はもう呼び出し元がない。DnD 由来のイベントは `from` / `to` の `_key` が明確なので、key ベースの単一 API のほうがリネーム/移動の意図と一致し、配列の取り違いも起きない。`useBoardDragState` のように `move()` ヘルパーで `editing` を直接書き換える形でも実装可能だが、フックの内部状態に閉じ込めるほうが `SettingsPanel` の責務が小さく保てる。
 
 **Alternatives considered:**
+
 - ヘルパー `move()` を `StatusList` 内で直接呼び、`useStatusEdit` には `setEditing` 経由で結果配列を渡す: 移譲点が増えてフックの契約が緩くなる。却下。
 
 ### Decision 4: `DragDropProvider` のスコープは `StatusList` 内に閉じる

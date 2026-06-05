@@ -5,9 +5,11 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/react";
 import { Plus } from "lucide-react";
+
 import { Button, Text } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import type { EditingEntry } from "@/types";
+
 import { StatusRow } from "./StatusRow";
 
 export type StatusListProps = {
@@ -43,11 +45,7 @@ export function StatusList({
 
       {error && <ErrorBanner className="mb-4">{error}</ErrorBanner>}
 
-      <DragDropProvider
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragEnd={onDragEnd}
-      >
+      <DragDropProvider onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
         <div className="flex flex-col gap-1.5">
           {editing.map((s, i) => (
             <StatusRow
@@ -63,12 +61,7 @@ export function StatusList({
           ))}
         </div>
       </DragDropProvider>
-      <Button
-        variant="dashed"
-        size="md"
-        onClick={onAdd}
-        className="mt-2 w-full"
-      >
+      <Button variant="dashed" size="md" onClick={onAdd} className="mt-2 w-full">
         <Plus className="size-3.5" />
         Add Status
       </Button>

@@ -10,24 +10,18 @@ export type TagChipProps = {
   className?: string;
 };
 
-const VARIANT_STYLES: Record<TagChipVariant, { chip: string; remove: string }> =
-  {
-    muted: {
-      chip: "border-cork-accent/25 bg-cork-accent/10 text-cork-accent-hover/80",
-      remove: "text-cork-accent-hover/60 hover:text-cork-text",
-    },
-    accent: {
-      chip: "border-cork-accent/40 bg-cork-accent/20 font-medium text-cork-accent-hover",
-      remove: "text-cork-accent-hover/70 hover:text-cork-text",
-    },
-  };
+const VARIANT_STYLES: Record<TagChipVariant, { chip: string; remove: string }> = {
+  muted: {
+    chip: "border-cork-accent/25 bg-cork-accent/10 text-cork-accent-hover/80",
+    remove: "text-cork-accent-hover/60 hover:text-cork-text",
+  },
+  accent: {
+    chip: "border-cork-accent/40 bg-cork-accent/20 font-medium text-cork-accent-hover",
+    remove: "text-cork-accent-hover/70 hover:text-cork-text",
+  },
+};
 
-export function TagChip({
-  label,
-  variant = "muted",
-  onRemove,
-  className,
-}: TagChipProps) {
+export function TagChip({ label, variant = "muted", onRemove, className }: TagChipProps) {
   const styles = VARIANT_STYLES[variant];
   return (
     <span

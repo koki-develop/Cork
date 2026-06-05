@@ -57,11 +57,11 @@ export function Select({ value, onChange, options }: SelectProps) {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-1.5 text-cork-text text-sm outline-none transition-colors duration-200 focus:border-cork-accent/50 focus:ring-1 focus:ring-cork-accent/30"
+        className="border-cork-border/40 bg-cork-elevated/60 text-cork-text focus:border-cork-accent/50 focus:ring-cork-accent/30 flex w-full cursor-pointer items-center justify-between rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none focus:ring-1"
       >
         {options.find((o) => o.value === value)?.label ?? value}
         <ChevronDown
-          className={`size-4 text-cork-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={`text-cork-muted size-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
         />
       </button>
       {createPortal(
@@ -74,7 +74,7 @@ export function Select({ value, onChange, options }: SelectProps) {
               // treated as "inside" for outside-click detection.
               data-floating-popup="true"
               style={{ top: pos.top, left: pos.left, width: pos.width }}
-              className="fixed z-[60] origin-top-left overflow-hidden rounded-lg border border-cork-border/40 bg-cork-elevated shadow-xl"
+              className="border-cork-border/40 bg-cork-elevated fixed z-[60] origin-top-left overflow-hidden rounded-lg border shadow-xl"
               initial={{ opacity: 0, scale: 0.95, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -4 }}
@@ -88,10 +88,10 @@ export function Select({ value, onChange, options }: SelectProps) {
                     onChange(option.value);
                     setOpen(false);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-cork-text text-sm hover:bg-cork-accent/10"
+                  className="text-cork-text hover:bg-cork-accent/10 flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm"
                 >
                   {option.value === value ? (
-                    <Check className="size-3.5 shrink-0 text-cork-accent" />
+                    <Check className="text-cork-accent size-3.5 shrink-0" />
                   ) : (
                     <span className="size-3.5 shrink-0" />
                   )}

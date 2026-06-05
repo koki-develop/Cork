@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
 import { Settings } from "lucide-react";
+
 import { Text } from "@/components/atoms";
 import { IconButton, PathDisplay } from "@/components/molecules";
 
@@ -11,16 +12,12 @@ export type AppHeaderProps = {
   onOpenSettings: () => void;
 };
 
-export function AppHeader({
-  currentDir,
-  taskCount,
-  onOpenSettings,
-}: AppHeaderProps) {
+export function AppHeader({ currentDir, taskCount, onOpenSettings }: AppHeaderProps) {
   return (
     <header
       data-tauri-drag-region="deep"
       className={clsx(
-        "flex shrink-0 items-center justify-between border-cork-border/50 border-b py-3",
+        "border-cork-border/50 flex shrink-0 items-center justify-between border-b py-3",
         isMac ? "pr-6 pl-24" : "px-6",
       )}
     >

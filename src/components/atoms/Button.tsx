@@ -15,8 +15,7 @@ const variantStyles: Record<Variant, Record<Color, string>> = {
   primary: {
     default:
       "bg-cork-accent text-white hover:bg-cork-accent-hover active:scale-[0.98] font-semibold",
-    danger:
-      "bg-red-500 text-white hover:bg-red-600 active:scale-[0.98] font-semibold",
+    danger: "bg-red-500 text-white hover:bg-red-600 active:scale-[0.98] font-semibold",
   },
   secondary: {
     default:

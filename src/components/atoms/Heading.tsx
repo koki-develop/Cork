@@ -18,12 +18,7 @@ const variantStyles: Record<Variant, string> = {
   card: "text-sm font-medium leading-snug text-cork-text",
 };
 
-export function Heading({
-  level = 1,
-  variant = "page",
-  className,
-  children,
-}: HeadingProps) {
+export function Heading({ level = 1, variant = "page", className, children }: HeadingProps) {
   return createElement(
     `h${level}`,
     { className: clsx(variantStyles[variant], className) },

@@ -9,6 +9,7 @@ Each kanban column SHALL have a "+" button at the top of its card area (below th
 The system SHALL open a modal dialog with a form when the user triggers task creation.
 
 The form SHALL include:
+
 - A required title field (text input, auto-focused)
 - A status selector (dropdown pre-populated with workspace statuses, defaulting to the clicked column's status)
 - An optional body field (textarea for markdown content)

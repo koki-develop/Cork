@@ -1,11 +1,8 @@
 import { move } from "@dnd-kit/helpers";
 import type { DragEndEvent, DragOverEvent } from "@dnd-kit/react";
 import { useState } from "react";
-import {
-  calculateMidpoint,
-  groupTasksByStatus,
-  UNKNOWN_STATUS,
-} from "@/lib/board";
+
+import { calculateMidpoint, groupTasksByStatus, UNKNOWN_STATUS } from "@/lib/board";
 import type { StatusEntry, Task } from "@/types";
 
 type Params = {
@@ -56,9 +53,7 @@ export function useBoardDragState({
 
     if (source.type === "column") {
       const statusByLabel = new Map(statuses.map((s) => [s.label, s]));
-      const reorderedLabels = columnOrder.filter((label) =>
-        statusByLabel.has(label),
-      );
+      const reorderedLabels = columnOrder.filter((label) => statusByLabel.has(label));
       const reordered = reorderedLabels
         .map((label) => statusByLabel.get(label))
         .filter((s): s is StatusEntry => s != null);
@@ -69,9 +64,7 @@ export function useBoardDragState({
 
     if (source.type === "card") {
       const taskId = String(source.id);
-      const newStatus = Object.entries(tasksByColumn).find(([, ids]) =>
-        ids.includes(taskId),
-      )?.[0];
+      const newStatus = Object.entries(tasksByColumn).find(([, ids]) => ids.includes(taskId))?.[0];
       const task = tasksById.get(taskId);
 
       const targetColumn = newStatus ?? task?.status;
@@ -85,13 +78,9 @@ export function useBoardDragState({
       const columnIds = tasksByColumn[targetColumn];
       const idx = columnIds.indexOf(taskId);
       const prevTask = idx > 0 ? tasksById.get(columnIds[idx - 1]) : null;
-      const nextTask =
-        idx < columnIds.length - 1 ? tasksById.get(columnIds[idx + 1]) : null;
+      const nextTask = idx < columnIds.length - 1 ? tasksById.get(columnIds[idx + 1]) : null;
 
-      let newOrder = calculateMidpoint(
-        prevTask?.order ?? null,
-        nextTask?.order ?? null,
-      );
+      let newOrder = calculateMidpoint(prevTask?.order ?? null, nextTask?.order ?? null);
 
       if (
         prevTask?.order === null ||

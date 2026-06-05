@@ -1,6 +1,8 @@
 import { X } from "lucide-react";
+
 import { Text } from "@/components/atoms";
 import type { TagFilter, TagFilterOperator } from "@/types";
+
 import { IconButton } from "./IconButton";
 import { Select, type SelectOption } from "./Select";
 import { TagOperandInput, type TagOperandInputMode } from "./TagOperandInput";
@@ -35,12 +37,7 @@ const modeForOperator = (op: TagFilterOperator): TagOperandInputMode => {
   }
 };
 
-export function FilterRow({
-  filter,
-  onChange,
-  onRemove,
-  availableTags,
-}: FilterRowProps) {
+export function FilterRow({ filter, onChange, onRemove, availableTags }: FilterRowProps) {
   const mode = modeForOperator(filter.operator);
   const tags = "tags" in filter ? filter.tags : [];
 
@@ -60,7 +57,7 @@ export function FilterRow({
 
   return (
     <div className="flex items-start gap-2">
-      <Text size="sm" className="shrink-0 pt-1.5 text-cork-muted">
+      <Text size="sm" className="text-cork-muted shrink-0 pt-1.5">
         Tags
       </Text>
       <div className="w-[160px] shrink-0">
@@ -79,11 +76,7 @@ export function FilterRow({
           ariaLabel="Filter tag"
         />
       </div>
-      <IconButton
-        icon={<X className="size-3.5" />}
-        aria-label="Remove filter"
-        onClick={onRemove}
-      />
+      <IconButton icon={<X className="size-3.5" />} aria-label="Remove filter" onClick={onRemove} />
     </div>
   );
 }

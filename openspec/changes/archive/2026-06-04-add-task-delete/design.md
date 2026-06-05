@@ -7,12 +7,14 @@ Cork uses Tauri v2 with a React/TypeScript frontend following atomic design. Tas
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Allow users to delete a task from the task detail dialog via a menu button
 - Confirm before deletion (irreversible — deletes the `.md` file permanently)
 - Show success feedback via toast
 - Add a reusable `DropdownMenu` molecule for future use
 
 **Non-Goals:**
+
 - Undo / restore deleted tasks
 - Deleting multiple tasks at once
 - Delete action from the Kanban card (only from the detail dialog)
@@ -23,6 +25,7 @@ Cork uses Tauri v2 with a React/TypeScript frontend following atomic design. Tas
 ### DropdownMenu as a reusable molecule
 
 The trigger + panel dropdown pattern is identical to `Select.tsx`. Extracting it as `molecules/DropdownMenu.tsx`:
+
 - Keeps `TaskDetailDialog` focused on task editing logic
 - Follows atomic design (molecules compose atoms + Lucide icons)
 - Enables future reuse on `KanbanCard` or other organisms
@@ -33,7 +36,7 @@ The trigger + panel dropdown pattern is identical to `Select.tsx`. Extracting it
 
 The confirmation dialog uses the existing `Modal` component nested inside `TaskDetailDialog`. No new `ConfirmDialog` molecule today (YAGNI).
 
-**Alternative considered:** Browser `confirm()`. Rejected — breaks visual design consistency and ignores the cork-* design system.
+**Alternative considered:** Browser `confirm()`. Rejected — breaks visual design consistency and ignores the cork-\* design system.
 
 ### Z-index strategy
 

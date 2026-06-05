@@ -37,12 +37,7 @@ export function Text({
   return createElement(
     as,
     {
-      className: clsx(
-        variantStyles[variant],
-        sizeStyles[size],
-        truncate && "truncate",
-        className,
-      ),
+      className: clsx(variantStyles[variant], sizeStyles[size], truncate && "truncate", className),
     },
     children,
   );

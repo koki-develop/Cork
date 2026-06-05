@@ -15,6 +15,7 @@ Currently, tasks in Cork can only be created with a title, status, and body, but
 ## Capabilities
 
 ### New Capabilities
+
 - `task-detail-dialog`: Always-editable modal dialog for viewing and editing task title, status, and body, with auto-save on blur
 - `backend-update-task`: Tauri command to update task frontmatter + body + file rename in one atomic operation
 

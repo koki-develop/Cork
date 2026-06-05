@@ -14,6 +14,7 @@ Tasks on the kanban board currently require clicking "Move to {status}" buttons 
 ## Capabilities
 
 ### New Capabilities
+
 - `card-drag-and-drop`: Drag cards between columns to change their status, with visual feedback and keyboard accessibility
 
 ### Modified Capabilities

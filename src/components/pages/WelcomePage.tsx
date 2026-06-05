@@ -1,4 +1,5 @@
 import { FolderOpen } from "lucide-react";
+
 import { pickDirectory, setWorkspaceDirectory } from "@/api";
 import { WelcomeHero } from "@/components/molecules";
 import { WelcomeLayout } from "@/components/templates";

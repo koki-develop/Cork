@@ -1,6 +1,7 @@
 import { clsx } from "clsx";
 import { AnimatePresence, m } from "motion/react";
 import { useEffect, useRef } from "react";
+
 import type { DropdownMenuItem } from "./DropdownMenu";
 
 export type ContextMenuProps = {
@@ -9,10 +10,7 @@ export type ContextMenuProps = {
   onClose: () => void;
 };
 
-const itemColorStyles: Record<
-  NonNullable<DropdownMenuItem["color"]>,
-  string
-> = {
+const itemColorStyles: Record<NonNullable<DropdownMenuItem["color"]>, string> = {
   default: "text-cork-text hover:bg-cork-accent/10",
   danger: "text-red-400 hover:bg-red-500/10 hover:text-red-300",
 };
@@ -24,10 +22,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     if (!position) return;
     const handleClick = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      if (
-        wrapperRef.current &&
-        !wrapperRef.current.contains(e.target as Node)
-      ) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
@@ -48,7 +43,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
         {position && (
           <m.div
             key={`${position.x}-${position.y}`}
-            className="pointer-events-auto fixed z-50 w-max origin-top-left overflow-hidden rounded-lg border border-cork-border/40 bg-cork-elevated shadow-xl"
+            className="border-cork-border/40 bg-cork-elevated pointer-events-auto fixed z-50 w-max origin-top-left overflow-hidden rounded-lg border shadow-xl"
             style={{ left: position.x, top: position.y }}
             initial={{ opacity: 0, scale: 0.95, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}

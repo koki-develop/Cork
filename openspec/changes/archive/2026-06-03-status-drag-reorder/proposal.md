@@ -12,6 +12,7 @@ Statuses can currently only be reordered through the Settings panel using up/dow
 ## Capabilities
 
 ### New Capabilities
+
 - `column-drag-reorder`: Allow users to reorder board columns (statuses) by dragging column headers horizontally
 
 ### Modified Capabilities

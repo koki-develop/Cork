@@ -19,15 +19,15 @@ Cork is a Kanban board for local Markdown files, but users currently cannot crea
 
 ## Impact
 
-| Area | What changes |
-|---|---|
-| `src-tauri/src/lib.rs` | New `create_task` command + handler registration |
-| `src/api/tasks.ts` + `index.ts` | New `createTask` wrapper export |
-| `src/hooks/useWorkspace.ts` | New `createTask` method |
-| `src/App.tsx` | Pass `createTask` to `BoardPage` |
-| `src/components/pages/BoardPage.tsx` | Wire `createTask` + dialog state + preselected status + keyboard shortcut |
-| `src/components/organisms/board/KanbanColumn.tsx` | Add "+" trigger button |
-| `src/components/organisms/board/` | New `CreateTaskDialog.tsx` + barrel export |
-| `src-tauri/capabilities/default.json` | May need to verify fs write permissions |
+| Area                                              | What changes                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------- |
+| `src-tauri/src/lib.rs`                            | New `create_task` command + handler registration                          |
+| `src/api/tasks.ts` + `index.ts`                   | New `createTask` wrapper export                                           |
+| `src/hooks/useWorkspace.ts`                       | New `createTask` method                                                   |
+| `src/App.tsx`                                     | Pass `createTask` to `BoardPage`                                          |
+| `src/components/pages/BoardPage.tsx`              | Wire `createTask` + dialog state + preselected status + keyboard shortcut |
+| `src/components/organisms/board/KanbanColumn.tsx` | Add "+" trigger button                                                    |
+| `src/components/organisms/board/`                 | New `CreateTaskDialog.tsx` + barrel export                                |
+| `src-tauri/capabilities/default.json`             | May need to verify fs write permissions                                   |
 
 No new external dependencies. Reuses existing `Modal`, `Button`, `Input`, `Heading`, `Text`, `ErrorBanner` components.

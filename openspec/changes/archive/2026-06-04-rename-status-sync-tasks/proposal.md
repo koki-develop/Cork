@@ -11,6 +11,7 @@ Setting 画面で status 名を更新したときに、同じ label を持つタ
 ## Capabilities
 
 ### New Capabilities
+
 - `rename-status-sync`: status 名変更時に紐づく全タスクの frontmatter を同期する
 
 ### Modified Capabilities

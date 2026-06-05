@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+
 import { Button, Heading, Text } from "@/components/atoms";
 
 export type WelcomeHeroProps = {
@@ -9,13 +10,7 @@ export type WelcomeHeroProps = {
   onCta: () => void;
 };
 
-export function WelcomeHero({
-  title,
-  subtitle,
-  ctaLabel,
-  ctaIcon,
-  onCta,
-}: WelcomeHeroProps) {
+export function WelcomeHero({ title, subtitle, ctaLabel, ctaIcon, onCta }: WelcomeHeroProps) {
   return (
     <div className="flex flex-col items-center gap-8">
       <div className="flex flex-col items-center gap-3">
@@ -26,12 +21,7 @@ export function WelcomeHero({
           {subtitle}
         </Text>
       </div>
-      <Button
-        variant="primary"
-        size="lg"
-        onClick={onCta}
-        className="gap-2 rounded-xl"
-      >
+      <Button variant="primary" size="lg" onClick={onCta} className="gap-2 rounded-xl">
         {ctaIcon}
         {ctaLabel}
       </Button>

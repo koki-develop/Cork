@@ -2,30 +2,13 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { Copy, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  getTask,
-  onOpenSettings,
-  pickDirectory,
-  setWorkspaceDirectory,
-} from "@/api";
+
+import { getTask, onOpenSettings, pickDirectory, setWorkspaceDirectory } from "@/api";
 import { Button, Heading, Text } from "@/components/atoms";
-import {
-  ContextMenu,
-  FilterButton,
-  SearchBar,
-  type SearchBarHandle,
-} from "@/components/molecules";
-import {
-  CreateTaskDialog,
-  KanbanColumn,
-  TaskDetailDialog,
-} from "@/components/organisms/board";
+import { ContextMenu, FilterButton, SearchBar, type SearchBarHandle } from "@/components/molecules";
+import { CreateTaskDialog, KanbanColumn, TaskDetailDialog } from "@/components/organisms/board";
 import { SettingsDialog } from "@/components/organisms/settings";
-import {
-  AppHeader,
-  Modal,
-  TagFilterPopover,
-} from "@/components/organisms/shell";
+import { AppHeader, Modal, TagFilterPopover } from "@/components/organisms/shell";
 import { BoardLayout } from "@/components/templates";
 import { useBoardDragState } from "@/hooks/useBoardDragState";
 import { useStatusEdit } from "@/hooks/useStatusEdit";
@@ -45,12 +28,7 @@ export type BoardPageProps = {
   setDir: (path: string) => void;
   onSearchChange: (value: string) => void;
   onFiltersChange: (next: TagFilter[]) => void;
-  createTask: (
-    title: string,
-    status: string,
-    body?: string,
-    tags?: string[],
-  ) => Promise<void>;
+  createTask: (title: string, status: string, body?: string, tags?: string[]) => Promise<void>;
   updateTask: (taskId: string, updates: TaskUpdates) => Promise<Task>;
   deleteTask: (taskId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, newStatus: string) => Promise<void>;
@@ -85,15 +63,10 @@ export function BoardPage({
   const [filterOpen, setFilterOpen] = useState(false);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const searchBarRef = useRef<SearchBarHandle>(null);
-  const validFilterCount = useMemo(
-    () => filters.filter(isValidFilter).length,
-    [filters],
-  );
+  const validFilterCount = useMemo(() => filters.filter(isValidFilter).length, [filters]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [preselectedStatus, setPreselectedStatus] = useState<
-    string | undefined
-  >(undefined);
+  const [preselectedStatus, setPreselectedStatus] = useState<string | undefined>(undefined);
   const openCreateDialog = (status?: string) => {
     setPreselectedStatus(status);
     setCreateDialogOpen(true);
@@ -101,9 +74,7 @@ export function BoardPage({
   const closeCreateDialog = () => setCreateDialogOpen(false);
 
   const [detailDialogTask, setDetailDialogTask] = useState<Task | null>(null);
-  const [lastDetailDialogTask, setLastDetailDialogTask] = useState<Task | null>(
-    null,
-  );
+  const [lastDetailDialogTask, setLastDetailDialogTask] = useState<Task | null>(null);
   if (detailDialogTask && detailDialogTask !== lastDetailDialogTask) {
     setLastDetailDialogTask(detailDialogTask);
   }
@@ -121,17 +92,12 @@ export function BoardPage({
     taskId: string;
   } | null>(null);
 
-  const [deleteConfirmTaskId, setDeleteConfirmTaskId] = useState<string | null>(
-    null,
-  );
+  const [deleteConfirmTaskId, setDeleteConfirmTaskId] = useState<string | null>(null);
 
-  const handleCardContextMenu = useCallback(
-    (e: React.MouseEvent, taskId: string) => {
-      e.preventDefault();
-      setContextMenu({ x: e.clientX, y: e.clientY, taskId });
-    },
-    [],
-  );
+  const handleCardContextMenu = useCallback((e: React.MouseEvent, taskId: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, taskId });
+  }, []);
 
   const handleContextMenuCopyPath = useCallback(async (taskId: string) => {
     try {
@@ -173,20 +139,15 @@ export function BoardPage({
     return () => globalThis.removeEventListener("keydown", handleKeyDown);
   }, [anyDialogOpen]);
 
-  const {
-    columnOrder,
-    tasksByColumn,
-    tasksById,
-    handleDragOver,
-    handleDragEnd,
-  } = useBoardDragState({
-    statuses,
-    tasks,
-    onReorderStatuses: reorderStatuses,
-    onTaskStatusUpdate: updateTaskStatus,
-    onTaskOrderUpdate: updateTaskOrder,
-    onRenumberTasks: renumberTasks,
-  });
+  const { columnOrder, tasksByColumn, tasksById, handleDragOver, handleDragEnd } =
+    useBoardDragState({
+      statuses,
+      tasks,
+      onReorderStatuses: reorderStatuses,
+      onTaskStatusUpdate: updateTaskStatus,
+      onTaskOrderUpdate: updateTaskOrder,
+      onRenumberTasks: renumberTasks,
+    });
 
   const {
     editing,
@@ -206,12 +167,7 @@ export function BoardPage({
     onTasksChange: loadTasks,
   });
 
-  const handleCreateTask = async (
-    title: string,
-    status: string,
-    body: string,
-    tags: string[],
-  ) => {
+  const handleCreateTask = async (title: string, status: string, body: string, tags: string[]) => {
     await createTask(title, status, body, tags);
     toast.success("Task created");
   };
@@ -249,20 +205,12 @@ export function BoardPage({
       <DragDropProvider onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
         <BoardLayout
           header={
-            <AppHeader
-              currentDir={dir}
-              taskCount={tasks.length}
-              onOpenSettings={openSettings}
-            />
+            <AppHeader currentDir={dir} taskCount={tasks.length} onOpenSettings={openSettings} />
           }
           toolbar={
             <div className="flex items-center gap-4 px-6 pt-6 pb-0">
               <div className="min-w-0 flex-1">
-                <SearchBar
-                  ref={searchBarRef}
-                  value={searchQuery}
-                  onChange={onSearchChange}
-                />
+                <SearchBar ref={searchBarRef} value={searchQuery} onChange={onSearchChange} />
               </div>
               <FilterButton
                 ref={filterButtonRef}
@@ -275,8 +223,7 @@ export function BoardPage({
         >
           {columnOrder.map((label, i) => {
             const isUnknown = label === UNKNOWN_STATUS;
-            if (isUnknown && (tasksByColumn[label] ?? []).length === 0)
-              return null;
+            if (isUnknown && (tasksByColumn[label] ?? []).length === 0) return null;
             return (
               <KanbanColumn
                 key={label}
@@ -354,15 +301,10 @@ export function BoardPage({
             </Heading>
             <Text size="sm" className="text-cork-muted">
               This will permanently delete &ldquo;
-              {tasksById.get(deleteConfirmTaskId)?.title}&rdquo;. This action
-              cannot be undone.
+              {tasksById.get(deleteConfirmTaskId)?.title}&rdquo;. This action cannot be undone.
             </Text>
             <div className="flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="md"
-                onClick={() => setDeleteConfirmTaskId(null)}
-              >
+              <Button variant="ghost" size="md" onClick={() => setDeleteConfirmTaskId(null)}>
                 Cancel
               </Button>
               <Button

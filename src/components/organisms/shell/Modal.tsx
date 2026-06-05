@@ -46,7 +46,7 @@ export function Modal({
           />
           <m.div
             className={clsx(
-              "relative mx-4 max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-cork-border/60 bg-cork-surface/95 p-6 shadow-2xl backdrop-blur-xl",
+              "border-cork-border/60 bg-cork-surface/95 relative mx-4 max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border p-6 shadow-2xl backdrop-blur-xl",
               containerClassName,
             )}
             initial={{ opacity: 0, scale: 0.96, y: 8 }}

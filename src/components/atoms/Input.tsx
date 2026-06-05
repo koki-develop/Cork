@@ -8,9 +8,9 @@ export function Input({ className, type = "text", ...props }: InputProps) {
     <input
       type={type}
       className={clsx(
-        "min-w-0 flex-1 rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-1.5 text-cork-text text-sm outline-none transition-colors duration-200",
+        "border-cork-border/40 bg-cork-elevated/60 text-cork-text min-w-0 flex-1 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none",
         "placeholder:text-cork-muted/50",
-        "focus:border-cork-accent/50 focus:ring-1 focus:ring-cork-accent/30",
+        "focus:border-cork-accent/50 focus:ring-cork-accent/30 focus:ring-1",
         className,
       )}
       {...props}

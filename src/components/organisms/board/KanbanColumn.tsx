@@ -4,9 +4,11 @@ import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { clsx } from "clsx";
 import { Plus } from "lucide-react";
 import type { Ref } from "react";
+
 import { Badge, Button, Heading } from "@/components/atoms";
 import { DragHandle } from "@/components/molecules";
 import type { Task } from "@/types";
+
 import { KanbanCard } from "./KanbanCard";
 
 export type KanbanColumnProps = {
@@ -52,9 +54,9 @@ export function KanbanColumn({
   return (
     <div
       ref={ref}
-      className="flex max-h-full min-h-0 w-72 shrink-0 flex-col rounded-xl border border-cork-border/40 bg-cork-surface/60"
+      className="border-cork-border/40 bg-cork-surface/60 flex max-h-full min-h-0 w-72 shrink-0 flex-col rounded-xl border"
     >
-      <div className="flex items-center gap-2 border-cork-border/40 border-b px-4 py-3">
+      <div className="border-cork-border/40 flex items-center gap-2 border-b px-4 py-3">
         {draggable && handleRef ? (
           <DragHandle
             handleRef={handleRef as Ref<HTMLButtonElement>}
@@ -71,8 +73,7 @@ export function KanbanColumn({
       <div
         className={clsx(
           "flex min-h-0 flex-1 flex-col gap-2 p-3 transition-colors duration-200",
-          isCardDropTarget &&
-            "bg-cork-accent/[0.06] ring-1 ring-cork-accent/30 ring-inset",
+          isCardDropTarget && "bg-cork-accent/[0.06] ring-cork-accent/30 ring-1 ring-inset",
         )}
       >
         {showNewTaskButton && (
@@ -97,11 +98,7 @@ export function KanbanColumn({
                 group={label}
                 index={i}
                 onClick={onCardClick ? () => onCardClick(id) : undefined}
-                onContextMenu={
-                  onCardContextMenu
-                    ? (e) => onCardContextMenu(e, id)
-                    : undefined
-                }
+                onContextMenu={onCardContextMenu ? (e) => onCardContextMenu(e, id) : undefined}
               />
             );
           })}

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+
 import { Button, Text } from "@/components/atoms";
 import { FilterRow } from "@/components/molecules";
 import { isValidFilter } from "@/lib/filter";
@@ -63,10 +64,7 @@ export function TagFilterPopover({
       // Floating popups (Select dropdowns, autocomplete suggestions) are
       // portaled to document.body, so they appear "outside" the popover DOM.
       // Treat them as inside for outside-click purposes.
-      if (
-        target instanceof Element &&
-        target.closest("[data-floating-popup]")
-      ) {
+      if (target instanceof Element && target.closest("[data-floating-popup]")) {
         return;
       }
       onClose();
@@ -78,15 +76,13 @@ export function TagFilterPopover({
   // Set initial focus only when the popover opens — not on every filter
   // add/remove. Reading `filters.length` here is intentionally stale-safe
   // because the effect only fires on `isOpen` transition.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: only refocus on open transition
+  // eslint-disable-next-line react-hooks/exhaustive-deps: only refocus on open transition
   useEffect(() => {
     if (!isOpen) return;
     if (filters.length === 0) {
       addButtonRef.current?.focus();
     } else {
-      const select = firstRowRef.current?.querySelector<HTMLButtonElement>(
-        "button[type='button']",
-      );
+      const select = firstRowRef.current?.querySelector<HTMLButtonElement>("button[type='button']");
       select?.focus();
     }
   }, [isOpen]);
@@ -145,15 +141,15 @@ export function TagFilterPopover({
           role="dialog"
           aria-label="Filter tasks"
           onKeyDown={handleKeyDown}
-          className="fixed z-40 flex max-h-[80vh] w-[480px] origin-top-right flex-col overflow-hidden rounded-xl border border-cork-border/60 bg-cork-surface shadow-2xl"
+          className="border-cork-border/60 bg-cork-surface fixed z-40 flex max-h-[80vh] w-[480px] origin-top-right flex-col overflow-hidden rounded-xl border shadow-2xl"
           style={{ top: position.top, right: position.right }}
           initial={{ opacity: 0, scale: 0.95, y: -4 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -4 }}
           transition={{ duration: 0.15, ease: "easeOut" }}
         >
-          <div className="flex items-center justify-between border-cork-border/40 border-b px-4 py-2.5">
-            <Text size="sm" className="font-semibold text-cork-text">
+          <div className="border-cork-border/40 flex items-center justify-between border-b px-4 py-2.5">
+            <Text size="sm" className="text-cork-text font-semibold">
               Filters ({validCount})
             </Text>
             {filters.length > 0 && (
@@ -176,17 +172,14 @@ export function TagFilterPopover({
               </div>
             ) : (
               filters.map((filter, index) => (
-                <div
-                  key={filter.id}
-                  ref={index === 0 ? firstRowRef : undefined}
-                >
+                <div key={filter.id} ref={index === 0 ? firstRowRef : undefined}>
                   {index > 0 && (
                     <div className="my-2 flex items-center gap-2">
-                      <div className="flex-1 border-cork-border/30 border-t" />
-                      <span className="text-[10px] text-cork-muted/50 uppercase tracking-wider">
+                      <div className="border-cork-border/30 flex-1 border-t" />
+                      <span className="text-cork-muted/50 text-[10px] tracking-wider uppercase">
                         and
                       </span>
-                      <div className="flex-1 border-cork-border/30 border-t" />
+                      <div className="border-cork-border/30 flex-1 border-t" />
                     </div>
                   )}
                   <FilterRow
@@ -200,12 +193,7 @@ export function TagFilterPopover({
             )}
           </div>
           <div className="border-cork-border/40 border-t px-4 py-2.5">
-            <Button
-              ref={addButtonRef}
-              variant="dashed"
-              size="md"
-              onClick={handleAddFilter}
-            >
+            <Button ref={addButtonRef} variant="dashed" size="md" onClick={handleAddFilter}>
               <Plus className="size-3.5" />
               Add filter
             </Button>

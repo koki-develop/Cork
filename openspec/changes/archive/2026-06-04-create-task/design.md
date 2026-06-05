@@ -7,6 +7,7 @@ The UI uses a dark theme with indigo accent (`cork-accent: #6366f1`), Inter font
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Users can create a new task from the board view via a dialog
 - Title is required; status and body are optional
 - Status defaults to the first status in the workspace config
@@ -15,6 +16,7 @@ The UI uses a dark theme with indigo accent (`cork-accent: #6366f1`), Inter font
 - Keyboard shortcut `Cmd+N` / `Ctrl+N` opens the dialog
 
 **Non-Goals:**
+
 - Inline editing / quick-add at column level (future enhancement)
 - Template-based creation (future enhancement)
 - Batch creation (future enhancement)
@@ -26,17 +28,20 @@ The UI uses a dark theme with indigo accent (`cork-accent: #6366f1`), Inter font
 **Decision**: Use a modal dialog (`CreateTaskDialog`) triggered from a "+" button at the top of each column body area (below the column header, above the card list).
 
 **Rationale**: A modal dialog:
+
 - Follows the existing pattern (`SettingsDialog` uses `Modal`)
 - Provides space for title, status dropdown, and body textarea
 - Allows form validation (required title, duplicate filename check)
 - Is consistent with the single-purpose dialog approach used for settings
 
 Per-column trigger:
+
 - Natural mapping — user creates a task into a specific column
 - The clicked column's status is pre-selected in the dialog
 - No additional header chrome needed
 
 **Alternatives considered**:
+
 - AppHeader button — adds clutter to header, loses column context
 - Inline quick-add input — simpler but limited to title-only, no body support, and inconsistent with existing UI patterns.
 
@@ -52,7 +57,8 @@ Per-column trigger:
 
 **Decision**: Use a native `<select>` element styled with Tailwind to match the design system.
 
-**Rationale**: 
+**Rationale**:
+
 - No existing custom select/dropdown component in the project
 - A native `<select>` is accessible by default, requires no extra dependencies
 - The task is simple (choose from a flat list of statuses)
@@ -100,9 +106,9 @@ KanbanColumn "+" click (with column label)
 
 ## Risks / Trade-offs
 
-| Risk | Mitigation |
-|---|---|
-| Title conflicts with existing `.md` file | Rust command checks for existing file and returns an error message |
-| User creates empty-title task | Frontend disables submit button when title is empty; backend returns error for blank title |
-| Special characters in title break filesystem | Sanitize in Rust — replace `/` with `-`, strip null bytes, trim whitespace |
+| Risk                                               | Mitigation                                                                                         |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Title conflicts with existing `.md` file           | Rust command checks for existing file and returns an error message                                 |
+| User creates empty-title task                      | Frontend disables submit button when title is empty; backend returns error for blank title         |
+| Special characters in title break filesystem       | Sanitize in Rust — replace `/` with `-`, strip null bytes, trim whitespace                         |
 | Modal dismisses on backdrop click during form fill | Existing Modal behavior (backdrop click = close) is acceptable; unsaved data is lost (no autosave) |

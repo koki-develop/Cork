@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/react/sortable";
 import { clsx } from "clsx";
+
 import { Heading, Text } from "@/components/atoms";
 import { TagList } from "@/components/molecules";
 import type { Task } from "@/types";
@@ -12,13 +13,7 @@ export type KanbanCardProps = {
   onContextMenu?: (e: React.MouseEvent) => void;
 };
 
-export function KanbanCard({
-  task,
-  group,
-  index,
-  onClick,
-  onContextMenu,
-}: KanbanCardProps) {
+export function KanbanCard({ task, group, index, onClick, onContextMenu }: KanbanCardProps) {
   const { ref, isDragging } = useSortable({
     id: task.id,
     index,
@@ -34,7 +29,7 @@ export function KanbanCard({
     .join("\n");
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: clickable+draggable card needs a div for dnd-kit sortable ref
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions: clickable+draggable card needs a div for dnd-kit sortable ref
     <div
       ref={ref}
       onClick={onClick}
@@ -52,10 +47,10 @@ export function KanbanCard({
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       className={clsx(
-        "select-none rounded-xl border border-cork-border/30 bg-cork-elevated/80 p-3.5 hover:border-cork-border hover:bg-cork-elevated",
+        "border-cork-border/30 bg-cork-elevated/80 hover:border-cork-border hover:bg-cork-elevated rounded-xl border p-3.5 select-none",
         onClick && "cursor-pointer",
         !onClick && "cursor-grab active:cursor-grabbing",
-        isDragging && "opacity-50 ring-2 ring-cork-accent/30",
+        isDragging && "ring-cork-accent/30 opacity-50 ring-2",
       )}
     >
       <Heading level={3} variant="card" className="truncate">
@@ -63,12 +58,7 @@ export function KanbanCard({
       </Heading>
       <TagList tags={task.tags} className="mt-2" />
       {bodyPreview && (
-        <Text
-          as="p"
-          variant="muted"
-          size="xs"
-          className="mt-1.5 line-clamp-2 leading-relaxed"
-        >
+        <Text as="p" variant="muted" size="xs" className="mt-1.5 line-clamp-2 leading-relaxed">
           {bodyPreview}
         </Text>
       )}

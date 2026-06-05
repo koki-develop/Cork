@@ -1,11 +1,6 @@
-import {
-  AnimatePresence,
-  domAnimation,
-  LazyMotion,
-  MotionConfig,
-  m,
-} from "motion/react";
+import { AnimatePresence, domAnimation, LazyMotion, MotionConfig, m } from "motion/react";
 import { Toaster } from "sonner";
+
 import { BoardPage, WelcomePage } from "@/components/pages";
 import { useWorkspace } from "@/hooks/useWorkspace";
 

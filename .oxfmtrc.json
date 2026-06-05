@@ -1,0 +1,6 @@
+{
+  "sortImports": true,
+  "sortTailwindcss": {
+    "functions": ["clsx", "cva", "tw"]
+  }
+}

@@ -14,14 +14,14 @@ Named exports throughout. **The one exception is `App.tsx`** — it keeps `expor
 
 ## Side-effect boundary
 
-| API | Allowed in |
-|---|---|
-| `@tauri-apps/api/core` (`invoke`) | `src/api/` only |
-| `@tauri-apps/api/event` (`listen`) | `src/api/` only |
-| `@tauri-apps/plugin-fs` (`watch`) | `src/hooks/` and `src/api/` only |
-| Project hooks (`@/hooks/*`) | `App.tsx` and `src/components/pages/` only |
+| API                                | Allowed in                                 |
+| ---------------------------------- | ------------------------------------------ |
+| `@tauri-apps/api/core` (`invoke`)  | `src/api/` only                            |
+| `@tauri-apps/api/event` (`listen`) | `src/api/` only                            |
+| `@tauri-apps/plugin-fs` (`watch`)  | `src/hooks/` and `src/api/` only           |
+| Project hooks (`@/hooks/*`)        | `App.tsx` and `src/components/pages/` only |
 
-Enforced by `biome.json` (`lint/style/noRestrictedImports` + per-path `overrides`). Violations block `bun run format` and lint-staged.
+Enforced by `.oxlintrc.json` (`no-restricted-imports` + per-path `overrides`).
 
 ## Tree
 

@@ -34,6 +34,7 @@
 ### 永続化: `tauri-plugin-store`
 
 **理由:**
+
 - Tauri v2 公式プラグイン
 - アプリデータディレクトリに自動保存、手動セーブも可能
 - Rust と JS の両方からアクセス可能
@@ -96,17 +97,20 @@ fn run() {
 ### Frontend: 新しいコンポーネント + App.tsx の修正
 
 #### App.tsx
+
 - 起動時に `invoke("get_workspace_directory")` を呼び出し、初期 `dir` を設定
 - `dir` が null の場合 → `DirectoryPicker`
 - `dir` が設定済みの場合 → `Board`（`currentDir` と `onDirectoryChange` を props で渡す）
 - `invoke` に `.catch()` をチェーンし、エラー時はコンソールに出力する
 
 #### SettingsPanel.tsx (新規)
+
 - 現在のディレクトリパスを表示
 - 「ディレクトリを変更」ボタン
 - 閉じるボタン
 
 #### Board.tsx
+
 - `lucide-react` の `Settings` アイコンを使用した設定ボタンを右上に追加
 - `SettingsPanel` の開閉状態を管理（`settingsOpen` state）
 - ディレクトリ変更時に `onDirectoryChange` を呼び出す
@@ -116,13 +120,7 @@ fn run() {
 ```json
 // src-tauri/capabilities/default.json
 {
-  "permissions": [
-    "core:default",
-    "opener:default",
-    "fs:default",
-    "fs:allow-watch",
-    "store:default"
-  ]
+  "permissions": ["core:default", "opener:default", "fs:default", "fs:allow-watch", "store:default"]
 }
 ```
 

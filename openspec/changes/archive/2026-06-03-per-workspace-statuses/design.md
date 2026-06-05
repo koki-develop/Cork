@@ -30,11 +30,13 @@
 ディレクトリ（例: `.cork/config.json`）ではなく単一ファイル。
 
 **理由:**
+
 - ディレクトリ化すると「キャッシュ」「ログ」など安易に他のファイルを置き始めたくなる誘惑が出る。スキーマ拡張は JSON オブジェクト内で行えば十分
 - ドットファイル 1 個ならエクスプローラ上の見た目もシンプルで、ユーザーがエディタで直接開きやすい
 - Cork が後から削除・リネームする際の操作も単純
 
 **代替案として検討した:**
+
 - `.cork/config.json`（ディレクトリ形式）→ 拡張性は高いが、上記の理由で却下
 - `cork.config.json`（ドットなし）→ 作業ディレクトリのトップに目立って並ぶのは UX 的にノイズ。ドット隠しの方が自然
 
@@ -44,19 +46,17 @@
 
 ```json
 {
-  "statuses": [
-    { "label": "Todo" },
-    { "label": "Doing" },
-    { "label": "Done" }
-  ]
+  "statuses": [{ "label": "Todo" }, { "label": "Doing" }, { "label": "Done" }]
 }
 ```
 
 **理由:**
+
 - 今は `statuses` だけだが、将来 `version`、`board.title`、`columns.color` などを追加する余地が確実に欲しくなる。スキーマレベルで拡張可能な形にしておく
 - JSON のルートが配列だと「Cork の設定ファイル」という意味付けが伝わりにくい
 
 **代替案として検討した:**
+
 - `version: 1` を最初から入れる → 現時点で読む側のバージョン分岐ロジックを書く意味がない。後で必要になった時点で `version` が無ければ v1 とみなす扱いで増やせる → 今回は入れない (YAGNI)
 
 ### Decision 3: バックエンド側は `.cork.json` を直接 I/O する（Tauri Store プラグインは使わない）
@@ -64,6 +64,7 @@
 `tauri_plugin_store` は「アプリ全体で 1 個の store」を扱うのが前提のプラグインで、任意パスのファイルを動的に切り替える使い方には向かない。`std::fs::read_to_string` + `serde_json` で直接読み書きする。
 
 **理由:**
+
 - 書き込み先は `AppState.workspace_dir` から決まる単純な相対パスなので、プラグインに通す必要がない
 - Tauri の fs scope は `set_workspace_directory` で `allow_directory(path, false)` してあるため、その配下の `.cork.json` は I/O 許可済み
 - `tauri_plugin_store` を経由しないことで「Cork 外で書き換えてもストアのインメモリキャッシュとズレない」状態を作れる（プラグイン経由だと内部キャッシュとファイル実体の同期が必要になる）
@@ -87,10 +88,10 @@ fn save_statuses(
 
 ### Decision 5: 作業ディレクトリ未選択時はエラー / 空配列で扱い分け
 
-| コマンド | 未選択時の挙動 |
-|---|---|
-| `get_statuses` | `vec![]` を返す（旧仕様もストアに値が無ければ空配列だった。フロント側で `DEFAULT_STATUSES` にフォールバック済み） |
-| `save_statuses` | `Err("No directory selected")` を返す |
+| コマンド        | 未選択時の挙動                                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `get_statuses`  | `vec![]` を返す（旧仕様もストアに値が無ければ空配列だった。フロント側で `DEFAULT_STATUSES` にフォールバック済み） |
+| `save_statuses` | `Err("No directory selected")` を返す                                                                             |
 
 **理由:** `get_statuses` は起動直後の `useWorkspace` 初期ロードで `dir = null` のまま呼ばれる可能性があり、ここでエラーを返すと UI が荒れる。一方 `save_statuses` は必ずユーザー操作起点で、`dir` が無いのに保存が走るのは異常系なのでエラーにする。
 
@@ -113,16 +114,20 @@ fn save_statuses(
 `useWorkspace.ts:52-62` の `watch(dir, ...)` は `recursive: false` で開いており、作業ディレクトリ直下の `.cork.json` 変更イベントも届く。ハンドラを次の形に拡張する:
 
 ```ts
-watch(dir, (event) => {
-  const hasMd = event.paths.some(p => p.endsWith(".md"));
-  const hasCork = event.paths.some(p => p.endsWith(".cork.json"));
-  if (hasCork) {
-    loadStatuses();
-    loadTasks(); // 既定ステータス変更がカードの所属列に影響するため
-  } else if (hasMd) {
-    loadTasks();
-  }
-}, { recursive: false, delayMs: 300 });
+watch(
+  dir,
+  (event) => {
+    const hasMd = event.paths.some((p) => p.endsWith(".md"));
+    const hasCork = event.paths.some((p) => p.endsWith(".cork.json"));
+    if (hasCork) {
+      loadStatuses();
+      loadTasks(); // 既定ステータス変更がカードの所属列に影響するため
+    } else if (hasMd) {
+      loadTasks();
+    }
+  },
+  { recursive: false, delayMs: 300 },
+);
 ```
 
 **理由:** `delayMs: 300` のデバウンスは既存値をそのまま流用。`.cork.json` 単独編集でも `loadTasks` を呼ぶのは、デフォルトステータスが変わるとフロントエンドの未指定 status カードの所属列が変化するため。

@@ -10,7 +10,7 @@ export function Badge({ children, className }: BadgeProps) {
   return (
     <span
       className={clsx(
-        "flex size-5 items-center justify-center rounded-md bg-cork-elevated font-medium text-cork-muted text-xs",
+        "bg-cork-elevated text-cork-muted flex size-5 items-center justify-center rounded-md text-xs font-medium",
         className,
       )}
     >

@@ -5,6 +5,7 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - frontmatter に `order: <float>` フィールドを追加し、タスクの表示順を永続化する
 - 同一カラム内（intra-column）のドラッグ&ドロップ並び替えを有効化し、新しい順序を frontmatter に保存する
 - カラム間移動時（cross-column）も移動先の適切な位置に挿入された順序を保存する
@@ -12,6 +13,7 @@
 - frontmatter の全フィールド（`status` など）を保持しながら `order` を追記・更新できる
 
 **Non-Goals:**
+
 - カラムの並び順への影響（カラム順は既に `settings.json` の `statuses` 配列順で永続化済み）
 - タスクの一括リナンバリング（毎回 0 からの連番を割り当てる）
 - Markdown ファイルのリネームや移動
@@ -26,6 +28,7 @@
 **理由**: Done カラムのようにタスクが増え続けるカラムでも、挿入1回につき1ファイルの書き込みで済むため O(1) でスケールする。`f64` の仮数部は53ビットあるため、初期値 0.0 / 1.0 から始めて約53回の中間挿入を耐えられる。稀に精度が尽きた場合のみカラム全体のリナンバリング（`renumber_tasks`）が発生するが、実用上ほとんど起こらない。
 
 **代替案との比較**:
+
 - カラム全体リナンバリング（`update_tasks_order(paths: Vec<String>)`）→ Done が数千でも毎回全ファイル書き換えで非効率
 - Lexorank（文字列による辞書順 order）→ 理論上は無限だが実装が複雑で frontmatter の可読性が低い
 
@@ -34,11 +37,13 @@
 **決定**: 以下の2つの Tauri コマンドを追加する。
 
 **`update_task_order(path: String, order: f64)`**:
+
 - 単一のタスクの order 値を更新する
 - フロントエンドが前後のタスクの order から中間値を計算して渡す
 - path の workspace 内検証を行い、frontmatter の order を書き換える
 
 **`renumber_tasks(paths: Vec<String>)`**:
+
 - カラム内の全タスクを 0.0, 1.0, 2.0, ... にリナンバリングする
 - `update_task_order` で精度が不足した場合のフォールバック
 - フロントエンドで `(prev_order + next_order) / 2 === prev_order` または `=== next_order` になった時に呼び出す
@@ -58,6 +63,7 @@
 **決定**: `useBoardDragState` の `handleDragEnd` 内で、ドロップされたタスクの新しい位置の前後のタスクから order の中間値を計算し、`update_task_order(path, newOrder)` を呼び出す。中間値が前後いずれかと等しい（精度不足）場合は、事前に `renumber_tasks(paths)` で該当カラムをリナンバリングしてから再計算する。
 
 **実装イメージ**:
+
 ```typescript
 function calculateMidpoint(prev: number | null, next: number | null): number {
   if (prev === null && next === null) return 0.0;
@@ -108,6 +114,7 @@ if (source.type === "card") {
 **理由**: 一度並び替えをしたタスクと未設定のタスクが混在する場合、ordered なタスク群を先頭に、未設定のタスクを後方に alphabetical でまとめるのが自然。
 
 **実装**:
+
 ```rust
 tasks.sort_by(|a, b| {
     let a_order = a.order.unwrap_or(f64::MAX);
@@ -147,9 +154,9 @@ struct Task {
 
 ## Risks / Trade-offs
 
-| Risk | Mitigation |
-|---|---|
-| `serde_yaml` の追加依存でバイナリサイズ増加 | `gray_matter` が既に依存しているため増加は最小限。`Matter::stringify()` の内部も `serde_yaml` を使用 |
-| frontmatter のコメントや書式が失われる可能性 | `gray_matter` + `serde_yaml` の再シリアライズにより YAML の再フォーマットは発生するが、コメントなど意味論に影響しない要素の欠落は許容 |
+| Risk                                         | Mitigation                                                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `serde_yaml` の追加依存でバイナリサイズ増加  | `gray_matter` が既に依存しているため増加は最小限。`Matter::stringify()` の内部も `serde_yaml` を使用                                      |
+| frontmatter のコメントや書式が失われる可能性 | `gray_matter` + `serde_yaml` の再シリアライズにより YAML の再フォーマットは発生するが、コメントなど意味論に影響しない要素の欠落は許容     |
 | `f64` の精度限界による予期せぬリナンバリング | 53回の中間挿入に耐える。実運用で同一カラム内の隣接タスクを53回連続で移動することは稀。リナンバリングが発生しても1カラム分の書き込みで完了 |
-| 複数タブ/ウィンドウでの競合 | ファイル単位の書き込みで、最後に書き込んだ方が優先される。楽観的更新＋ファイル監視による再読込で対応 |
+| 複数タブ/ウィンドウでの競合                  | ファイル単位の書き込みで、最後に書き込んだ方が優先される。楽観的更新＋ファイル監視による再読込で対応                                      |

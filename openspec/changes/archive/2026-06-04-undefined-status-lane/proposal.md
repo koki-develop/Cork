@@ -14,9 +14,11 @@
 ## Capabilities
 
 ### New Capabilities
+
 - `undefined-status-lane`: board に unknown ステータスのタスクを表示するレーンを提供する。frontmatter `status:` の有無によるフィルタリングと、未定義ステータス値の検出・表示をカバーする。
 
 ### Modified Capabilities
+
 - `per-workspace-statuses`: `list_tasks` における frontmatter `status` の扱いを変更する。`status:` キーを持たないファイルを管理対象から除外し、デフォルトステータス割り当ての仕様を廃止する。また、未定義ステータス値を持つタスクでも board 上で可視化されるよう要件を変更する。
 
 ## Impact

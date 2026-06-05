@@ -2,13 +2,13 @@
 
 ## Layer responsibilities
 
-| Layer | Role | Local UI state | `@/api` / `@/hooks` |
-|---|---|---|---|
-| `atoms/` | Single-element primitives. No domain meaning. | ❌ | ❌ |
-| `molecules/` | Small compositions of atoms (+ external icons / utilities). | Minimal | ❌ |
-| `organisms/` | Self-contained UI blocks. Domain-split (`board/`, `settings/`, `shell/`). | ✅ | ❌ — handlers via props |
-| `templates/` | Layout skeletons with slots. No data, no state. | ❌ | ❌ |
-| `pages/` | Wiring layer. Composes templates + organisms with hooks. | ✅ | ✅ |
+| Layer        | Role                                                                      | Local UI state | `@/api` / `@/hooks`     |
+| ------------ | ------------------------------------------------------------------------- | -------------- | ----------------------- |
+| `atoms/`     | Single-element primitives. No domain meaning.                             | ❌             | ❌                      |
+| `molecules/` | Small compositions of atoms (+ external icons / utilities).               | Minimal        | ❌                      |
+| `organisms/` | Self-contained UI blocks. Domain-split (`board/`, `settings/`, `shell/`). | ✅             | ❌ — handlers via props |
+| `templates/` | Layout skeletons with slots. No data, no state.                           | ❌             | ❌                      |
+| `pages/`     | Wiring layer. Composes templates + organisms with hooks.                  | ✅             | ✅                      |
 
 `App.tsx` (one level up) shares page-tier privileges as the routing root and workspace state hoist point.
 
@@ -25,9 +25,9 @@
 - Lower layer cannot import upper layer (atoms cannot import molecules etc.)
 - Upper layer can skip layers downward (a page can import an atom directly)
 - Organisms and below receive Tauri / hook side-effects via props
-- Enforced by `biome.json` `lint/style/noRestrictedImports` with per-path `overrides`
+- Enforced by `.oxlintrc.json` `no-restricted-imports` with per-path `overrides`
 
-When you add a new organism domain folder, add a matching `overrides` entry in `biome.json` to forbid cross-domain imports.
+When you add a new organism domain folder, add a matching `overrides` entry in `.oxlintrc.json` to forbid cross-domain imports.
 
 ## `pages/BoardPage` is the orchestration hub
 

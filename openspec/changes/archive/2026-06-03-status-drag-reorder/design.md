@@ -5,6 +5,7 @@ The board uses `@dnd-kit/react` v0.4.0 for drag-and-drop. The library exposes `u
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Users can drag column headers (via the grip icon) left/right to reorder statuses
 - Column reorder persists via the existing `save_statuses` backend command
 - Card drag-and-drop between columns continues to work unchanged
@@ -12,6 +13,7 @@ The board uses `@dnd-kit/react` v0.4.0 for drag-and-drop. The library exposes `u
 - No new external dependencies
 
 **Non-Goals:**
+
 - Persisting per-column card order (planned for a separate change; the architecture supports it but the persistence layer is not yet wired up)
 - Multi-column drag (only one column at a time)
 - Changing the Settings panel reordering behavior
@@ -49,6 +51,7 @@ useSortable({
 The `group` property ties each card to its column and lets the `move` helper handle intra-group reorder, cross-group transfer, and column-level reorder through one codepath.
 
 **Alternatives considered:**
+
 - Nested `useSortable` (outer column) + `useDroppable` (inner card area): broken in v0.4.0 due to the registry-overwrite issue described above.
 - Manual `useDraggable` / `useDroppable` pairs with custom collision logic: more code, reimplements what `useSortable` already provides.
 
@@ -71,12 +74,13 @@ Both pieces are re-derived from `statuses` / `tasks` props, then mirrored into `
 
 ```ts
 if (source.type === "column") setColumnOrder((prev) => move(prev, event));
-if (source.type === "card")   setTasksByColumn((prev) => move(prev, event));
+if (source.type === "card") setTasksByColumn((prev) => move(prev, event));
 ```
 
 This keeps React state as the single visual source of truth. The built-in `OptimisticSortingPlugin` detects the externally-changed sortable indices and bows out of its own DOM mutation, leaving React reconciliation to move the elements and `Sortable.animate()` to handle the FLIP-style animation between renders. There is no double-update conflict.
 
 `onDragEnd` persists according to `source.type`:
+
 - column drop → derive `StatusEntry[]` from `columnOrder` and call `onReorderStatuses` (existing `save_statuses` command)
 - card drop → look up which column the card now lives in within `tasksByColumn`; if it differs from `task.status`, call `onTaskStatusUpdate`
 

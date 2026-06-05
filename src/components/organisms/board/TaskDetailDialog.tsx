@@ -1,6 +1,7 @@
 import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
 import { Button, Heading, Input, Text } from "@/components/atoms";
 import {
   DropdownMenu,
@@ -68,17 +69,14 @@ export function TaskDetailDialog({
   const hasFieldChanged = (field: "title" | "status" | "body", value: string) =>
     value !== originalRef.current[field];
 
-  const hasTagsChanged = (next: string[]) =>
-    !tagsEqual(next, originalRef.current.tags);
+  const hasTagsChanged = (next: string[]) => !tagsEqual(next, originalRef.current.tags);
 
   const save = async (updates: TaskUpdates) => {
     setError(null);
     try {
       await onSaveTask(task.id, updates);
-      if (updates.title !== undefined)
-        originalRef.current.title = updates.title;
-      if (updates.status !== undefined)
-        originalRef.current.status = updates.status;
+      if (updates.title !== undefined) originalRef.current.title = updates.title;
+      if (updates.status !== undefined) originalRef.current.status = updates.status;
       if (updates.body !== undefined) originalRef.current.body = updates.body;
       if (updates.tags !== undefined) originalRef.current.tags = updates.tags;
     } catch (e) {
@@ -152,8 +150,7 @@ export function TaskDetailDialog({
     const pendingTag = tagEditorRef.current?.flushPending() ?? "";
     const dirtyUpdates: TaskUpdates = {};
     const trimmed = title.trim();
-    if (trimmed && hasFieldChanged("title", trimmed))
-      dirtyUpdates.title = trimmed;
+    if (trimmed && hasFieldChanged("title", trimmed)) dirtyUpdates.title = trimmed;
     if (hasFieldChanged("status", status)) dirtyUpdates.status = status;
     if (hasFieldChanged("body", body)) dirtyUpdates.body = body;
     if (pendingTag) {
@@ -165,14 +162,10 @@ export function TaskDetailDialog({
     if (Object.keys(dirtyUpdates).length > 0) {
       try {
         await onSaveTask(task.id, dirtyUpdates);
-        if (dirtyUpdates.title !== undefined)
-          originalRef.current.title = dirtyUpdates.title;
-        if (dirtyUpdates.status !== undefined)
-          originalRef.current.status = dirtyUpdates.status;
-        if (dirtyUpdates.body !== undefined)
-          originalRef.current.body = dirtyUpdates.body;
-        if (dirtyUpdates.tags !== undefined)
-          originalRef.current.tags = dirtyUpdates.tags;
+        if (dirtyUpdates.title !== undefined) originalRef.current.title = dirtyUpdates.title;
+        if (dirtyUpdates.status !== undefined) originalRef.current.status = dirtyUpdates.status;
+        if (dirtyUpdates.body !== undefined) originalRef.current.body = dirtyUpdates.body;
+        if (dirtyUpdates.tags !== undefined) originalRef.current.tags = dirtyUpdates.tags;
       } catch (e) {
         setError(String(e));
         // Keep the dialog open so the user can see their unsaved edits
@@ -209,11 +202,7 @@ export function TaskDetailDialog({
               },
             ]}
           />
-          <IconButton
-            icon={<X className="size-4" />}
-            aria-label="Close"
-            onClick={handleClose}
-          />
+          <IconButton icon={<X className="size-4" />} aria-label="Close" onClick={handleClose} />
         </div>
 
         <div className="flex flex-col gap-4">
@@ -267,7 +256,7 @@ export function TaskDetailDialog({
               placeholder="Body"
               aria-label="Body"
               rows={12}
-              className="min-w-0 flex-1 resize-none rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-1.5 text-cork-text text-sm outline-none transition-colors duration-200 placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-1 focus:ring-cork-accent/30"
+              className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-cork-accent/30 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none focus:ring-1"
             />
           </div>
         </div>
@@ -287,8 +276,7 @@ export function TaskDetailDialog({
             Delete task?
           </Heading>
           <Text size="sm" className="text-cork-muted">
-            This will permanently delete &ldquo;{task.title}&rdquo;. This action
-            cannot be undone.
+            This will permanently delete &ldquo;{task.title}&rdquo;. This action cannot be undone.
           </Text>
           {deleteError && <ErrorBanner>{deleteError}</ErrorBanner>}
           <div className="flex justify-end gap-2">
@@ -302,12 +290,7 @@ export function TaskDetailDialog({
             >
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              color="danger"
-              size="md"
-              onClick={handleConfirmDelete}
-            >
+            <Button variant="primary" color="danger" size="md" onClick={handleConfirmDelete}>
               Delete
             </Button>
           </div>

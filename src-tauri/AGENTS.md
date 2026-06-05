@@ -68,4 +68,4 @@ Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime
 4. If the command writes to the file system, call `security::ensure_in_workspace` first
 5. Add a thin wrapper in `src/api/<domain>.ts` and re-export it from `src/api/index.ts`
 
-The frontend should never call `invoke("...")` directly — always go through the `src/api/` wrapper. This is enforced by `biome.json`.
+The frontend should never call `invoke("...")` directly — always go through the `src/api/` wrapper. This is enforced by `.oxlintrc.json`.

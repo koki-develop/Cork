@@ -1,5 +1,6 @@
 import { watch } from "@tauri-apps/plugin-fs";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import {
   createTask as createTaskApi,
   deleteTask as deleteTaskApi,
@@ -16,11 +17,7 @@ import {
 import { useFilterStore } from "@/hooks/useFilterStore";
 import type { StatusEntry, TagFilter, Task, TaskUpdates } from "@/types";
 
-const DEFAULT_STATUSES: StatusEntry[] = [
-  { label: "Todo" },
-  { label: "Doing" },
-  { label: "Done" },
-];
+const DEFAULT_STATUSES: StatusEntry[] = [{ label: "Todo" }, { label: "Doing" }, { label: "Done" }];
 
 export function useWorkspace() {
   const [dir, setDir] = useState<string | null>(null);
@@ -74,18 +71,13 @@ export function useWorkspace() {
   // Main data loading effect — re-fetches tasks whenever dir or filters
   // change. `filters` is in deps to trigger the effect (loadTasks reads
   // filtersRef.current).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `filters` is read via ref inside loadTasks, but listed here to trigger re-runs
+  // eslint-disable-next-line react-hooks/exhaustive-deps: `filters` is read via ref inside loadTasks, but listed here to trigger re-runs
   useEffect(() => {
     if (!dir) return;
 
     const loadData = async () => {
-      const [, loadedStatuses] = await Promise.all([
-        loadTasks(),
-        getStatuses(),
-      ]);
-      setStatuses(
-        loadedStatuses.length > 0 ? loadedStatuses : DEFAULT_STATUSES,
-      );
+      const [, loadedStatuses] = await Promise.all([loadTasks(), getStatuses()]);
+      setStatuses(loadedStatuses.length > 0 ? loadedStatuses : DEFAULT_STATUSES);
       await loadAvailableTags();
     };
     loadData();
@@ -112,12 +104,7 @@ export function useWorkspace() {
     };
   }, [dir, filters, loadTasks, loadAvailableTags, loadStatuses]);
 
-  const createTask = async (
-    title: string,
-    status: string,
-    body?: string,
-    tags?: string[],
-  ) => {
+  const createTask = async (title: string, status: string, body?: string, tags?: string[]) => {
     const orders = tasks
       .filter((t) => t.status === status)
       .map((t) => t.order)
@@ -148,11 +135,7 @@ export function useWorkspace() {
   const updateTask = async (taskId: string, updates: TaskUpdates) => {
     const task = tasks.find((t) => t.id === taskId);
     const updatesWithOrder: TaskUpdates = { ...updates };
-    if (
-      updates.status !== undefined &&
-      task &&
-      updates.status !== task.status
-    ) {
+    if (updates.status !== undefined && task && updates.status !== task.status) {
       const ordersInNewColumn = tasks
         .filter((t) => t.status === updates.status)
         .map((t) => t.order)
@@ -167,13 +150,9 @@ export function useWorkspace() {
           ? {
               ...t,
               ...(updates.title !== undefined ? { title: updates.title } : {}),
-              ...(updates.status !== undefined
-                ? { status: updates.status }
-                : {}),
+              ...(updates.status !== undefined ? { status: updates.status } : {}),
               ...(updates.body !== undefined ? { body: updates.body } : {}),
-              ...(updatesWithOrder.order !== undefined
-                ? { order: updatesWithOrder.order }
-                : {}),
+              ...(updatesWithOrder.order !== undefined ? { order: updatesWithOrder.order } : {}),
               ...(updates.tags !== undefined ? { tags: updates.tags } : {}),
             }
           : t,
@@ -207,12 +186,11 @@ export function useWorkspace() {
     setQuery(q);
     queryRef.current = q;
     const id = ++requestIdRef.current;
-    listTasks(
-      q || undefined,
-      filtersRef.current.length > 0 ? filtersRef.current : undefined,
-    ).then((result) => {
-      if (id === requestIdRef.current) setTasks(result);
-    });
+    listTasks(q || undefined, filtersRef.current.length > 0 ? filtersRef.current : undefined).then(
+      (result) => {
+        if (id === requestIdRef.current) setTasks(result);
+      },
+    );
   };
 
   const handleFiltersChange = (next: TagFilter[]) => {
@@ -220,10 +198,7 @@ export function useWorkspace() {
     filtersRef.current = next;
     filterStore.scheduleSave(next);
     const id = ++requestIdRef.current;
-    listTasks(
-      queryRef.current || undefined,
-      next.length > 0 ? next : undefined,
-    ).then((result) => {
+    listTasks(queryRef.current || undefined, next.length > 0 ? next : undefined).then((result) => {
       if (id === requestIdRef.current) setTasks(result);
     });
   };

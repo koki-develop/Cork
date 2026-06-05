@@ -34,12 +34,14 @@
 `tauri-plugin-fs` の `watch` 機能（フロントエンド駆動）
 
 **理由:**
+
 - Tauri v2 公式プラグイン、内部で `notify` クレートを利用
 - クロスプラットフォーム対応（macOS: FSEvents, Linux: inotify, Windows: ReadDirectoryChanges）
 - debounce 機能が組み込まれている（`delayMs` オプション）
 - スコープ機構によりファイルアクセスを保護
 
 **セキュリティ改善（既存コマンドの retrofitting）:**
+
 - `select_directory` で選択パスを Rust state に保存 + `FsExt::allow_directory()` で fs スコープに登録
 - `list_tasks` は引数でパスを受け取らず、Rust state から読み取る
 - `update_task_status` は受け取ったパスが選択ディレクトリ配下かを検証し、違反時は `Access denied` を返す
@@ -90,11 +92,7 @@ fn run() {
 ```json
 // src-tauri/capabilities/default.json
 {
-  "permissions": [
-    "core:default",
-    "opener:default",
-    "fs:default"
-  ]
+  "permissions": ["core:default", "opener:default", "fs:default"]
 }
 ```
 

@@ -76,12 +76,14 @@
 `list_tasks` は `query=None` または空文字列のときにファイル読み込みを行い、結果を `AppState` のキャッシュに保存しなければならない (MUST)。`query=Some(q)` で非空クエリが指定された場合は、キャッシュからタスク一覧を読み取り、fuzzy matching を実行しなければならない (MUST)。
 
 #### Scenario: 初回読み込み時にキャッシュが作成される
+
 - **GIVEN** ワークスペースに 2 つのタスクが存在し、キャッシュが空の状態
 - **WHEN** `list_tasks(None)` が呼ばれる
 - **THEN** 2 つのタスクがファイルから読み込まれ、キャッシュに保存される
 - **AND** 戻り値は 2 件のタスクを含む
 
 #### Scenario: 検索時はキャッシュから読み取り、ファイル I/O は発生しない
+
 - **GIVEN** キャッシュに 3 つのタスクが保存されている
 - **WHEN** `list_tasks(Some("query".to_string()))` が呼ばれる
 - **THEN** ファイル読み込みは行われず、キャッシュに対して fuzzy matching が実行される
@@ -92,24 +94,28 @@
 AppHeader 内に SearchBar molecule が配置されなければならない (MUST)。SearchBar は controlled コンポーネントとして、親から `value` と `onChange` を受け取らなければならない (MUST)。
 
 #### Scenario: SearchBar が AppHeader に表示される
+
 - **WHEN** ボードがレンダリングされる
 - **THEN** AppHeader の PathDisplay の右側に SearchBar が表示される
 - **AND** SearchBar 内に Search (lucide) アイコンが表示される
 - **AND** placeholder テキスト "Search tasks…" が表示される
 
 #### Scenario: 入力に応じて onChange が呼ばれる
+
 - **GIVEN** SearchBar が初期状態 (value="")
 - **WHEN** ユーザが "hello" とタイプする
 - **THEN** 各キー入力に対して `onChange` が最新の文字列で呼ばれる
 - **AND** `<input>` 要素の値が入力文字列と一致する
 
 #### Scenario: Escape キーで入力がクリアされる
+
 - **GIVEN** SearchBar に "search" と入力されている
 - **WHEN** ユーザが Escape キーを押す
 - **THEN** `onChange("")` が呼ばれる
 - **AND** `<input>` からフォーカスが外れる (blur)
 
 #### Scenario: フォーカスで幅が広がる
+
 - **GIVEN** SearchBar が非フォーカス状態 (width: w-48)
 - **WHEN** ユーザが SearchBar にフォーカスする
 - **THEN** SearchBar の幅が w-64 に拡大する
@@ -120,6 +126,7 @@ AppHeader 内に SearchBar molecule が配置されなければならない (MUS
 `useWorkspace` フックは、`query` ステートが変更されるたびに即座に `loadTasks` を呼び出さなければならない (MUST)。検索は Rust 側のタスクキャッシュに対して実行されるため、ファイル I/O は発生せずパフォーマンスに影響しない。
 
 #### Scenario: キー入力ごとに即座に検索が発火する
+
 - **GIVEN** 検索バーに何も入力されていない状態
 - **WHEN** ユーザが "t" とタイプする
 - **THEN** 即座に `listTasks("t")` が invoke される
@@ -127,6 +134,7 @@ AppHeader 内に SearchBar molecule が配置されなければならない (MUS
 - **THEN** 即座に `listTasks("te")` が invoke される (前回の呼び出しをキャンセルしない)
 
 #### Scenario: 空クエリでは全タスクが返る
+
 - **GIVEN** ユーザが何か検索した後に入力を空にした
 - **WHEN** `query` が空文字列に変更される
 - **THEN** 即座に `listTasks("")` が呼ばれ、Rust 側は全タスクを返す
@@ -136,12 +144,14 @@ AppHeader 内に SearchBar molecule が配置されなければならない (MUS
 `listTasks` の戻り値は既存の `tasks` ステートを置き換え、ボードの表示が更新されなければならない (MUST)。
 
 #### Scenario: 検索結果がカラムに反映される
+
 - **GIVEN** ワークスペースに `status: Todo` で "Implement A" と "Implement B" の 2 タスクが存在する
 - **WHEN** ユーザが "A" と検索する
 - **THEN** Todo カラムに "Implement A" のみが表示される
 - **AND** "Implement B" は表示されない
 
 #### Scenario: 検索をクリアすると全タスクに戻る
+
 - **GIVEN** ユーザが "A" で検索中で、Todo カラムに 1 タスクのみ表示されている
 - **WHEN** ユーザが Escape キーを押して検索をクリアする
 - **THEN** 300ms 後に全タスクが再表示される
@@ -152,6 +162,7 @@ AppHeader 内に SearchBar molecule が配置されなければならない (MUS
 外部エディタ等で `.md` ファイルが変更された場合、ファイル監視による `loadTasks` 呼び出しは現在の `query` 値を `listTasks` に渡さなければならない (MUST)。
 
 #### Scenario: 検索中にファイルが追加された場合も検索状態が維持される
+
 - **GIVEN** ユーザが "bug" で検索中で、"Fix bug" のタスクのみ表示されている
 - **WHEN** 外部エディタで "Critical bug" というタイトルの新しい `.md` ファイルが作成される
 - **THEN** ファイル監視が発火し `loadTasks` が呼ばれる

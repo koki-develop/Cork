@@ -1,13 +1,11 @@
-import type {
-  DragEndEvent,
-  DragOverEvent,
-  DragStartEvent,
-} from "@dnd-kit/react";
+import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/react";
 import { X } from "lucide-react";
+
 import { Heading } from "@/components/atoms";
 import { IconButton } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import type { EditingEntry } from "@/types";
+
 import { StatusList } from "./StatusList";
 import { WorkspaceDirectoryField } from "./WorkspaceDirectoryField";
 
@@ -50,17 +48,10 @@ export function SettingsDialog({
         <Heading level={2} variant="page">
           Settings
         </Heading>
-        <IconButton
-          icon={<X className="size-4" />}
-          aria-label="Close"
-          onClick={onClose}
-        />
+        <IconButton icon={<X className="size-4" />} aria-label="Close" onClick={onClose} />
       </div>
 
-      <WorkspaceDirectoryField
-        path={currentDir}
-        onPickDirectory={onPickDirectory}
-      />
+      <WorkspaceDirectoryField path={currentDir} onPickDirectory={onPickDirectory} />
 
       <StatusList
         editing={editing}

@@ -20,10 +20,7 @@ export function groupTasksByStatus(
   return grouped;
 }
 
-export function calculateMidpoint(
-  prev: number | null,
-  next: number | null,
-): number {
+export function calculateMidpoint(prev: number | null, next: number | null): number {
   if (prev === null) {
     return next === null ? 0.0 : next / 2.0;
   }

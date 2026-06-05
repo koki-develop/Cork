@@ -3,6 +3,7 @@
 Currently, Cork tasks are displayed as Kanban cards that show only a title and a 2-line body preview. There is no way to view the full task body or edit it from within the app. The existing `CreateTaskDialog` (in `organisms/board/`) shows the pattern for modal-based task interaction, and the `Modal` component (in `organisms/shell/`) provides a reusable modal shell.
 
 The app already has:
+
 - A `Task` type with `id`, `title`, `status`, `body`, `order`
 - Tauri commands for `create_task`, `update_task_status`, `update_task_order`, `renumber_tasks`
 - A `update_frontmatter` utility in the Rust backend
@@ -11,6 +12,7 @@ The app already has:
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Provide a modal-based task detail view when clicking a task card
 - All fields (title, status, body) are always editable — no view/edit mode toggle
 - Changes auto-save on blur with no explicit save button
@@ -18,6 +20,7 @@ The app already has:
 - Follow existing project conventions (atomic design, Tailwind 4, `cork-*` design tokens, lucide icons)
 
 **Non-Goals:**
+
 - Rich text / Markdown preview rendering (plain text is sufficient)
 - Multiple simultaneous edit sessions (single modal at a time)
 - undo/redo for edits
@@ -36,6 +39,7 @@ The app already has:
 **Decision**: The dialog always renders form fields (`<Input>`, `<Select>`, `<textarea>`) — no read-only view mode.
 
 **Alternatives considered:**
+
 - View/edit toggle: rejected per requirement. Simplifies the component (no mode-switching state) and reduces cognitive load for the user.
 
 ### 3. Auto-save on blur — no save button
@@ -45,6 +49,7 @@ The app already has:
 No explicit Save/Cancel buttons. Rationale: With all fields always editable, a save button becomes noise — the user expects changes to "just work." Auto-save on blur is the standard pattern for inline-editing UIs (notion-style).
 
 **Save triggers by field**:
+
 - **Title**: `onBlur` → `onSaveTask(id, { title })`
 - **Status**: `onChange` → `onSaveTask(id, { status })`
 - **Body**: `onBlur` → `onSaveTask(id, { body })`
@@ -53,6 +58,7 @@ No explicit Save/Cancel buttons. Rationale: With all fields always editable, a s
 **Risk**: Multiple rapid saves could cause race conditions. → Mitigation: single dialog-level pending flag (`isSaving`). All fields are disabled (or visually frozen) during save.
 
 **Alternatives considered:**
+
 - Auto-save on every keystroke with debounce: rejected — adds complexity and unnecessary Tauri IPC calls.
 - Save on modal close only: rejected — risk of losing changes if the app crashes.
 
@@ -61,11 +67,13 @@ No explicit Save/Cancel buttons. Rationale: With all fields always editable, a s
 **Decision**: Add a single `update_task` Tauri command that accepts optional fields (title, status, body) and handles file rename when title changes.
 
 Signature:
+
 ```
 update_task(path: String, title?: Option<String>, status?: Option<String>, body?: Option<String>) -> Result<Task, String>
 ```
 
 Logic:
+
 1. Canonicalize and validate `path` is inside workspace directory
 2. Read current file, parse frontmatter + body
 3. If `title` changed:
@@ -77,6 +85,7 @@ Logic:
 The existing pattern requires three separate commands for status, order, and (missing) body/title updates. A single command is more ergonomic for the frontend, allows atomic file-rename + content-rewrite, and matches how the `CreateTaskDialog` works (all fields at once). The Rust side validates the canonical path and workspace boundary, matching the security pattern.
 
 **Alternatives considered:**
+
 - Unlink the file and create a new one on rename. Rejected — the file ID (`task.id`) must remain stable when only body/status changes.
 - Separate `update_task_body` + `rename_task` commands. Rejected — more frontend round-trips and no atomicity guarantee.
 
@@ -106,15 +115,15 @@ After any save, `loadTasks()` is called to reconcile with disk. If the title cha
 
 The UI follows the existing Cork design tokens already defined in `style.css`:
 
-| Token | Value | Usage |
-|---|---|---|
-| `cork-bg` | `#020617` | Modal outer background |
-| `cork-surface` | `#0f172a` | Modal surface |
-| `cork-elevated` | `#1e293b` | Input/textarea backgrounds |
-| `cork-border` | `#334155` | Borders |
-| `cork-accent` | `#6366f1` | Primary actions, focus rings |
-| `cork-text` | `#f1f5f9` | Body text |
-| `cork-muted` | `#94a3b8` | Labels, secondary text |
+| Token           | Value     | Usage                        |
+| --------------- | --------- | ---------------------------- |
+| `cork-bg`       | `#020617` | Modal outer background       |
+| `cork-surface`  | `#0f172a` | Modal surface                |
+| `cork-elevated` | `#1e293b` | Input/textarea backgrounds   |
+| `cork-border`   | `#334155` | Borders                      |
+| `cork-accent`   | `#6366f1` | Primary actions, focus rings |
+| `cork-text`     | `#f1f5f9` | Body text                    |
+| `cork-muted`    | `#94a3b8` | Labels, secondary text       |
 
 Icons from `lucide-react` (already a dependency). A Close button (X icon) in the header reuses the existing `IconButton` atom.
 

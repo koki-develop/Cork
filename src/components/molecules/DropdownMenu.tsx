@@ -15,19 +15,12 @@ export type DropdownMenuProps = {
   items: [DropdownMenuItem, ...DropdownMenuItem[]];
 };
 
-const itemColorStyles: Record<
-  NonNullable<DropdownMenuItem["color"]>,
-  string
-> = {
+const itemColorStyles: Record<NonNullable<DropdownMenuItem["color"]>, string> = {
   default: "text-cork-text hover:bg-cork-accent/10",
   danger: "text-red-400 hover:bg-red-500/10 hover:text-red-300",
 };
 
-export function DropdownMenu({
-  trigger,
-  triggerAriaLabel,
-  items,
-}: DropdownMenuProps) {
+export function DropdownMenu({ trigger, triggerAriaLabel, items }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -55,14 +48,14 @@ export function DropdownMenu({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-label={triggerAriaLabel}
-        className="inline-flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-cork-muted transition-colors duration-200 hover:bg-cork-elevated hover:text-cork-text"
+        className="text-cork-muted hover:bg-cork-elevated hover:text-cork-text inline-flex cursor-pointer items-center justify-center rounded-lg p-1.5 transition-colors duration-200"
       >
         {trigger}
       </button>
       <AnimatePresence>
         {open && (
           <m.div
-            className="absolute top-full right-0 z-20 mt-1 w-max origin-top-right overflow-hidden rounded-lg border border-cork-border/40 bg-cork-elevated shadow-xl"
+            className="border-cork-border/40 bg-cork-elevated absolute top-full right-0 z-20 mt-1 w-max origin-top-right overflow-hidden rounded-lg border shadow-xl"
             initial={{ opacity: 0, scale: 0.95, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -4 }}

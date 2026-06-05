@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
 import { getWorkspaceFilters, setWorkspaceFilters } from "@/api";
 import type { StoredFilter, TagFilter } from "@/types";
 
 const toStored = (f: TagFilter): StoredFilter =>
-  "tags" in f
-    ? { operator: f.operator, tags: f.tags }
-    : { operator: f.operator };
+  "tags" in f ? { operator: f.operator, tags: f.tags } : { operator: f.operator };
 
 const SAVE_DEBOUNCE_MS = 500;
 

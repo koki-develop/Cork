@@ -1,5 +1,6 @@
 import { Plus, X } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+
 import { Button, Heading, Input, Text } from "@/components/atoms";
 import {
   ErrorBanner,
@@ -16,12 +17,7 @@ export type CreateTaskDialogProps = {
   onClose: () => void;
   statuses: StatusEntry[];
   preselectedStatus?: string;
-  onCreateTask: (
-    title: string,
-    status: string,
-    body: string,
-    tags: string[],
-  ) => Promise<void>;
+  onCreateTask: (title: string, status: string, body: string, tags: string[]) => Promise<void>;
 };
 
 export function CreateTaskDialog({
@@ -32,9 +28,7 @@ export function CreateTaskDialog({
   onCreateTask,
 }: CreateTaskDialogProps) {
   const [title, setTitle] = useState("");
-  const [status, setStatus] = useState(
-    preselectedStatus ?? statuses[0]?.label ?? "",
-  );
+  const [status, setStatus] = useState(preselectedStatus ?? statuses[0]?.label ?? "");
   const [body, setBody] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -77,11 +71,7 @@ export function CreateTaskDialog({
         <Heading level={2} variant="page">
           New Task
         </Heading>
-        <IconButton
-          icon={<X className="size-4" />}
-          aria-label="Cancel"
-          onClick={onClose}
-        />
+        <IconButton icon={<X className="size-4" />} aria-label="Cancel" onClick={onClose} />
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -116,12 +106,7 @@ export function CreateTaskDialog({
           <Text variant="label" size="xs" className="block">
             Tags
           </Text>
-          <TagEditor
-            ref={tagEditorRef}
-            tags={tags}
-            onChange={setTags}
-            ariaLabel="Tags"
-          />
+          <TagEditor ref={tagEditorRef} tags={tags} onChange={setTags} ariaLabel="Tags" />
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -134,7 +119,7 @@ export function CreateTaskDialog({
             placeholder="Body (optional)"
             aria-label="Body"
             rows={5}
-            className="min-w-0 flex-1 resize-none rounded-lg border border-cork-border/40 bg-cork-elevated/60 px-3 py-1.5 text-cork-text text-sm outline-none transition-colors duration-200 placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-1 focus:ring-cork-accent/30"
+            className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-cork-accent/30 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none focus:ring-1"
           />
         </div>
 

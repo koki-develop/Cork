@@ -1,7 +1,7 @@
 {
   "name": "cork",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "prepare": "husky",
@@ -9,7 +9,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "format": "biome check --write src",
+    "format": "oxlint --fix && oxfmt",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "react-doctor": "react-doctor --verbose"
   },
   "dependencies": {
@@ -28,7 +32,6 @@
     "tailwindcss": "4.3.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.15",
     "@tauri-apps/cli": "2.11.2",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
@@ -36,6 +39,8 @@
     "babel-plugin-react-compiler": "1.0.0",
     "husky": "9.1.7",
     "lint-staged": "17.0.5",
+    "oxfmt": "0.52.0",
+    "oxlint": "1.67.0",
     "react-doctor": "0.2.8",
     "typescript": "5.8.3",
     "vite": "7.3.3"

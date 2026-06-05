@@ -13,6 +13,7 @@ Cork currently has no global notification system. Errors are shown inline via `E
 ## Capabilities
 
 ### New Capabilities
+
 - `toast-notifications`: Global toast notification system using sonner, covering success, error, and info messages across the app
 
 ### Modified Capabilities

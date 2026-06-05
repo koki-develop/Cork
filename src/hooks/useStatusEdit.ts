@@ -1,10 +1,7 @@
 import { move } from "@dnd-kit/helpers";
-import type {
-  DragEndEvent,
-  DragOverEvent,
-  DragStartEvent,
-} from "@dnd-kit/react";
+import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/react";
 import { useEffect, useRef, useState } from "react";
+
 import { saveStatuses } from "@/api";
 import { labelKey } from "@/lib/statuses";
 import type { EditingEntry, StatusEntry } from "@/types";
@@ -25,9 +22,7 @@ export function useStatusEdit(
   const [error, setError] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
 
-  const lastPersisted = useRef<StatusEntry[]>(
-    initialStatuses.map((s) => ({ label: s.label })),
-  );
+  const lastPersisted = useRef<StatusEntry[]>(initialStatuses.map((s) => ({ label: s.label })));
   const persistedLabelsById = useRef<Map<string, string> | null>(null);
   if (persistedLabelsById.current === null) {
     persistedLabelsById.current = new Map(editing.map((e) => [e.id, e.label]));
@@ -49,9 +44,7 @@ export function useStatusEdit(
   }, [initialKey, initialStatuses]);
 
   const persist = async (next: EditingEntry[]): Promise<boolean> => {
-    const trimmed = next
-      .map((e) => e.label.trim())
-      .filter((label) => label.length > 0);
+    const trimmed = next.map((e) => e.label.trim()).filter((label) => label.length > 0);
     const lowered = trimmed.map((label) => label.toLowerCase());
     if (new Set(lowered).size !== lowered.length) {
       setError("Duplicate labels are not allowed.");
@@ -62,8 +55,7 @@ export function useStatusEdit(
     const candidate: StatusEntry[] = trimmed.map((label) => ({ label }));
     const prev = lastPersisted.current;
     const isSame =
-      prev.length === candidate.length &&
-      candidate.every((c, i) => c.label === prev[i]?.label);
+      prev.length === candidate.length && candidate.every((c, i) => c.label === prev[i]?.label);
     if (isSame) return true;
 
     const renameMap: Record<string, string> = {};
@@ -78,9 +70,7 @@ export function useStatusEdit(
 
     await saveStatuses(candidate, renameMap);
     lastPersisted.current = candidate;
-    persistedLabelsById.current = new Map(
-      next.map((e) => [e.id, e.label.trim()]),
-    );
+    persistedLabelsById.current = new Map(next.map((e) => [e.id, e.label.trim()]));
     onStatusesChange();
     if (Object.keys(renameMap).length > 0) {
       onTasksChange?.();

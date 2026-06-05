@@ -48,10 +48,10 @@ status: todo
 
 ```typescript
 interface Task {
-  id: string;        // ファイルパス（ユニーク識別子）
-  title: string;     // ファイル名（拡張子除く）
-  status: Status;    // "todo" | "doing" | "done"
-  body: string;      // 本文（Markdown 文字列）
+  id: string; // ファイルパス（ユニーク識別子）
+  title: string; // ファイル名（拡張子除く）
+  status: Status; // "todo" | "doing" | "done"
+  body: string; // 本文（Markdown 文字列）
 }
 ```
 

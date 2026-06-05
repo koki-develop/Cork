@@ -27,11 +27,7 @@
 設定が未定義の場合のデフォルト値:
 
 ```typescript
-const DEFAULT_STATUSES = [
-  { label: "Todo" },
-  { label: "Doing" },
-  { label: "Done" },
-];
+const DEFAULT_STATUSES = [{ label: "Todo" }, { label: "Doing" }, { label: "Done" }];
 ```
 
 ### カラムの色割り当て
@@ -107,7 +103,7 @@ export interface StatusEntry {
 export interface Task {
   id: string;
   title: string;
-  status: string;    // union から string に変更（任意のステータス値を受け付ける）
+  status: string; // union から string に変更（任意のステータス値を受け付ける）
   body: string;
 }
 ```
@@ -150,14 +146,14 @@ const columnColor = STATUS_COLORS[index % STATUS_COLORS.length];
 
 ## 変更箇所一覧
 
-| ファイル | 変更内容 |
-|----------|----------|
-| `src-tauri/src/lib.rs` | `StatusEntry` 構造体追加、`get_statuses` / `save_statuses` コマンド追加 |
-| `src/types.ts` | `StatusEntry` インターフェース追加、`Task.status` を `string` に変更、`Status` 型削除 |
-| `src/App.tsx` | statuses 状態管理の追加、Board に props として渡す |
-| `src/Board.tsx` | ハードコードされた `COLUMNS` を削除、動的生成に変更 |
-| `src/Card.tsx` | ハードコードされた `STATUSES` を削除、props で受け取った statuses を使用 |
-| `src/SettingsPanel.tsx` | ステータス編集 UI の追加 |
+| ファイル                | 変更内容                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `src-tauri/src/lib.rs`  | `StatusEntry` 構造体追加、`get_statuses` / `save_statuses` コマンド追加               |
+| `src/types.ts`          | `StatusEntry` インターフェース追加、`Task.status` を `string` に変更、`Status` 型削除 |
+| `src/App.tsx`           | statuses 状態管理の追加、Board に props として渡す                                    |
+| `src/Board.tsx`         | ハードコードされた `COLUMNS` を削除、動的生成に変更                                   |
+| `src/Card.tsx`          | ハードコードされた `STATUSES` を削除、props で受け取った statuses を使用              |
+| `src/SettingsPanel.tsx` | ステータス編集 UI の追加                                                              |
 
 ## 注意点
 
