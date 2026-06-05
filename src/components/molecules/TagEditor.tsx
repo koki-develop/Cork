@@ -205,14 +205,29 @@ export const TagEditor = forwardRef<TagEditorHandle, TagEditorProps>(function Ta
     <>
       <div
         ref={containerRef}
+        onMouseDown={(e) => {
+          // Clicks on the container's padding area (not on a child like a
+          // TagChip or the input itself) should still focus the input.
+          if (e.target === e.currentTarget) {
+            e.preventDefault();
+            inputRef.current?.focus();
+          }
+        }}
         className={clsx(
           "border-cork-border/40 bg-cork-elevated/60 relative flex min-h-[34px] flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1.5",
+          isFull ? "cursor-not-allowed" : "cursor-text",
           "focus-within:border-cork-accent/50 focus-within:ring-cork-accent/30 focus-within:ring-1",
           className,
         )}
       >
         {tags.map((tag, i) => (
-          <TagChip key={tag} label={tag} variant="accent" onRemove={() => removeAt(i)} />
+          <TagChip
+            key={tag}
+            label={tag}
+            variant="accent"
+            onRemove={() => removeAt(i)}
+            className="cursor-text"
+          />
         ))}
         <input
           ref={inputRef}
