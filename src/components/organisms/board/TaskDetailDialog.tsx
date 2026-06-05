@@ -1,5 +1,6 @@
-import { MoreHorizontal, Trash2, X } from "lucide-react";
+import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button, Heading, Input, Text } from "@/components/atoms";
 import {
   DropdownMenu,
@@ -133,6 +134,15 @@ export function TaskDetailDialog({
     }
   };
 
+  const handleCopyPath = async () => {
+    try {
+      await navigator.clipboard.writeText(task.id);
+      toast.success("Copied path to clipboard");
+    } catch {
+      toast.error("Failed to copy path to clipboard");
+    }
+  };
+
   const handleClose = async () => {
     if (deleteConfirmOpen) return;
     // Drain — but only fold pending into dirtyUpdates if the user typed
@@ -186,6 +196,11 @@ export function TaskDetailDialog({
             trigger={<MoreHorizontal className="size-4" />}
             triggerAriaLabel="Task actions"
             items={[
+              {
+                label: "Copy path",
+                icon: <Copy className="size-3.5" />,
+                onClick: handleCopyPath,
+              },
               {
                 label: "Delete",
                 icon: <Trash2 className="size-3.5" />,
