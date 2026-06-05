@@ -3,7 +3,7 @@ use crate::frontmatter;
 use crate::security;
 use crate::state::AppState;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::fs;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
@@ -16,6 +16,8 @@ pub struct Task {
     pub body: String,
     #[serde(default)]
     pub order: Option<f64>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -23,6 +25,31 @@ struct TaskFrontmatter {
     status: Option<String>,
     #[serde(default)]
     order: Option<f64>,
+    #[serde(default, deserialize_with = "deserialize_tags_lenient")]
+    tags: Vec<String>,
+}
+
+/// Falling back to an empty Vec for non-array shapes or arrays with any
+/// non-string element keeps a malformed `tags:` from poisoning the whole
+/// task — the file still loads with no tags. (Missing keys are handled by
+/// `#[serde(default)]` and never reach this function.) Note that a mixed
+/// array like `["a", 42]` returns `[]` entirely, not a partial filter.
+fn deserialize_tags_lenient<'de, D>(de: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(de)?;
+    let Some(arr) = value.as_array() else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::with_capacity(arr.len());
+    for v in arr {
+        match v.as_str() {
+            Some(s) => out.push(s.to_string()),
+            None => return Ok(Vec::new()),
+        }
+    }
+    Ok(out)
 }
 
 #[tauri::command]
@@ -59,6 +86,7 @@ pub fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
                 status,
                 body,
                 order: f.order,
+                tags: f.tags,
             })
         })
         .collect();
@@ -94,6 +122,7 @@ pub fn get_task(path: String, state: tauri::State<'_, AppState>) -> CmdResult<Ta
         status,
         body,
         order: f.order,
+        tags: f.tags,
     })
 }
 
@@ -103,6 +132,7 @@ pub fn create_task(
     status: String,
     body: Option<String>,
     order: Option<f64>,
+    tags: Option<Vec<String>>,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<Task> {
     let dir = state.require_workspace()?;
@@ -117,9 +147,12 @@ pub fn create_task(
 
     let body = body.unwrap_or_default();
     let mut fm_value = serde_json::json!({ "status": status });
-    if let Some(o) = order {
-        if let Some(obj) = fm_value.as_object_mut() {
+    if let Some(obj) = fm_value.as_object_mut() {
+        if let Some(o) = order {
             obj.insert("order".to_string(), serde_json::json!(o));
+        }
+        if let Some(t) = tags.as_ref().filter(|t| !t.is_empty()) {
+            obj.insert("tags".to_string(), serde_json::json!(t));
         }
     }
     let yaml = frontmatter::serialize(&fm_value);
@@ -132,6 +165,7 @@ pub fn create_task(
         status,
         body,
         order,
+        tags: tags.unwrap_or_default(),
     })
 }
 
@@ -142,6 +176,7 @@ pub fn update_task(
     status: Option<String>,
     body: Option<String>,
     order: Option<f64>,
+    tags: Option<Vec<String>>,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<Task> {
     let dir = state.require_workspace()?;
@@ -157,6 +192,10 @@ pub fn update_task(
     let current_status = fm.as_ref().and_then(|f| f.status.as_deref()).unwrap_or("");
     let new_status = status.unwrap_or_else(|| current_status.to_string());
     let current_order = order.or_else(|| fm.as_ref().and_then(|f| f.order));
+    let current_tags = fm
+        .as_ref()
+        .map(|f| f.tags.clone())
+        .unwrap_or_default();
     let current_title = path_canonical
         .file_stem()
         .and_then(|s| s.to_str())
@@ -172,10 +211,32 @@ pub fn update_task(
         None => (current_title, false),
     };
 
+    // Lift the three semantic states of `tags` into an enum so the
+    // (Keep / Set / Clear) intent is visible at one site instead of
+    // scattered across `filter(non_empty)` + `matches!(empty)` checks.
+    enum TagOp {
+        Keep,
+        Set(Vec<String>),
+        Clear,
+    }
+    let tag_op = match tags {
+        None => TagOp::Keep,
+        Some(t) if t.is_empty() => TagOp::Clear,
+        Some(t) => TagOp::Set(t),
+    };
+    let new_tags = match &tag_op {
+        TagOp::Keep => current_tags.clone(),
+        TagOp::Set(t) => t.clone(),
+        TagOp::Clear => Vec::new(),
+    };
+
     let mut fm_updates: Vec<(&str, serde_json::Value)> =
         vec![("status", serde_json::json!(new_status))];
     if let Some(o) = current_order {
         fm_updates.push(("order", serde_json::json!(o)));
+    }
+    if let TagOp::Set(t) = &tag_op {
+        fm_updates.push(("tags", serde_json::json!(t)));
     }
     let new_content = if body_provided {
         let with_updates = frontmatter::update(&content, &fm_updates);
@@ -187,6 +248,12 @@ pub fn update_task(
         frontmatter::ensure_trailing_newline(rebuilt)
     } else {
         frontmatter::update(&content, &fm_updates)
+    };
+    let new_content = match tag_op {
+        TagOp::Clear if !current_tags.is_empty() => {
+            frontmatter::remove_keys(&new_content, &["tags"]).map_err(CommandError::other)?
+        }
+        _ => new_content,
     };
 
     let target_path = if title_changed {
@@ -210,6 +277,7 @@ pub fn update_task(
         status: new_status,
         body: new_body,
         order: current_order,
+        tags: new_tags,
     })
 }
 
@@ -490,5 +558,155 @@ mod tests {
         let fm = fm.unwrap();
         assert_eq!(fm.status.as_deref(), Some("doing"));
         assert_eq!(fm.order, Some(2.5));
+    }
+
+    // --- tags ---------------------------------------------------------------
+
+    #[test]
+    fn task_serializes_with_tags_key() {
+        let task = Task {
+            id: "/tmp/x.md".to_string(),
+            title: "x".to_string(),
+            status: "todo".to_string(),
+            body: String::new(),
+            order: None,
+            tags: vec!["bug".to_string(), "ui".to_string()],
+        };
+        let json = serde_json::to_value(&task).unwrap();
+        assert_eq!(json["tags"], serde_json::json!(["bug", "ui"]));
+    }
+
+    #[test]
+    fn task_frontmatter_parses_string_array_tags() {
+        let content = "---\nstatus: todo\ntags:\n  - bug\n  - frontend\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(content);
+        assert_eq!(fm.unwrap().tags, vec!["bug", "frontend"]);
+    }
+
+    #[test]
+    fn task_frontmatter_handles_null_tags_as_empty() {
+        let content = "---\nstatus: todo\ntags: null\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(content);
+        assert_eq!(fm.unwrap().tags, Vec::<String>::new());
+    }
+
+    #[test]
+    fn task_frontmatter_handles_missing_tags_as_empty() {
+        let content = "---\nstatus: todo\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(content);
+        assert_eq!(fm.unwrap().tags, Vec::<String>::new());
+    }
+
+    #[test]
+    fn task_frontmatter_handles_string_tags_as_empty() {
+        // `tags: "bug"` (scalar string) should not crash — we fall back to empty.
+        let content = "---\nstatus: todo\ntags: bug\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(content);
+        let fm = fm.unwrap();
+        assert_eq!(fm.status.as_deref(), Some("todo"));
+        assert_eq!(fm.tags, Vec::<String>::new());
+    }
+
+    #[test]
+    fn task_frontmatter_handles_integer_tags_as_empty() {
+        let content = "---\nstatus: todo\ntags: 42\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(content);
+        assert_eq!(fm.unwrap().tags, Vec::<String>::new());
+    }
+
+    #[test]
+    fn task_frontmatter_tags_order_preserved() {
+        let content = "---\nstatus: todo\ntags:\n  - zeta\n  - alpha\n  - beta\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(content);
+        assert_eq!(fm.unwrap().tags, vec!["zeta", "alpha", "beta"]);
+    }
+
+    #[test]
+    fn tags_with_yaml_special_chars_round_trip() {
+        // Tags can legitimately contain `:`, `[`, `#`, `-`, etc. — YAML's
+        // emitter must quote them so they parse back as strings, not as
+        // maps / sequences / comments. If frontmatter::serialize ever
+        // emits these unquoted, this round-trip silently corrupts data.
+        let inputs = vec![
+            "bug: critical".to_string(),
+            "[wip]".to_string(),
+            "#urgent".to_string(),
+            "a:b:c".to_string(),
+            "- leading-dash".to_string(),
+            "tag with spaces".to_string(),
+        ];
+        let yaml = frontmatter::serialize(&serde_json::json!({
+            "status": "todo",
+            "tags": inputs.clone(),
+        }));
+        let doc = format!("---\n{}---\nbody\n", yaml);
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(&doc);
+        let fm = fm.expect("frontmatter must parse");
+        assert_eq!(fm.status.as_deref(), Some("todo"));
+        assert_eq!(fm.tags, inputs);
+    }
+
+    #[test]
+    fn clear_tags_via_remove_keys_works_when_body_also_replaced() {
+        // Reproduces the (body=Some, tags=Some(vec![])) branch of
+        // update_task: frontmatter::update (without tags in fm_updates) →
+        // body marker-rebuild → frontmatter::remove_keys(&_, &["tags"]).
+        // Guards against future refactors that swap the order and let body
+        // updates resurrect a cleared `tags:` key.
+        let original = "---\nstatus: todo\ntags:\n  - bug\n  - ui\n---\nold body\n";
+
+        let with_status_only = frontmatter::update(
+            original,
+            &[("status", serde_json::json!("doing"))],
+        );
+        let marker = "\n---\n";
+        let pos = with_status_only.find(marker).unwrap();
+        let rebuilt = format!(
+            "{}{}",
+            &with_status_only[..pos + marker.len()],
+            "brand new body"
+        );
+        let rebuilt = frontmatter::ensure_trailing_newline(rebuilt);
+        let final_content = frontmatter::remove_keys(&rebuilt, &["tags"]).unwrap();
+
+        let (fm, body) = frontmatter::parse::<TaskFrontmatter>(&final_content);
+        let fm = fm.unwrap();
+        assert_eq!(fm.status.as_deref(), Some("doing"));
+        assert_eq!(fm.tags, Vec::<String>::new());
+        assert_eq!(body, "brand new body");
+        assert!(!final_content.contains("tags"), "tags key must be gone");
+    }
+
+    #[test]
+    fn round_trip_add_tags_other_update_remove_tags() {
+        // Simulate the update_task flow: write tags, then update an unrelated
+        // field, then clear tags — final document should match a fresh write
+        // with no tags at all.
+        let original = "---\nstatus: todo\norder: 1\n---\nbody\n";
+        let with_tags = frontmatter::update(
+            original,
+            &[
+                ("status", serde_json::json!("todo")),
+                ("order", serde_json::json!(1.0)),
+                ("tags", serde_json::json!(["bug", "ui"])),
+            ],
+        );
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(&with_tags);
+        assert_eq!(fm.unwrap().tags, vec!["bug", "ui"]);
+
+        let after_status_update = frontmatter::update(
+            &with_tags,
+            &[("status", serde_json::json!("doing"))],
+        );
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(&after_status_update);
+        let fm = fm.unwrap();
+        assert_eq!(fm.status.as_deref(), Some("doing"));
+        assert_eq!(fm.tags, vec!["bug", "ui"]);
+
+        let cleared = frontmatter::remove_keys(&after_status_update, &["tags"]).unwrap();
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(&cleared);
+        let fm = fm.unwrap();
+        assert_eq!(fm.status.as_deref(), Some("doing"));
+        assert_eq!(fm.tags, Vec::<String>::new());
     }
 }

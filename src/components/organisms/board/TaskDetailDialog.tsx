@@ -1,27 +1,28 @@
 import { MoreHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { Button, Heading, Input, Text } from "@/components/atoms";
 import {
   DropdownMenu,
   ErrorBanner,
   IconButton,
   Select,
+  TagEditor,
+  type TagEditorHandle,
 } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
-import type { StatusEntry, Task } from "@/types";
+import type { StatusEntry, Task, TaskUpdates } from "@/types";
 
 export type TaskDetailDialogProps = {
   isOpen: boolean;
   onClose: () => void;
   task: Task;
   statuses: StatusEntry[];
-  onSaveTask: (
-    taskId: string,
-    updates: { title?: string; status?: string; body?: string; order?: number },
-  ) => Promise<void>;
+  onSaveTask: (taskId: string, updates: TaskUpdates) => Promise<void>;
   onDeleteTask: () => Promise<void>;
 };
+
+const tagsEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((t, i) => t === b[i]);
 
 export function TaskDetailDialog({
   isOpen,
@@ -34,6 +35,7 @@ export function TaskDetailDialog({
   const [title, setTitle] = useState(task.title);
   const [status, setStatus] = useState(task.status);
   const [body, setBody] = useState(task.body);
+  const [tags, setTags] = useState<string[]>(task.tags);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -42,31 +44,33 @@ export function TaskDetailDialog({
     title: task.title,
     status: task.status,
     body: task.body,
+    tags: task.tags,
   });
+  const tagEditorRef = useRef<TagEditorHandle>(null);
 
   useEffect(() => {
     if (isOpen) {
       setTitle(task.title);
       setStatus(task.status);
       setBody(task.body);
+      setTags(task.tags);
       setError(null);
       originalRef.current = {
         title: task.title,
         status: task.status,
         body: task.body,
+        tags: task.tags,
       };
     }
   }, [isOpen, task]);
 
-  const hasChanged = (field: "title" | "status" | "body", value: string) =>
+  const hasFieldChanged = (field: "title" | "status" | "body", value: string) =>
     value !== originalRef.current[field];
 
-  const save = async (updates: {
-    title?: string;
-    status?: string;
-    body?: string;
-    order?: number;
-  }) => {
+  const hasTagsChanged = (next: string[]) =>
+    !tagsEqual(next, originalRef.current.tags);
+
+  const save = async (updates: TaskUpdates) => {
     setError(null);
     try {
       await onSaveTask(task.id, updates);
@@ -75,8 +79,16 @@ export function TaskDetailDialog({
       if (updates.status !== undefined)
         originalRef.current.status = updates.status;
       if (updates.body !== undefined) originalRef.current.body = updates.body;
+      if (updates.tags !== undefined) originalRef.current.tags = updates.tags;
     } catch (e) {
       setError(String(e));
+      // Roll local input state back to the last-persisted values so the UI
+      // never claims a value is saved when it isn't (otherwise the next
+      // blur sees value === originalRef and skips re-saving).
+      if (updates.title !== undefined) setTitle(originalRef.current.title);
+      if (updates.status !== undefined) setStatus(originalRef.current.status);
+      if (updates.body !== undefined) setBody(originalRef.current.body);
+      if (updates.tags !== undefined) setTags(originalRef.current.tags);
     }
   };
 
@@ -86,21 +98,28 @@ export function TaskDetailDialog({
       setTitle(originalRef.current.title);
       return;
     }
-    if (hasChanged("title", trimmed)) {
+    if (hasFieldChanged("title", trimmed)) {
       save({ title: trimmed });
     }
   };
 
   const handleStatusChange = (newStatus: string) => {
     setStatus(newStatus);
-    if (hasChanged("status", newStatus)) {
+    if (hasFieldChanged("status", newStatus)) {
       save({ status: newStatus });
     }
   };
 
   const handleBodyBlur = () => {
-    if (hasChanged("body", body)) {
+    if (hasFieldChanged("body", body)) {
       save({ body });
+    }
+  };
+
+  const handleTagsChange = (next: string[]) => {
+    setTags(next);
+    if (hasTagsChanged(next)) {
+      save({ tags: next });
     }
   };
 
@@ -116,22 +135,39 @@ export function TaskDetailDialog({
 
   const handleClose = async () => {
     if (deleteConfirmOpen) return;
-    const dirtyUpdates: {
-      title?: string;
-      status?: string;
-      body?: string;
-      order?: number;
-    } = {};
+    // Drain — but only fold pending into dirtyUpdates if the user typed
+    // something new. Tag chip add/remove already triggers immediate saves
+    // via handleTagsChange, so close-time tag-flush only matters when
+    // there is unsubmitted text in the editor's input.
+    const pendingTag = tagEditorRef.current?.flushPending() ?? "";
+    const dirtyUpdates: TaskUpdates = {};
     const trimmed = title.trim();
-    if (trimmed && hasChanged("title", trimmed)) dirtyUpdates.title = trimmed;
-    if (hasChanged("status", status)) dirtyUpdates.status = status;
-    if (hasChanged("body", body)) dirtyUpdates.body = body;
+    if (trimmed && hasFieldChanged("title", trimmed))
+      dirtyUpdates.title = trimmed;
+    if (hasFieldChanged("status", status)) dirtyUpdates.status = status;
+    if (hasFieldChanged("body", body)) dirtyUpdates.body = body;
+    if (pendingTag) {
+      const finalTags = [...tags, pendingTag];
+      setTags(finalTags);
+      dirtyUpdates.tags = finalTags;
+    }
 
     if (Object.keys(dirtyUpdates).length > 0) {
       try {
         await onSaveTask(task.id, dirtyUpdates);
+        if (dirtyUpdates.title !== undefined)
+          originalRef.current.title = dirtyUpdates.title;
+        if (dirtyUpdates.status !== undefined)
+          originalRef.current.status = dirtyUpdates.status;
+        if (dirtyUpdates.body !== undefined)
+          originalRef.current.body = dirtyUpdates.body;
+        if (dirtyUpdates.tags !== undefined)
+          originalRef.current.tags = dirtyUpdates.tags;
       } catch (e) {
-        toast.error(String(e));
+        setError(String(e));
+        // Keep the dialog open so the user can see their unsaved edits
+        // and the error banner together.
+        return;
       }
     }
     onClose();
@@ -190,6 +226,18 @@ export function TaskDetailDialog({
                 label: s.label,
                 value: s.label,
               }))}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Text variant="label" size="xs" className="block">
+              Tags
+            </Text>
+            <TagEditor
+              ref={tagEditorRef}
+              tags={tags}
+              onChange={handleTagsChange}
+              ariaLabel="Tags"
             />
           </div>
 

@@ -18,7 +18,7 @@ import { BoardLayout } from "@/components/templates";
 import { useBoardDragState } from "@/hooks/useBoardDragState";
 import { useStatusEdit } from "@/hooks/useStatusEdit";
 import { UNKNOWN_STATUS } from "@/lib/board";
-import type { StatusEntry, Task } from "@/types";
+import type { StatusEntry, Task, TaskUpdates } from "@/types";
 
 export type BoardPageProps = {
   dir: string;
@@ -27,11 +27,13 @@ export type BoardPageProps = {
   loadTasks: () => void;
   loadStatuses: () => void;
   setDir: (path: string) => void;
-  createTask: (title: string, status: string, body?: string) => Promise<void>;
-  updateTask: (
-    taskId: string,
-    updates: { title?: string; status?: string; body?: string },
-  ) => Promise<Task>;
+  createTask: (
+    title: string,
+    status: string,
+    body?: string,
+    tags?: string[],
+  ) => Promise<void>;
+  updateTask: (taskId: string, updates: TaskUpdates) => Promise<Task>;
   deleteTask: (taskId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, newStatus: string) => Promise<void>;
   updateTaskOrder: (taskId: string, order: number) => Promise<void>;
@@ -125,16 +127,14 @@ export function BoardPage({
   const handleCreateTask = async (
     title: string,
     status: string,
-    body?: string,
+    body: string,
+    tags: string[],
   ) => {
-    await createTask(title, status, body);
+    await createTask(title, status, body, tags);
     toast.success("Task created");
   };
 
-  const handleSaveTask = async (
-    taskId: string,
-    updates: { title?: string; status?: string; body?: string },
-  ) => {
+  const handleSaveTask = async (taskId: string, updates: TaskUpdates) => {
     const result = await updateTask(taskId, updates);
     setDetailDialogTask(result);
   };

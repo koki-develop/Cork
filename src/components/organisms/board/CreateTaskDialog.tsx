@@ -1,7 +1,13 @@
 import { Plus, X } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Button, Heading, Input, Text } from "@/components/atoms";
-import { ErrorBanner, IconButton, Select } from "@/components/molecules";
+import {
+  ErrorBanner,
+  IconButton,
+  Select,
+  TagEditor,
+  type TagEditorHandle,
+} from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import type { StatusEntry } from "@/types";
 
@@ -10,7 +16,12 @@ export type CreateTaskDialogProps = {
   onClose: () => void;
   statuses: StatusEntry[];
   preselectedStatus?: string;
-  onCreateTask: (title: string, status: string, body: string) => Promise<void>;
+  onCreateTask: (
+    title: string,
+    status: string,
+    body: string,
+    tags: string[],
+  ) => Promise<void>;
 };
 
 export function CreateTaskDialog({
@@ -25,13 +36,16 @@ export function CreateTaskDialog({
     preselectedStatus ?? statuses[0]?.label ?? "",
   );
   const [body, setBody] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const tagEditorRef = useRef<TagEditorHandle>(null);
 
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (isOpen && !prevOpenRef.current) {
       setTitle("");
       setBody("");
+      setTags([]);
       setStatus(preselectedStatus ?? statuses[0]?.label ?? "");
       setError(null);
     }
@@ -46,7 +60,9 @@ export function CreateTaskDialog({
       return;
     }
     setError(null);
-    onCreateTask(trimmed, status, body.trim())
+    const pendingTag = tagEditorRef.current?.flushPending() ?? "";
+    const finalTags = pendingTag ? [...tags, pendingTag] : tags;
+    onCreateTask(trimmed, status, body.trim(), finalTags)
       .then(() => {
         onClose();
       })
@@ -93,6 +109,18 @@ export function CreateTaskDialog({
               label: s.label,
               value: s.label,
             }))}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Text variant="label" size="xs" className="block">
+            Tags
+          </Text>
+          <TagEditor
+            ref={tagEditorRef}
+            tags={tags}
+            onChange={setTags}
+            ariaLabel="Tags"
           />
         </div>
 

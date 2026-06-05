@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/react/sortable";
 import { clsx } from "clsx";
 import { Heading, Text } from "@/components/atoms";
+import { TagList } from "@/components/molecules";
 import type { Task } from "@/types";
 
 export type KanbanCardProps = {
@@ -52,6 +53,7 @@ export function KanbanCard({ task, group, index, onClick }: KanbanCardProps) {
       <Heading level={3} variant="card" className="truncate">
         {task.title}
       </Heading>
+      <TagList tags={task.tags} className="mt-2" />
       {bodyPreview && (
         <Text
           as="p"

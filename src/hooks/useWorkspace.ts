@@ -12,7 +12,7 @@ import {
   updateTaskOrder as updateTaskOrderApi,
   updateTaskStatus as updateTaskStatusApi,
 } from "@/api";
-import type { StatusEntry, Task } from "@/types";
+import type { StatusEntry, Task, TaskUpdates } from "@/types";
 
 const DEFAULT_STATUSES: StatusEntry[] = [
   { label: "Todo" },
@@ -77,13 +77,18 @@ export function useWorkspace() {
     // biome-ignore lint/correctness/useExhaustiveDependencies: auto-memoized by React Compiler
   }, [dir, loadTasks, loadStatuses]);
 
-  const createTask = async (title: string, status: string, body?: string) => {
+  const createTask = async (
+    title: string,
+    status: string,
+    body?: string,
+    tags?: string[],
+  ) => {
     const orders = tasks
       .filter((t) => t.status === status)
       .map((t) => t.order)
       .filter((o): o is number => o !== null);
     const order = orders.length === 0 ? 0 : Math.min(...orders) - 1;
-    const task = await createTaskApi(title, status, body, order);
+    const task = await createTaskApi(title, status, body, order, tags);
     setTasks((prev) => [...prev, task]);
     await loadTasks();
   };
@@ -104,17 +109,9 @@ export function useWorkspace() {
     await renumberTasksApi(paths);
   };
 
-  const updateTask = async (
-    taskId: string,
-    updates: { title?: string; status?: string; body?: string; order?: number },
-  ) => {
+  const updateTask = async (taskId: string, updates: TaskUpdates) => {
     const task = tasks.find((t) => t.id === taskId);
-    const updatesWithOrder: {
-      title?: string;
-      status?: string;
-      body?: string;
-      order?: number;
-    } = { ...updates };
+    const updatesWithOrder: TaskUpdates = { ...updates };
     if (
       updates.status !== undefined &&
       task &&
@@ -141,6 +138,7 @@ export function useWorkspace() {
               ...(updatesWithOrder.order !== undefined
                 ? { order: updatesWithOrder.order }
                 : {}),
+              ...(updates.tags !== undefined ? { tags: updates.tags } : {}),
             }
           : t,
       ),

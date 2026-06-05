@@ -46,6 +46,36 @@ pub fn update(content: &str, updates: &[(&str, serde_json::Value)]) -> String {
     ensure_trailing_newline(result)
 }
 
+/// Like `update` but for removal. Documents without frontmatter pass
+/// through unchanged (no FM is added). Always newline-terminated. Returns
+/// `Err` if the document looked like it had frontmatter (`---` prefix)
+/// but failed to parse — silently writing back the unparsed content would
+/// be a data-integrity hazard (the caller would think the keys were
+/// removed when they were not).
+pub fn remove_keys(content: &str, keys: &[&str]) -> Result<String, String> {
+    if !content.starts_with("---\n") && !content.starts_with("---\r\n") {
+        return Ok(ensure_trailing_newline(content.to_string()));
+    }
+    let matter = Matter::<YAML>::new();
+    match matter.parse::<serde_json::Value>(content) {
+        Ok(entity) => {
+            let body = entity.content.trim_start_matches(['\n', '\r']);
+            let mut data = entity.data.unwrap_or(serde_json::json!({}));
+            if let Some(obj) = data.as_object_mut() {
+                for key in keys {
+                    obj.remove(*key);
+                }
+            }
+            let yaml = serialize(&data);
+            Ok(ensure_trailing_newline(format!(
+                "---\n{}---\n{}",
+                yaml, body
+            )))
+        }
+        Err(e) => Err(format!("Failed to parse frontmatter: {}", e)),
+    }
+}
+
 /// Append a trailing `\n` to `s` if it doesn't already end with one. No-op
 /// for empty strings.
 pub fn ensure_trailing_newline(mut s: String) -> String {
@@ -443,5 +473,78 @@ mod tests {
         let updated = update(content, &[("order", serde_json::json!(4.0))]);
         let (fm, _) = parse::<TestFm>(&updated);
         assert_eq!(fm.unwrap().order, Some(4.0));
+    }
+
+    // --- remove_keys --------------------------------------------------------
+
+    #[test]
+    fn remove_keys_removes_single_key() {
+        let content = "---\nstatus: todo\ntags:\n  - a\n  - b\n---\nbody\n";
+        let stripped = remove_keys(content, &["tags"]).unwrap();
+        let (fm, _) = parse::<serde_json::Value>(&stripped);
+        let fm = fm.unwrap();
+        assert_eq!(fm["status"], serde_json::json!("todo"));
+        assert!(fm.get("tags").is_none());
+    }
+
+    #[test]
+    fn remove_keys_removes_multiple_keys() {
+        let content = "---\nstatus: todo\norder: 3\ntags:\n  - a\n---\nbody\n";
+        let stripped = remove_keys(content, &["tags", "order"]).unwrap();
+        let (fm, _) = parse::<serde_json::Value>(&stripped);
+        let fm = fm.unwrap();
+        assert_eq!(fm["status"], serde_json::json!("todo"));
+        assert!(fm.get("tags").is_none());
+        assert!(fm.get("order").is_none());
+    }
+
+    #[test]
+    fn remove_keys_is_noop_for_missing_key() {
+        let content = "---\nstatus: todo\n---\nbody\n";
+        let stripped = remove_keys(content, &["tags"]).unwrap();
+        let (fm, _) = parse::<TestFm>(&stripped);
+        assert_eq!(fm.unwrap().status.as_deref(), Some("todo"));
+    }
+
+    #[test]
+    fn remove_keys_preserves_body() {
+        let content = "---\nstatus: todo\ntags:\n  - x\n---\nLine one.\n\nLine two.\n";
+        let stripped = remove_keys(content, &["tags"]).unwrap();
+        let body_start = stripped.find("\n---\n").unwrap() + 5;
+        assert_eq!(&stripped[body_start..], "Line one.\n\nLine two.\n");
+    }
+
+    #[test]
+    fn remove_keys_no_fm_branch_is_noop() {
+        let content = "no frontmatter here\n";
+        let stripped = remove_keys(content, &["tags"]).unwrap();
+        assert_eq!(stripped, content);
+    }
+
+    #[test]
+    fn remove_keys_ends_with_newline() {
+        let content = "---\nstatus: todo\ntags:\n  - a\n---\nbody";
+        let stripped = remove_keys(content, &["tags"]).unwrap();
+        assert!(stripped.ends_with('\n'));
+    }
+
+    #[test]
+    fn remove_keys_errors_when_fm_marker_present_but_yaml_invalid() {
+        // `---` prefix promises frontmatter, but the YAML body is garbage.
+        // Returning Ok(content) silently would let a caller think the keys
+        // were removed when they were not — must surface as Err.
+        let content = "---\nstatus: todo\n   : : : invalid\n---\nbody\n";
+        assert!(remove_keys(content, &["tags"]).is_err());
+    }
+
+    #[test]
+    fn remove_keys_works_on_integer_and_string_values() {
+        let content = "---\nstatus: todo\norder: 3\nlabel: foo\n---\nbody\n";
+        let stripped = remove_keys(content, &["order", "label"]).unwrap();
+        let (fm, _) = parse::<serde_json::Value>(&stripped);
+        let fm = fm.unwrap();
+        assert_eq!(fm["status"], serde_json::json!("todo"));
+        assert!(fm.get("order").is_none());
+        assert!(fm.get("label").is_none());
     }
 }
