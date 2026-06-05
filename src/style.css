@@ -29,6 +29,20 @@
     @apply bg-cork-accent/30 text-cork-text;
   }
 
+  [data-tauri-drag-region] {
+    app-region: drag;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  [data-tauri-drag-region] button,
+  [data-tauri-drag-region] input,
+  [data-tauri-drag-region] a,
+  [data-tauri-drag-region] select,
+  [data-tauri-drag-region] textarea {
+    app-region: no-drag;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

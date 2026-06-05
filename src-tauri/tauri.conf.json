@@ -10,13 +10,6 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Cork",
-        "width": 1280,
-        "height": 800
-      }
-    ],
     "security": {
       "csp": null
     }

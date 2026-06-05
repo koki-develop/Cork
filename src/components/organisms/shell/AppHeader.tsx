@@ -1,6 +1,9 @@
+import { clsx } from "clsx";
 import { Settings } from "lucide-react";
-import { Heading, Text } from "@/components/atoms";
+import { Text } from "@/components/atoms";
 import { IconButton, PathDisplay } from "@/components/molecules";
+
+const isMac = navigator.userAgent.includes("Mac");
 
 export type AppHeaderProps = {
   currentDir: string;
@@ -14,11 +17,14 @@ export function AppHeader({
   onOpenSettings,
 }: AppHeaderProps) {
   return (
-    <header className="flex shrink-0 items-center justify-between border-cork-border/50 border-b px-6 py-3">
+    <header
+      data-tauri-drag-region="deep"
+      className={clsx(
+        "flex shrink-0 items-center justify-between border-cork-border/50 border-b py-3",
+        isMac ? "pl-24 pr-6" : "px-6",
+      )}
+    >
       <div className="flex items-center gap-3">
-        <Heading level={1} variant="page">
-          Cork
-        </Heading>
         <PathDisplay path={currentDir} />
       </div>
       <div className="flex items-center gap-2">
