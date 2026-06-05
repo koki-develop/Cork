@@ -1,8 +1,8 @@
 import { useSortable } from "@dnd-kit/react/sortable";
-import { Trash2 } from "lucide-react";
+import { MoreHorizontal, Trash2 } from "lucide-react";
 import { type Ref, useEffect, useRef } from "react";
 import { Input } from "@/components/atoms";
-import { DragHandle, IconButton } from "@/components/molecules";
+import { DragHandle, DropdownMenu } from "@/components/molecules";
 
 export type StatusRowProps = {
   id: string;
@@ -49,12 +49,17 @@ export function StatusRow({
         placeholder="Status label"
         aria-label={`Status label ${index + 1}`}
       />
-      <IconButton
-        icon={<Trash2 className="size-3.5" />}
-        aria-label="Remove status"
-        variant="ghost"
-        color="danger"
-        onClick={() => onRemove(index)}
+      <DropdownMenu
+        trigger={<MoreHorizontal className="size-3.5" />}
+        triggerAriaLabel="Status actions"
+        items={[
+          {
+            label: "Remove",
+            icon: <Trash2 className="size-3.5" />,
+            color: "danger",
+            onClick: () => onRemove(index),
+          },
+        ]}
       />
     </div>
   );
