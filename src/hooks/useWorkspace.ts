@@ -1,5 +1,5 @@
 import { watch } from "@tauri-apps/plugin-fs";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createTask as createTaskApi,
   deleteTask as deleteTaskApi,
@@ -23,17 +23,20 @@ const DEFAULT_STATUSES: StatusEntry[] = [
 export function useWorkspace() {
   const [dir, setDir] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [query, setQuery] = useState("");
+  const queryRef = useRef(query);
+  queryRef.current = query;
   const [statuses, setStatuses] = useState<StatusEntry[]>(DEFAULT_STATUSES);
 
-  const loadTasks = async () => {
-    const result = await listTasks();
+  const loadTasks = useCallback(async () => {
+    const result = await listTasks(queryRef.current || undefined);
     setTasks(result);
-  };
+  }, []);
 
-  const loadStatuses = async () => {
+  const loadStatuses = useCallback(async () => {
     const result = await getStatuses();
     setStatuses(result.length > 0 ? result : DEFAULT_STATUSES);
-  };
+  }, []);
 
   useEffect(() => {
     getWorkspaceDirectory().then((path) => setDir(path));
@@ -44,7 +47,7 @@ export function useWorkspace() {
 
     const loadData = async () => {
       const [loadedTasks, loadedStatuses] = await Promise.all([
-        listTasks(),
+        listTasks(queryRef.current || undefined),
         getStatuses(),
       ]);
       setTasks(loadedTasks);
@@ -74,7 +77,6 @@ export function useWorkspace() {
     return () => {
       watchPromise.then((unwatch) => unwatch());
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: auto-memoized by React Compiler
   }, [dir, loadTasks, loadStatuses]);
 
   const createTask = async (
@@ -165,9 +167,20 @@ export function useWorkspace() {
     await loadStatuses();
   };
 
+  const queryIdRef = useRef(0);
+
+  const handleQueryChange = (q: string) => {
+    setQuery(q);
+    const id = ++queryIdRef.current;
+    listTasks(q || undefined).then((result) => {
+      if (id === queryIdRef.current) setTasks(result);
+    });
+  };
+
   return {
     dir,
     tasks,
+    query,
     statuses,
     loadTasks,
     loadStatuses,
@@ -179,5 +192,6 @@ export function useWorkspace() {
     updateTaskOrder,
     renumberTasks,
     reorderStatuses,
+    handleQueryChange,
   };
 }

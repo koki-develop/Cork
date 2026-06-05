@@ -9,7 +9,7 @@ import {
   setWorkspaceDirectory,
 } from "@/api";
 import { Button, Heading, Text } from "@/components/atoms";
-import { ContextMenu } from "@/components/molecules";
+import { ContextMenu, SearchBar } from "@/components/molecules";
 import {
   CreateTaskDialog,
   KanbanColumn,
@@ -27,9 +27,11 @@ export type BoardPageProps = {
   dir: string;
   tasks: Task[];
   statuses: StatusEntry[];
+  searchQuery: string;
   loadTasks: () => void;
   loadStatuses: () => void;
   setDir: (path: string) => void;
+  onSearchChange: (value: string) => void;
   createTask: (
     title: string,
     status: string,
@@ -48,9 +50,11 @@ export function BoardPage({
   dir,
   tasks,
   statuses,
+  searchQuery,
   loadTasks,
   loadStatuses,
   setDir,
+  onSearchChange,
   createTask,
   updateTask,
   deleteTask,
@@ -206,6 +210,11 @@ export function BoardPage({
               taskCount={tasks.length}
               onOpenSettings={openSettings}
             />
+          }
+          toolbar={
+            <div className="px-6 pt-6 pb-0">
+              <SearchBar value={searchQuery} onChange={onSearchChange} />
+            </div>
           }
         >
           {columnOrder.map((label, i) => {

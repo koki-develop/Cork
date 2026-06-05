@@ -1,15 +1,18 @@
 use crate::error::{CmdResult, CommandError};
+use crate::task::Task;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 pub struct AppState {
     workspace_dir: Mutex<Option<PathBuf>>,
+    tasks_cache: Mutex<Option<Vec<Task>>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
             workspace_dir: Mutex::new(None),
+            tasks_cache: Mutex::new(None),
         }
     }
 
@@ -23,6 +26,19 @@ impl AppState {
 
     pub fn set_workspace(&self, dir: PathBuf) {
         *self.workspace_dir.lock().unwrap() = Some(dir);
+        *self.tasks_cache.lock().unwrap() = None;
+    }
+
+    pub fn get_cached_tasks(&self) -> Option<Vec<Task>> {
+        self.tasks_cache.lock().unwrap().clone()
+    }
+
+    pub fn set_cached_tasks(&self, tasks: Vec<Task>) {
+        *self.tasks_cache.lock().unwrap() = Some(tasks);
+    }
+
+    pub fn invalidate_cache(&self) {
+        *self.tasks_cache.lock().unwrap() = None;
     }
 }
 

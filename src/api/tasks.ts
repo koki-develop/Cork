@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Task, TaskUpdates } from "@/types";
 
-export const listTasks = () => invoke<Task[]>("list_tasks");
+export const listTasks = (query?: string) =>
+  invoke<Task[]>("list_tasks", query !== undefined ? { query } : {});
 
 export const getTask = (path: string) => invoke<Task>("get_task", { path });
 

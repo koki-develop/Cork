@@ -21,7 +21,7 @@ export function AppHeader({
       data-tauri-drag-region="deep"
       className={clsx(
         "flex shrink-0 items-center justify-between border-cork-border/50 border-b py-3",
-        isMac ? "pl-24 pr-6" : "px-6",
+        isMac ? "pr-6 pl-24" : "px-6",
       )}
     >
       <div className="flex items-center gap-3">

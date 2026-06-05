@@ -8,6 +8,7 @@ export {
 export { ErrorBanner, type ErrorBannerProps } from "./ErrorBanner";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { PathDisplay, type PathDisplayProps } from "./PathDisplay";
+export { SearchBar, type SearchBarProps } from "./SearchBar";
 export { Select, type SelectOption, type SelectProps } from "./Select";
 export {
   TagEditor,

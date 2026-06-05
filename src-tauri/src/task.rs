@@ -2,13 +2,15 @@ use crate::error::{CmdResult, CommandError};
 use crate::frontmatter;
 use crate::security;
 use crate::state::AppState;
+use nucleo_matcher::pattern::{AtomKind, CaseMatching, Normalization, Pattern};
+use nucleo_matcher::{Config, Matcher, Utf32Str};
 use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fs;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
     pub title: String,
@@ -53,12 +55,50 @@ where
 }
 
 #[tauri::command]
-pub fn list_tasks(state: tauri::State<'_, AppState>) -> Vec<Task> {
+pub fn list_tasks(
+    query: Option<String>,
+    state: tauri::State<'_, AppState>,
+) -> Vec<Task> {
     let Some(dir) = state.workspace() else {
         return Vec::new();
     };
 
-    let md_files: Vec<PathBuf> = fs::read_dir(&dir)
+    let tasks: Vec<Task> = match query {
+        Some(ref q) if !q.is_empty() => {
+            let cached = state.get_cached_tasks().unwrap_or_else(|| {
+                let all = read_all_tasks(&dir);
+                state.set_cached_tasks(all);
+                state.get_cached_tasks().unwrap()
+            });
+            let mut matcher = Matcher::new(Config::DEFAULT);
+            let pattern = Pattern::new(
+                q,
+                CaseMatching::Ignore,
+                Normalization::Smart,
+                AtomKind::Fuzzy,
+            );
+            cached
+                .into_iter()
+                .filter(|task| {
+                    let mut buf = Vec::new();
+                    pattern
+                        .score(Utf32Str::new(&task.title, &mut buf), &mut matcher)
+                        .is_some()
+                })
+                .collect()
+        }
+        _ => {
+            let all = read_all_tasks(&dir);
+            state.set_cached_tasks(all.clone());
+            all
+        }
+    };
+
+    tasks
+}
+
+fn read_all_tasks(dir: &Path) -> Vec<Task> {
+    let md_files: Vec<PathBuf> = fs::read_dir(dir)
         .map(|entries| {
             entries
                 .flatten()
@@ -158,6 +198,7 @@ pub fn create_task(
     let yaml = frontmatter::serialize(&fm_value);
     let content = frontmatter::ensure_trailing_newline(format!("---\n{}---\n\n{}", yaml, body));
     fs::write(&file_path, content)?;
+    state.invalidate_cache();
 
     Ok(Task {
         id: file_path.to_string_lossy().to_string(),
@@ -271,6 +312,8 @@ pub fn update_task(
         path_canonical
     };
 
+    state.invalidate_cache();
+
     Ok(Task {
         id: target_path.to_string_lossy().to_string(),
         title: new_title,
@@ -292,6 +335,7 @@ pub fn update_task_status(
     let content = fs::read_to_string(&path)?;
     let updated = frontmatter::update(&content, &[("status", serde_json::json!(status))]);
     fs::write(&path, updated)?;
+    state.invalidate_cache();
     Ok(())
 }
 
@@ -306,6 +350,7 @@ pub fn update_task_order(
     let content = fs::read_to_string(&path)?;
     let updated = frontmatter::update(&content, &[("order", serde_json::json!(order))]);
     fs::write(&path, updated)?;
+    state.invalidate_cache();
     Ok(())
 }
 
@@ -314,6 +359,7 @@ pub fn delete_task(path: String, state: tauri::State<'_, AppState>) -> CmdResult
     let dir = state.require_workspace()?;
     let path = security::ensure_in_workspace(&dir, Path::new(&path))?;
     fs::remove_file(&path)?;
+    state.invalidate_cache();
     Ok(())
 }
 
@@ -330,6 +376,7 @@ pub fn renumber_tasks(
         let updated = frontmatter::update(&content, &[("order", serde_json::json!(i as f64))]);
         fs::write(&path_canonical, updated)?;
     }
+    state.invalidate_cache();
     Ok(())
 }
 
@@ -708,5 +755,56 @@ mod tests {
         let fm = fm.unwrap();
         assert_eq!(fm.status.as_deref(), Some("doing"));
         assert_eq!(fm.tags, Vec::<String>::new());
+    }
+
+    // --- fuzzy search -------------------------------------------------------
+
+    fn score(pattern: &Pattern, text: &str, matcher: &mut Matcher) -> Option<u32> {
+        let mut buf = Vec::new();
+        pattern.score(Utf32Str::new(text, &mut buf), matcher)
+    }
+
+    #[test]
+    fn fuzzy_match_positive() {
+        let mut matcher = Matcher::new(Config::DEFAULT);
+        let p = Pattern::new("srch", CaseMatching::Ignore, Normalization::Smart, AtomKind::Fuzzy);
+        assert!(score(&p, "Implement search", &mut matcher).is_some());
+    }
+
+    #[test]
+    fn fuzzy_match_negative() {
+        let mut matcher = Matcher::new(Config::DEFAULT);
+        let p = Pattern::new("xyz", CaseMatching::Ignore, Normalization::Smart, AtomKind::Fuzzy);
+        assert!(score(&p, "hello world", &mut matcher).is_none());
+    }
+
+    #[test]
+    fn fuzzy_match_case_insensitive() {
+        let mut matcher = Matcher::new(Config::DEFAULT);
+        let p = Pattern::new("tAsK", CaseMatching::Ignore, Normalization::Smart, AtomKind::Fuzzy);
+        assert!(score(&p, "Task", &mut matcher).is_some());
+    }
+
+    #[test]
+    fn fuzzy_match_japanese() {
+        let mut matcher = Matcher::new(Config::DEFAULT);
+        let p = Pattern::new("本語", CaseMatching::Ignore, Normalization::Smart, AtomKind::Fuzzy);
+        assert!(score(&p, "日本語", &mut matcher).is_some());
+    }
+
+    #[test]
+    fn fuzzy_match_non_contiguous() {
+        let mut matcher = Matcher::new(Config::DEFAULT);
+        // "Pull Request" contains 'P', then later 'R' — "PR" should match as sub-sequence.
+        let p = Pattern::new("pr", CaseMatching::Ignore, Normalization::Smart, AtomKind::Fuzzy);
+        assert!(score(&p, "Pull Request", &mut matcher).is_some());
+    }
+
+    #[test]
+    fn fuzzy_match_empty_query_always_matches() {
+        let mut matcher = Matcher::new(Config::DEFAULT);
+        let p = Pattern::new("", CaseMatching::Ignore, Normalization::Smart, AtomKind::Fuzzy);
+        assert!(score(&p, "anything", &mut matcher).is_some());
+        assert!(score(&p, "", &mut matcher).is_some());
     }
 }

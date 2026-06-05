@@ -43,7 +43,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   }, [position, onClose]);
 
   return (
-    <div ref={wrapperRef} className="fixed inset-0 z-50 pointer-events-none">
+    <div ref={wrapperRef} className="pointer-events-none fixed inset-0 z-50">
       <AnimatePresence>
         {position && (
           <m.div
