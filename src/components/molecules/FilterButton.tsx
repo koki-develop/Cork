@@ -1,17 +1,15 @@
 import { clsx } from "clsx";
 import { ListFilter } from "lucide-react";
-import { forwardRef } from "react";
+import type { Ref } from "react";
 
 export type FilterButtonProps = {
   count: number;
   isOpen: boolean;
   onClick: () => void;
+  ref?: Ref<HTMLButtonElement>;
 };
 
-export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(function FilterButton(
-  { count, isOpen, onClick },
-  ref,
-) {
+export function FilterButton({ count, isOpen, onClick, ref }: FilterButtonProps) {
   const active = count > 0;
   return (
     <button
@@ -36,4 +34,4 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(fun
       )}
     </button>
   );
-});
+}

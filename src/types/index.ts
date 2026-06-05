@@ -1,6 +1,5 @@
 export {
   type StoredFilter,
-  TAG_FILTER_OPERATORS,
   type TagFilter,
   type TagFilterOperator,
   type TagOperatorWithoutTags,

@@ -65,16 +65,22 @@ export function BoardPage({
   const searchBarRef = useRef<SearchBarHandle>(null);
   const validFilterCount = useMemo(() => filters.filter(isValidFilter).length, [filters]);
 
+  // `*Token` values are remount keys for the dialogs: bumping a token on each
+  // open forces the child to remount and re-initialize its form state, while
+  // leaving it unchanged on close so the Modal's exit animation still plays.
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDialogToken, setCreateDialogToken] = useState(0);
   const [preselectedStatus, setPreselectedStatus] = useState<string | undefined>(undefined);
   const openCreateDialog = (status?: string) => {
     setPreselectedStatus(status);
+    setCreateDialogToken((t) => t + 1);
     setCreateDialogOpen(true);
   };
   const closeCreateDialog = () => setCreateDialogOpen(false);
 
   const [detailDialogTask, setDetailDialogTask] = useState<Task | null>(null);
   const [lastDetailDialogTask, setLastDetailDialogTask] = useState<Task | null>(null);
+  const [detailDialogToken, setDetailDialogToken] = useState(0);
   if (detailDialogTask && detailDialogTask !== lastDetailDialogTask) {
     setLastDetailDialogTask(detailDialogTask);
   }
@@ -82,6 +88,7 @@ export function BoardPage({
     const task = tasksById.get(taskId);
     if (!task) return;
     const fullTask = await getTask(task.id);
+    setDetailDialogToken((t) => t + 1);
     setDetailDialogTask(fullTask);
   };
   const closeDetailDialog = () => setDetailDialogTask(null);
@@ -251,6 +258,7 @@ export function BoardPage({
         availableTags={availableTags}
       />
       <CreateTaskDialog
+        key={createDialogToken}
         isOpen={createDialogOpen}
         onClose={closeCreateDialog}
         statuses={statuses}
@@ -260,6 +268,7 @@ export function BoardPage({
       />
       {lastDetailDialogTask && (
         <TaskDetailDialog
+          key={detailDialogToken}
           isOpen={detailDialogTask != null}
           onClose={closeDetailDialog}
           task={lastDetailDialogTask}

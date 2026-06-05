@@ -1,8 +1,8 @@
 import { clsx } from "clsx";
 import { AnimatePresence, m } from "motion/react";
 import {
-  forwardRef,
   type KeyboardEvent,
+  type Ref,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -31,6 +31,7 @@ export type TagEditorProps = {
   suggestions?: string[];
   maxTags?: number;
   autoFocus?: boolean;
+  ref?: Ref<TagEditorHandle>;
 };
 
 const commitPending = (current: string[], value: string): string[] => {
@@ -53,19 +54,17 @@ const fuzzySubsequenceMatch = (candidate: string, query: string): boolean => {
   return true;
 };
 
-export const TagEditor = forwardRef<TagEditorHandle, TagEditorProps>(function TagEditor(
-  {
-    tags,
-    onChange,
-    ariaLabel = "Tags",
-    placeholder = "Add tag",
-    className,
-    suggestions,
-    maxTags,
-    autoFocus,
-  },
+export function TagEditor({
+  tags,
+  onChange,
+  ariaLabel = "Tags",
+  placeholder = "Add tag",
+  className,
+  suggestions,
+  maxTags,
+  autoFocus,
   ref,
-) {
+}: TagEditorProps) {
   const [pending, setPending] = useState("");
   const [suggestionOpen, setSuggestionOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -313,4 +312,4 @@ export const TagEditor = forwardRef<TagEditorHandle, TagEditorProps>(function Ta
       )}
     </>
   );
-});
+}

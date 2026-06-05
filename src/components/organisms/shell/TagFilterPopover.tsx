@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   type RefObject,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -50,10 +51,7 @@ export function TagFilterPopover({
     });
   }, [isOpen, anchorRef]);
 
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
-  const onFiltersChangeRef = useRef(onFiltersChange);
-  onFiltersChangeRef.current = onFiltersChange;
+  const onCloseEvent = useEffectEvent(onClose);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -67,11 +65,11 @@ export function TagFilterPopover({
       if (target instanceof Element && target.closest("[data-floating-popup]")) {
         return;
       }
-      onClose();
+      onCloseEvent();
     };
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [isOpen, anchorRef, onClose]);
+  }, [isOpen, anchorRef]);
 
   // Set initial focus only when the popover opens — not on every filter
   // add/remove. Reading `filters.length` here is intentionally stale-safe
@@ -90,15 +88,21 @@ export function TagFilterPopover({
   // Prune empty-operand filters on close transition (regardless of trigger).
   // The popover keeps them around while open so the user can keep typing without
   // them disappearing; once it closes without them being filled in, drop them.
+  // Wrapped as an Effect Event so the close effect reads the latest filters /
+  // onFiltersChange without re-subscribing on every change.
+  const pruneInvalidFilters = useEffectEvent(() => {
+    const valid = filters.filter(isValidFilter);
+    if (valid.length !== filters.length) {
+      onFiltersChange(valid);
+    }
+  });
+
   const wasOpenRef = useRef(isOpen);
   useEffect(() => {
     const wasOpen = wasOpenRef.current;
     wasOpenRef.current = isOpen;
     if (wasOpen && !isOpen) {
-      const valid = filtersRef.current.filter(isValidFilter);
-      if (valid.length !== filtersRef.current.length) {
-        onFiltersChangeRef.current(valid);
-      }
+      pruneInvalidFilters();
       anchorRef.current?.focus();
     }
   }, [isOpen, anchorRef]);

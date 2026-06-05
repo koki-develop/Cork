@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { forwardRef, useImperativeHandle, useRef } from "react";
+import { type Ref, useImperativeHandle, useRef } from "react";
 
 import { Input } from "@/components/atoms";
 
@@ -11,12 +11,10 @@ export type SearchBarHandle = {
 export type SearchBarProps = {
   value: string;
   onChange: (value: string) => void;
+  ref?: Ref<SearchBarHandle>;
 };
 
-export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(function SearchBar(
-  { value, onChange },
-  ref,
-) {
+export function SearchBar({ value, onChange, ref }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useImperativeHandle(ref, () => ({
@@ -45,4 +43,4 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(function Se
       />
     </div>
   );
-});
+}

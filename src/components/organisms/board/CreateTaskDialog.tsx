@@ -1,5 +1,5 @@
 import { Plus, X } from "lucide-react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 
 import { Button, Heading, Input, Text } from "@/components/atoms";
 import {
@@ -29,24 +29,15 @@ export function CreateTaskDialog({
   availableTags,
   onCreateTask,
 }: CreateTaskDialogProps) {
+  // State initializes once per mount. BoardPage remounts this dialog (via a
+  // `key` bumped on each open), so the form resets to a clean slate without a
+  // prop-sync effect.
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState(preselectedStatus ?? statuses[0]?.label ?? "");
   const [body, setBody] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const tagEditorRef = useRef<TagEditorHandle>(null);
-
-  const prevOpenRef = useRef(false);
-  useEffect(() => {
-    if (isOpen && !prevOpenRef.current) {
-      setTitle("");
-      setBody("");
-      setTags([]);
-      setStatus(preselectedStatus ?? statuses[0]?.label ?? "");
-      setError(null);
-    }
-    prevOpenRef.current = isOpen;
-  }, [isOpen, preselectedStatus, statuses]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();

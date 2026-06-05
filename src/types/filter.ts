@@ -1,4 +1,4 @@
-export const TAG_FILTER_OPERATORS = [
+const TAG_FILTER_OPERATORS = [
   "contains",
   "not_contains",
   "contains_any",

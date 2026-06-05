@@ -1,5 +1,5 @@
 import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button, Heading, Input, Text } from "@/components/atoms";
@@ -36,6 +36,10 @@ export function TaskDetailDialog({
   onSaveTask,
   onDeleteTask,
 }: TaskDetailDialogProps) {
+  // State and the dirty-tracking baseline initialize once per mount from the
+  // freshly-fetched `task`. BoardPage remounts this dialog (via a `key` bumped
+  // on each open), so every open re-seeds these from the latest task without a
+  // prop-sync effect. Field saves keep `originalRef` current as they persist.
   const [title, setTitle] = useState(task.title);
   const [status, setStatus] = useState(task.status);
   const [body, setBody] = useState(task.body);
@@ -51,22 +55,6 @@ export function TaskDetailDialog({
     tags: task.tags,
   });
   const tagEditorRef = useRef<TagEditorHandle>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      setTitle(task.title);
-      setStatus(task.status);
-      setBody(task.body);
-      setTags(task.tags);
-      setError(null);
-      originalRef.current = {
-        title: task.title,
-        status: task.status,
-        body: task.body,
-        tags: task.tags,
-      };
-    }
-  }, [isOpen, task]);
 
   const hasFieldChanged = (field: "title" | "status" | "body", value: string) =>
     value !== originalRef.current[field];
