@@ -20,6 +20,48 @@ export function groupTasksByStatus(
   return grouped;
 }
 
+function sameOrder(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+/**
+ * Move a card to an explicit index within a target column, removing it from
+ * whichever column currently holds it.
+ *
+ * Used when a card is dragged over a column's empty area (not over another
+ * card). dnd-kit's `move()` helper can't be trusted there: it decides top-vs-
+ * bottom by comparing the pointer against the column's vertical center, but our
+ * lanes stretch to the full viewport height, so that center sits far below the
+ * cards and the helper snaps the card to the top. The caller instead computes
+ * the insertion index from the actual card geometry and passes it here.
+ *
+ * Returns the same reference when nothing changes, to avoid a needless render.
+ */
+export function moveTaskToIndex(
+  tasksByColumn: Record<string, string[]>,
+  taskId: string,
+  targetColumn: string,
+  index: number,
+): Record<string, string[]> {
+  if (!(targetColumn in tasksByColumn)) return tasksByColumn;
+
+  const withoutTask: Record<string, string[]> = {};
+  let sourceColumn: string | undefined;
+  for (const [column, ids] of Object.entries(tasksByColumn)) {
+    if (ids.includes(taskId)) sourceColumn = column;
+    withoutTask[column] = ids.filter((id) => id !== taskId);
+  }
+
+  const nextTarget = withoutTask[targetColumn].slice();
+  nextTarget.splice(index, 0, taskId);
+
+  if (sourceColumn === targetColumn && sameOrder(nextTarget, tasksByColumn[targetColumn])) {
+    return tasksByColumn;
+  }
+
+  return { ...withoutTask, [targetColumn]: nextTarget };
+}
+
 export function calculateMidpoint(prev: number | null, next: number | null): number {
   if (prev === null) {
     return next === null ? 0.0 : next / 2.0;

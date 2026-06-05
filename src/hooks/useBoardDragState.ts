@@ -1,9 +1,43 @@
 import { move } from "@dnd-kit/helpers";
 import type { DragEndEvent, DragOverEvent } from "@dnd-kit/react";
+import { isSortable } from "@dnd-kit/react/sortable";
 import { useState } from "react";
 
-import { calculateMidpoint, groupTasksByStatus, UNKNOWN_STATUS } from "@/lib/board";
+import {
+  calculateMidpoint,
+  groupTasksByStatus,
+  moveTaskToIndex,
+  UNKNOWN_STATUS,
+} from "@/lib/board";
 import type { StatusEntry, Task } from "@/types";
+
+/**
+ * Index at which a card should be inserted when it is dragged over a column's
+ * empty area rather than over another card: the number of that column's cards
+ * whose vertical center is above the pointer. This is content-aware (it uses
+ * each card's real position), unlike dnd-kit's `move()` which only compares the
+ * pointer against the full-height lane's center.
+ */
+function columnDropIndex(
+  operation: DragOverEvent["operation"],
+  targetColumn: string,
+  taskId: string,
+): number {
+  const droppables = operation.source?.manager?.registry.droppables;
+  if (!droppables) return 0;
+
+  const pointerY = operation.shape?.current.center.y ?? operation.position.current.y;
+
+  let index = 0;
+  for (const droppable of droppables) {
+    if (droppable.type !== "card") continue;
+    if (!isSortable(droppable) || droppable.group !== targetColumn) continue;
+    if (droppable.id === taskId) continue;
+    const center = droppable.shape?.center;
+    if (center && center.y < pointerY) index++;
+  }
+  return index;
+}
 
 type Params = {
   statuses: StatusEntry[];
@@ -37,12 +71,22 @@ export function useBoardDragState({
   }
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { source } = event.operation;
+    const { source, target } = event.operation;
     if (!source) return;
     if (source.type === "column") {
       setColumnOrder((prev) => move(prev, event));
     } else if (source.type === "card") {
-      setTasksByColumn((prev) => move(prev, event));
+      // Dropping over a column (its empty area) instead of over a card: place
+      // the card at the index computed from the real card positions, since
+      // `move()` would derive it from the full-height lane's center instead.
+      if (target?.type === "column") {
+        const taskId = String(source.id);
+        const targetColumn = String(target.id);
+        const index = columnDropIndex(event.operation, targetColumn, taskId);
+        setTasksByColumn((prev) => moveTaskToIndex(prev, taskId, targetColumn, index));
+      } else {
+        setTasksByColumn((prev) => move(prev, event));
+      }
     }
   };
 
