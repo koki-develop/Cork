@@ -16,6 +16,7 @@ export type KanbanColumnProps = {
   tasksById: Map<string, Task>;
   onCreateTask: (status: string) => void;
   onCardClick?: (taskId: string) => void;
+  onCardContextMenu?: (e: React.MouseEvent, taskId: string) => void;
   showNewTaskButton?: boolean;
   draggable?: boolean;
   displayLabel?: string;
@@ -28,6 +29,7 @@ export function KanbanColumn({
   tasksById,
   onCreateTask,
   onCardClick,
+  onCardContextMenu,
   showNewTaskButton = true,
   draggable = true,
   displayLabel,
@@ -95,6 +97,11 @@ export function KanbanColumn({
                 group={label}
                 index={i}
                 onClick={onCardClick ? () => onCardClick(id) : undefined}
+                onContextMenu={
+                  onCardContextMenu
+                    ? (e) => onCardContextMenu(e, id)
+                    : undefined
+                }
               />
             );
           })}

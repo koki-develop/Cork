@@ -9,9 +9,16 @@ export type KanbanCardProps = {
   group: string;
   index: number;
   onClick?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 };
 
-export function KanbanCard({ task, group, index, onClick }: KanbanCardProps) {
+export function KanbanCard({
+  task,
+  group,
+  index,
+  onClick,
+  onContextMenu,
+}: KanbanCardProps) {
   const { ref, isDragging } = useSortable({
     id: task.id,
     index,
@@ -31,6 +38,7 @@ export function KanbanCard({ task, group, index, onClick }: KanbanCardProps) {
     <div
       ref={ref}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onKeyDown={
         onClick
           ? (e) => {
@@ -44,7 +52,7 @@ export function KanbanCard({ task, group, index, onClick }: KanbanCardProps) {
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       className={clsx(
-        "rounded-xl border border-cork-border/30 bg-cork-elevated/80 p-3.5 hover:border-cork-border hover:bg-cork-elevated",
+        "select-none rounded-xl border border-cork-border/30 bg-cork-elevated/80 p-3.5 hover:border-cork-border hover:bg-cork-elevated",
         onClick && "cursor-pointer",
         !onClick && "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50 ring-2 ring-cork-accent/30",

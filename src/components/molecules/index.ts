@@ -1,3 +1,4 @@
+export { ContextMenu, type ContextMenuProps } from "./ContextMenu";
 export { DragHandle, type DragHandleProps } from "./DragHandle";
 export {
   DropdownMenu,

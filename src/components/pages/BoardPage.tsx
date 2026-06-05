@@ -1,5 +1,6 @@
 import { DragDropProvider } from "@dnd-kit/react";
-import { useEffect, useState } from "react";
+import { Copy, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   getTask,
@@ -7,13 +8,15 @@ import {
   pickDirectory,
   setWorkspaceDirectory,
 } from "@/api";
+import { Button, Heading, Text } from "@/components/atoms";
+import { ContextMenu } from "@/components/molecules";
 import {
   CreateTaskDialog,
   KanbanColumn,
   TaskDetailDialog,
 } from "@/components/organisms/board";
 import { SettingsDialog } from "@/components/organisms/settings";
-import { AppHeader } from "@/components/organisms/shell";
+import { AppHeader, Modal } from "@/components/organisms/shell";
 import { BoardLayout } from "@/components/templates";
 import { useBoardDragState } from "@/hooks/useBoardDragState";
 import { useStatusEdit } from "@/hooks/useStatusEdit";
@@ -83,6 +86,37 @@ export function BoardPage({
     setDetailDialogTask(fullTask);
   };
   const closeDetailDialog = () => setDetailDialogTask(null);
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    taskId: string;
+  } | null>(null);
+
+  const [deleteConfirmTaskId, setDeleteConfirmTaskId] = useState<string | null>(
+    null,
+  );
+
+  const handleCardContextMenu = useCallback(
+    (e: React.MouseEvent, taskId: string) => {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, taskId });
+    },
+    [],
+  );
+
+  const handleContextMenuCopyPath = useCallback(async (taskId: string) => {
+    try {
+      await navigator.clipboard.writeText(taskId);
+      toast.success("Copied path to clipboard");
+    } catch {
+      toast.error("Failed to copy path to clipboard");
+    }
+  }, []);
+
+  const handleContextMenuDelete = useCallback((taskId: string) => {
+    setDeleteConfirmTaskId(taskId);
+  }, []);
 
   useEffect(() => {
     const unlisten = onOpenSettings(() => setSettingsOpen(true));
@@ -188,6 +222,7 @@ export function BoardPage({
                 tasksById={tasksById}
                 onCreateTask={openCreateDialog}
                 onCardClick={openDetailDialog}
+                onCardContextMenu={handleCardContextMenu}
                 showNewTaskButton={!isUnknown}
                 draggable={!isUnknown}
               />
@@ -211,6 +246,66 @@ export function BoardPage({
           onSaveTask={handleSaveTask}
           onDeleteTask={() => handleDeleteTask(lastDetailDialogTask.id)}
         />
+      )}
+      <ContextMenu
+        position={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null}
+        onClose={() => setContextMenu(null)}
+        items={[
+          {
+            label: "Copy path",
+            icon: <Copy className="size-3.5" />,
+            onClick: () => {
+              if (contextMenu) handleContextMenuCopyPath(contextMenu.taskId);
+            },
+          },
+          {
+            label: "Delete",
+            icon: <Trash2 className="size-3.5" />,
+            color: "danger",
+            onClick: () => {
+              if (contextMenu) handleContextMenuDelete(contextMenu.taskId);
+            },
+          },
+        ]}
+      />
+      {deleteConfirmTaskId && tasksById.has(deleteConfirmTaskId) && (
+        <Modal
+          isOpen={true}
+          onClose={() => setDeleteConfirmTaskId(null)}
+          closeAriaLabel="Cancel delete"
+          containerClassName="max-w-sm"
+        >
+          <div className="flex flex-col gap-4">
+            <Heading level={2} variant="page">
+              Delete task?
+            </Heading>
+            <Text size="sm" className="text-cork-muted">
+              This will permanently delete &ldquo;
+              {tasksById.get(deleteConfirmTaskId)?.title}&rdquo;. This action
+              cannot be undone.
+            </Text>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={() => setDeleteConfirmTaskId(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                color="danger"
+                size="md"
+                onClick={() => {
+                  handleDeleteTask(deleteConfirmTaskId);
+                  setDeleteConfirmTaskId(null);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
       <SettingsDialog
         isOpen={settingsOpen}
