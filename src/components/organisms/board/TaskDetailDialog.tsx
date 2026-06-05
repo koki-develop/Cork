@@ -19,6 +19,7 @@ export type TaskDetailDialogProps = {
   onClose: () => void;
   task: Task;
   statuses: StatusEntry[];
+  availableTags?: string[];
   onSaveTask: (taskId: string, updates: TaskUpdates) => Promise<void>;
   onDeleteTask: () => Promise<void>;
 };
@@ -31,6 +32,7 @@ export function TaskDetailDialog({
   onClose,
   task,
   statuses,
+  availableTags,
   onSaveTask,
   onDeleteTask,
 }: TaskDetailDialogProps) {
@@ -241,6 +243,7 @@ export function TaskDetailDialog({
               ref={tagEditorRef}
               tags={tags}
               onChange={handleTagsChange}
+              suggestions={availableTags}
               ariaLabel="Tags"
             />
           </div>

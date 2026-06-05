@@ -17,6 +17,7 @@ export type CreateTaskDialogProps = {
   onClose: () => void;
   statuses: StatusEntry[];
   preselectedStatus?: string;
+  availableTags?: string[];
   onCreateTask: (title: string, status: string, body: string, tags: string[]) => Promise<void>;
 };
 
@@ -25,6 +26,7 @@ export function CreateTaskDialog({
   onClose,
   statuses,
   preselectedStatus,
+  availableTags,
   onCreateTask,
 }: CreateTaskDialogProps) {
   const [title, setTitle] = useState("");
@@ -106,7 +108,13 @@ export function CreateTaskDialog({
           <Text variant="label" size="xs" className="block">
             Tags
           </Text>
-          <TagEditor ref={tagEditorRef} tags={tags} onChange={setTags} ariaLabel="Tags" />
+          <TagEditor
+            ref={tagEditorRef}
+            tags={tags}
+            onChange={setTags}
+            suggestions={availableTags}
+            ariaLabel="Tags"
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">

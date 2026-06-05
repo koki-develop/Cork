@@ -74,16 +74,24 @@ export const TagEditor = forwardRef<TagEditorHandle, TagEditorProps>(function Ta
     left: number;
     width: number;
   } | null>(null);
+  const [locallyRemoved, setLocallyRemoved] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const isFull = maxTags !== undefined && tags.length >= maxTags;
   const suggestionsEnabled = suggestions !== undefined;
 
+  // Reset when suggestions prop changes (after async save completes)
+  useEffect(() => {
+    setLocallyRemoved([]);
+  }, [suggestions]);
+
   const filteredSuggestions = useMemo(() => {
     if (!suggestions) return [];
-    return suggestions.filter((s) => !tags.includes(s) && fuzzySubsequenceMatch(s, pending));
-  }, [suggestions, pending, tags]);
+    return suggestions.filter(
+      (s) => !tags.includes(s) && !locallyRemoved.includes(s) && fuzzySubsequenceMatch(s, pending),
+    );
+  }, [suggestions, pending, tags, locallyRemoved]);
 
   useEffect(() => {
     if (autoFocus && inputRef.current) {
@@ -162,6 +170,7 @@ export const TagEditor = forwardRef<TagEditorHandle, TagEditorProps>(function Ta
     }
     if (e.key === "Backspace" && pending === "" && tags.length > 0) {
       e.preventDefault();
+      setLocallyRemoved((prev) => [...prev, tags[tags.length - 1]]);
       onChange(tags.slice(0, -1));
     }
   };
@@ -191,6 +200,7 @@ export const TagEditor = forwardRef<TagEditorHandle, TagEditorProps>(function Ta
   };
 
   const removeAt = (index: number) => {
+    setLocallyRemoved((prev) => [...prev, tags[index]]);
     onChange(tags.filter((_, i) => i !== index));
     inputRef.current?.focus();
   };

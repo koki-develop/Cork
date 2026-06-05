@@ -255,6 +255,7 @@ export function BoardPage({
         onClose={closeCreateDialog}
         statuses={statuses}
         preselectedStatus={preselectedStatus}
+        availableTags={availableTags}
         onCreateTask={handleCreateTask}
       />
       {lastDetailDialogTask && (
@@ -263,6 +264,7 @@ export function BoardPage({
           onClose={closeDetailDialog}
           task={lastDetailDialogTask}
           statuses={statuses}
+          availableTags={availableTags}
           onSaveTask={handleSaveTask}
           onDeleteTask={() => handleDeleteTask(lastDetailDialogTask.id)}
         />
