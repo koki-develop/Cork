@@ -18,8 +18,7 @@ function App() {
     createTask,
     updateTask,
     deleteTask,
-    updateTaskStatus,
-    updateTaskOrder,
+    moveTask,
     renumberTasks,
     reorderStatuses,
     handleQueryChange,
@@ -45,8 +44,7 @@ function App() {
       createTask={createTask}
       updateTask={updateTask}
       deleteTask={deleteTask}
-      updateTaskStatus={updateTaskStatus}
-      updateTaskOrder={updateTaskOrder}
+      moveTask={moveTask}
       renumberTasks={renumberTasks}
       reorderStatuses={reorderStatuses}
     />

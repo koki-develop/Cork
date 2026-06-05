@@ -26,11 +26,8 @@ export const createTask = (
   tags?: string[],
 ) => invoke<Task>("create_task", { title, status, body, order, tags });
 
-export const updateTaskStatus = (path: string, status: string) =>
-  invoke<void>("update_task_status", { path, status });
-
-export const updateTaskOrder = (path: string, order: number) =>
-  invoke<void>("update_task_order", { path, order });
+export const moveTask = (path: string, status: string, order: number) =>
+  invoke<void>("move_task", { path, status, order });
 
 export const renumberTasks = (paths: string[]) => invoke<void>("renumber_tasks", { paths });
 

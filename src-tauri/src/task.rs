@@ -426,30 +426,22 @@ pub fn update_task(
 }
 
 #[tauri::command]
-pub fn update_task_status(
+pub fn move_task(
     path: String,
     status: String,
-    state: tauri::State<'_, AppState>,
-) -> CmdResult<()> {
-    let dir = state.require_workspace()?;
-    let path = security::ensure_in_workspace(&dir, Path::new(&path))?;
-    let content = fs::read_to_string(&path)?;
-    let updated = frontmatter::update(&content, &[("status", serde_json::json!(status))]);
-    fs::write(&path, updated)?;
-    state.invalidate_cache();
-    Ok(())
-}
-
-#[tauri::command]
-pub fn update_task_order(
-    path: String,
     order: f64,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<()> {
     let dir = state.require_workspace()?;
     let path = security::ensure_in_workspace(&dir, Path::new(&path))?;
     let content = fs::read_to_string(&path)?;
-    let updated = frontmatter::update(&content, &[("order", serde_json::json!(order))]);
+    let updated = frontmatter::update(
+        &content,
+        &[
+            ("status", serde_json::json!(status)),
+            ("order", serde_json::json!(order)),
+        ],
+    );
     fs::write(&path, updated)?;
     state.invalidate_cache();
     Ok(())

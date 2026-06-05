@@ -2,22 +2,40 @@ import type { StatusEntry, Task } from "@/types";
 
 export const UNKNOWN_STATUS = "__unknown__";
 
+// Sort tasks the same way the backend's `list_tasks` does: `order` ascending,
+// with `null` treated as +Infinity (matches the Rust `f64::MAX` fallback), and
+// title as a stable tie-breaker. Keeping the columns sorted here — instead of
+// trusting the input array's order — is what makes an optimistic in-place
+// mutation of a task's `order` (e.g. during a drag-end move) reflect in its
+// column position immediately, without waiting for the backend re-fetch.
+function compareTasks(a: Task, b: Task): number {
+  const ao = a.order ?? Number.POSITIVE_INFINITY;
+  const bo = b.order ?? Number.POSITIVE_INFINITY;
+  if (ao !== bo) return ao - bo;
+  return a.title.localeCompare(b.title);
+}
+
 export function groupTasksByStatus(
   statuses: StatusEntry[],
   tasks: Task[],
 ): Record<string, string[]> {
   const definedLabels = new Set(statuses.map((s) => s.label));
-  const grouped: Record<string, string[]> = {};
+  const grouped: Record<string, Task[]> = {};
   for (const s of statuses) grouped[s.label] = [];
   grouped[UNKNOWN_STATUS] = [];
   for (const t of tasks) {
     if (definedLabels.has(t.status)) {
-      grouped[t.status]?.push(t.id);
+      grouped[t.status]?.push(t);
     } else {
-      grouped[UNKNOWN_STATUS]?.push(t.id);
+      grouped[UNKNOWN_STATUS]?.push(t);
     }
   }
-  return grouped;
+  const result: Record<string, string[]> = {};
+  for (const [column, items] of Object.entries(grouped)) {
+    items.sort(compareTasks);
+    result[column] = items.map((t) => t.id);
+  }
+  return result;
 }
 
 function sameOrder(a: string[], b: string[]): boolean {

@@ -8,11 +8,10 @@ import {
   getWorkspaceDirectory,
   listAllTags,
   listTasks,
+  moveTask as moveTaskApi,
   renumberTasks as renumberTasksApi,
   saveStatuses,
   updateTask as updateTaskApi,
-  updateTaskOrder as updateTaskOrderApi,
-  updateTaskStatus as updateTaskStatusApi,
 } from "@/api";
 import { useFilterStore } from "@/hooks/useFilterStore";
 import type { StatusEntry, TagFilter, Task, TaskUpdates } from "@/types";
@@ -126,16 +125,15 @@ export function useWorkspace() {
     await loadAvailableTags();
   };
 
-  const updateTaskStatus = async (taskId: string, newStatus: string) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
-    );
-    await updateTaskStatusApi(taskId, newStatus);
+  // Atomic move: persists status + order in a single backend call, and the
+  // optimistic `setTasks` writes both fields together. Updating them
+  // separately would briefly leave the moved task with the new status but
+  // its old order, which `groupTasksByStatus` (array-order preserving) would
+  // render at the wrong slot inside the target column.
+  const moveTask = async (taskId: string, status: string, order: number) => {
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status, order } : t)));
+    await moveTaskApi(taskId, status, order);
     await loadTasks();
-  };
-
-  const updateTaskOrder = async (taskId: string, order: number) => {
-    await updateTaskOrderApi(taskId, order);
   };
 
   const renumberTasks = async (paths: string[]) => {
@@ -226,8 +224,7 @@ export function useWorkspace() {
     createTask,
     updateTask,
     deleteTask,
-    updateTaskStatus,
-    updateTaskOrder,
+    moveTask,
     renumberTasks,
     reorderStatuses,
     handleQueryChange,

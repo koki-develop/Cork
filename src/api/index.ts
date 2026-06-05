@@ -6,10 +6,9 @@ export {
   getTask,
   listAllTags,
   listTasks,
+  moveTask,
   renumberTasks,
   updateTask,
-  updateTaskOrder,
-  updateTaskStatus,
 } from "./tasks";
 export {
   getWorkspaceDirectory,

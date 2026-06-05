@@ -31,8 +31,7 @@ export type BoardPageProps = {
   createTask: (title: string, status: string, body?: string, tags?: string[]) => Promise<void>;
   updateTask: (taskId: string, updates: TaskUpdates) => Promise<Task>;
   deleteTask: (taskId: string) => Promise<void>;
-  updateTaskStatus: (taskId: string, newStatus: string) => Promise<void>;
-  updateTaskOrder: (taskId: string, order: number) => Promise<void>;
+  moveTask: (taskId: string, status: string, order: number) => Promise<void>;
   renumberTasks: (paths: string[]) => Promise<void>;
   reorderStatuses: (statuses: StatusEntry[]) => Promise<void>;
 };
@@ -52,8 +51,7 @@ export function BoardPage({
   createTask,
   updateTask,
   deleteTask,
-  updateTaskStatus,
-  updateTaskOrder,
+  moveTask,
   renumberTasks,
   reorderStatuses,
 }: BoardPageProps) {
@@ -151,8 +149,7 @@ export function BoardPage({
       statuses,
       tasks,
       onReorderStatuses: reorderStatuses,
-      onTaskStatusUpdate: updateTaskStatus,
-      onTaskOrderUpdate: updateTaskOrder,
+      onMoveTask: moveTask,
       onRenumberTasks: renumberTasks,
     });
 

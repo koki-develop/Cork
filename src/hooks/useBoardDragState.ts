@@ -43,8 +43,7 @@ type Params = {
   statuses: StatusEntry[];
   tasks: Task[];
   onReorderStatuses: (statuses: StatusEntry[]) => Promise<void>;
-  onTaskStatusUpdate: (taskId: string, newStatus: string) => Promise<void>;
-  onTaskOrderUpdate: (taskId: string, order: number) => Promise<void>;
+  onMoveTask: (taskId: string, status: string, order: number) => Promise<void>;
   onRenumberTasks: (paths: string[]) => Promise<void>;
 };
 
@@ -52,8 +51,7 @@ export function useBoardDragState({
   statuses,
   tasks,
   onReorderStatuses,
-  onTaskStatusUpdate,
-  onTaskOrderUpdate,
+  onMoveTask,
   onRenumberTasks,
 }: Params) {
   const tasksById = new Map(tasks.map((t) => [t.id, t]));
@@ -136,11 +134,7 @@ export function useBoardDragState({
         newOrder = idx;
       }
 
-      await onTaskOrderUpdate(taskId, newOrder);
-
-      if (newStatus && task && task.status !== newStatus) {
-        await onTaskStatusUpdate(taskId, newStatus);
-      }
+      await onMoveTask(taskId, targetColumn, newOrder);
     }
   };
 
