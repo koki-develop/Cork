@@ -53,7 +53,12 @@ export function useWorkspace() {
 
   const loadStatuses = useCallback(async () => {
     const result = await getStatuses();
-    setStatuses(result.length > 0 ? result : DEFAULT_STATUSES);
+    if (result === null) {
+      setStatuses(DEFAULT_STATUSES);
+      await saveStatuses(DEFAULT_STATUSES);
+    } else {
+      setStatuses(result);
+    }
   }, []);
 
   useEffect(() => {
@@ -77,7 +82,12 @@ export function useWorkspace() {
 
     const loadData = async () => {
       const [, loadedStatuses] = await Promise.all([loadTasks(), getStatuses()]);
-      setStatuses(loadedStatuses.length > 0 ? loadedStatuses : DEFAULT_STATUSES);
+      if (loadedStatuses === null) {
+        setStatuses(DEFAULT_STATUSES);
+        await saveStatuses(DEFAULT_STATUSES);
+      } else {
+        setStatuses(loadedStatuses);
+      }
       await loadAvailableTags();
     };
     loadData();

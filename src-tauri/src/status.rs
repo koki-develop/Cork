@@ -21,10 +21,8 @@ struct StatusFrontmatter {
 }
 
 #[tauri::command]
-pub fn get_statuses(state: tauri::State<'_, AppState>) -> Vec<StatusEntry> {
-    let Some(dir) = state.workspace() else {
-        return Vec::new();
-    };
+pub fn get_statuses(state: tauri::State<'_, AppState>) -> Option<Vec<StatusEntry>> {
+    let dir = state.workspace()?;
     read_statuses_from_workspace(&dir)
 }
 
@@ -83,23 +81,25 @@ fn cork_config_path(dir: &Path) -> PathBuf {
     dir.join(CORK_CONFIG_FILE)
 }
 
-fn read_statuses_from_workspace(dir: &Path) -> Vec<StatusEntry> {
+fn read_statuses_from_workspace(dir: &Path) -> Option<Vec<StatusEntry>> {
     let path = cork_config_path(dir);
     let content = match fs::read_to_string(&path) {
         Ok(c) => c,
-        Err(_) => return Vec::new(),
+        Err(_) => return None,
     };
     let value: serde_json::Value = match serde_json::from_str(&content) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("failed to parse {}: {e}", path.display());
-            return Vec::new();
+            return None;
         }
     };
-    value
-        .get("statuses")
-        .and_then(|v| serde_json::from_value::<Vec<StatusEntry>>(v.clone()).ok())
-        .unwrap_or_default()
+    Some(
+        value
+            .get("statuses")
+            .and_then(|v| serde_json::from_value::<Vec<StatusEntry>>(v.clone()).ok())
+            .unwrap_or_default(),
+    )
 }
 
 fn write_statuses_to_workspace(dir: &Path, statuses: &[StatusEntry]) -> CmdResult<()> {
