@@ -66,8 +66,10 @@ export function Select({ value, onChange, options }: SelectProps) {
                 }}
                 className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-cork-text text-sm hover:bg-cork-accent/10"
               >
-                {option.value === value && (
+                {option.value === value ? (
                   <Check className="size-3.5 shrink-0 text-cork-accent" />
+                ) : (
+                  <span className="size-3.5 shrink-0" />
                 )}
                 <span className={option.value === value ? "font-medium" : ""}>
                   {option.label}
