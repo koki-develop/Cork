@@ -43,6 +43,7 @@ export function DropdownMenu({ trigger, triggerAriaLabel, items }: DropdownMenuP
       <AnimatePresence>
         {open && (
           <m.div
+            data-floating-popup="true"
             className="border-cork-border/40 bg-cork-elevated absolute top-full right-0 z-20 mt-1 w-max origin-top-right overflow-hidden rounded-lg border shadow-xl"
             initial={{ opacity: 0, scale: 0.95, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
