@@ -80,9 +80,23 @@ export function moveTaskToIndex(
   return { ...withoutTask, [targetColumn]: nextTarget };
 }
 
+/**
+ * Compute an `order` value that sorts strictly between `prev` and `next`.
+ *
+ * - Both `null`: column is empty, anchor at 0.
+ * - Only `prev`: card goes to the bottom — pick anything greater than `prev`.
+ * - Only `next`: card goes to the top — pick anything **less** than `next`.
+ *   `next - 1` works for every sign of `next`; the previous `next / 2`
+ *   silently inverted for negative `next` (e.g. `-2 / 2 = -1`, which sorts
+ *   below `-2`, not above), placing the dragged card on the wrong side.
+ *   `createTask` mints fresh cards at `min(orders) - 1`, so most columns
+ *   naturally trend toward negative `order`s and the inversion was the
+ *   common case.
+ * - Both present: midpoint.
+ */
 export function calculateMidpoint(prev: number | null, next: number | null): number {
   if (prev === null) {
-    return next === null ? 0.0 : next / 2.0;
+    return next === null ? 0.0 : next - 1.0;
   }
   if (next === null) return prev + 1.0;
   return (prev + next) / 2.0;
