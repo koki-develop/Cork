@@ -1,6 +1,6 @@
 import { Check, ChevronDown } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
@@ -20,6 +20,7 @@ export type SelectProps = {
 
 export function Select({ value, onChange, options }: SelectProps) {
   const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -28,6 +29,39 @@ export function Select({ value, onChange, options }: SelectProps) {
 
   useClickOutside([triggerRef, dropdownRef], () => setOpen(false), open);
   useEscapeKey(() => setOpen(false), open);
+
+  const handleKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if (options.length === 0) return;
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev + 1) % options.length);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev - 1 + options.length) % options.length);
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < options.length) {
+          onChange(options[highlightedIndex].value);
+          setOpen(false);
+        }
+        break;
+      case "Tab":
+        setOpen(false);
+        break;
+    }
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const index = options.findIndex((o) => o.value === value);
+    setHighlightedIndex(index >= 0 ? index : 0);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, value, options]);
 
   return (
     <>
@@ -47,9 +81,6 @@ export function Select({ value, onChange, options }: SelectProps) {
           {open && pos && (
             <m.div
               ref={dropdownRef}
-              // data-floating-popup signals to host popovers (e.g.
-              // TagFilterPopover) that this portal-rendered element should be
-              // treated as "inside" for outside-click detection.
               data-floating-popup="true"
               style={{ top: pos.top, left: pos.left, width: pos.width }}
               className="border-cork-border/40 bg-cork-elevated fixed z-[60] origin-top-left overflow-hidden rounded-lg border shadow-xl"
@@ -58,7 +89,7 @@ export function Select({ value, onChange, options }: SelectProps) {
               exit={{ opacity: 0, scale: 0.95, y: -4 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
             >
-              {options.map((option) => (
+              {options.map((option, index) => (
                 <button
                   key={option.value}
                   type="button"
@@ -66,7 +97,12 @@ export function Select({ value, onChange, options }: SelectProps) {
                     onChange(option.value);
                     setOpen(false);
                   }}
-                  className="text-cork-text hover:bg-cork-accent/10 flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm"
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  className={`flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm ${
+                    index === highlightedIndex
+                      ? "bg-cork-accent/10 text-cork-text"
+                      : "text-cork-text hover:bg-cork-accent/10"
+                  }`}
                 >
                   {option.value === value ? (
                     <Check className="text-cork-accent size-3.5 shrink-0" />
@@ -81,9 +117,6 @@ export function Select({ value, onChange, options }: SelectProps) {
             </m.div>
           )}
         </AnimatePresence>,
-        // Portal into the enclosing <dialog> when the select lives inside a
-        // modal — body-portaled popups are below the dialog's top layer
-        // and would be hidden behind the backdrop.
         triggerRef.current?.closest("dialog") ?? document.body,
       )}
     </>
