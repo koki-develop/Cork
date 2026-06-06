@@ -48,7 +48,7 @@ export function TagEditor({
 }: TagEditorProps) {
   const [pending, setPending] = useState("");
   const [suggestionOpen, setSuggestionOpen] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [locallyRemoved, setLocallyRemoved] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,6 +107,7 @@ export function TagEditor({
   const tryCommit = (value: string) => {
     const next = commitPending(tags, value);
     setPending("");
+    setSelectedIndex(-1);
     if (next !== tags) onChange(next);
   };
 
@@ -139,7 +140,7 @@ export function TagEditor({
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((i) => Math.max(i - 1, 0));
+      setSelectedIndex((i) => (i <= 0 ? 0 : i - 1));
       return true;
     }
     if (e.key === "Escape") {
@@ -155,7 +156,21 @@ export function TagEditor({
     if (e.nativeEvent.isComposing) return;
     if (handleSuggestionNavKey(e)) return;
 
-    if (e.key === "Enter" || e.key === ",") {
+    if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+      // Tab should select the highlighted suggestion when the autocomplete is
+      // open, not move focus to the next element. Shift+Tab passes through.
+      if (
+        e.key === "Tab" &&
+        (e.shiftKey ||
+          !(
+            suggestionsEnabled &&
+            suggestionOpen &&
+            filteredSuggestions.length > 0 &&
+            selectedIndex >= 0
+          ))
+      ) {
+        return;
+      }
       e.preventDefault();
       // Prefer selected suggestion if available and not already in tags
       if (suggestionsEnabled && suggestionOpen && filteredSuggestions.length > 0) {
@@ -186,6 +201,7 @@ export function TagEditor({
       return;
     }
     setSuggestionOpen(false);
+    setSelectedIndex(-1);
     if (!pending.trim()) {
       setPending("");
       return;
@@ -237,7 +253,7 @@ export function TagEditor({
           value={pending}
           onChange={(e) => {
             setPending(e.target.value);
-            setSelectedIndex(0);
+            setSelectedIndex(e.target.value === "" ? -1 : 0);
             if (suggestionsEnabled) setSuggestionOpen(true);
           }}
           onKeyDown={handleKeyDown}
