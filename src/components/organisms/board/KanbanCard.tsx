@@ -53,7 +53,7 @@ export function KanbanCard({ task, group, index, onClick, onContextMenu }: Kanba
         isDragging && "ring-cork-accent/30 opacity-50 ring-2",
       )}
     >
-      <Heading level={3} variant="card" className="truncate">
+      <Heading level={3} variant="card" className="line-clamp-2">
         {task.title}
       </Heading>
       <TagList tags={task.tags} className="mt-2" />
