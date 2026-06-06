@@ -153,7 +153,12 @@ export function TagEditor({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing) return;
+    // WebKit (Safari / Tauri WKWebView) fires compositionend BEFORE the
+    // keydown that confirmed the IME, so isComposing is already false by
+    // the time we get here and the Enter would commit the pending tag.
+    // keyCode is 229 for IME-generated key events (13 for a real Enter) —
+    // deprecated but the only reliable cross-browser signal for this case.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (handleSuggestionNavKey(e)) return;
 
     if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
