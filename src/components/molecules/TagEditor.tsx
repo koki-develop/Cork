@@ -76,14 +76,19 @@ export function TagEditor({
   const [locallyRemoved, setLocallyRemoved] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const initialSuggestionsRef = useRef<Set<string> | null>(null);
+
+  // Capture the set of tags that existed in the workspace when this editor
+  // mounted. Tags NOT in this set were typed by the user and don't exist in
+  // the workspace yet — they should stay hidden from autocomplete after
+  // deletion to prevent a flicker (the save hasn't completed yet, so they'd
+  // briefly appear in suggestions and then disappear).
+  if (!initialSuggestionsRef.current && suggestions) {
+    initialSuggestionsRef.current = new Set(suggestions);
+  }
 
   const isFull = maxTags !== undefined && tags.length >= maxTags;
   const suggestionsEnabled = suggestions !== undefined;
-
-  // Reset when suggestions prop changes (after async save completes)
-  useEffect(() => {
-    setLocallyRemoved([]);
-  }, [suggestions]);
 
   const filteredSuggestions = useMemo(() => {
     if (!suggestions) return [];
@@ -169,7 +174,10 @@ export function TagEditor({
     }
     if (e.key === "Backspace" && pending === "" && tags.length > 0) {
       e.preventDefault();
-      setLocallyRemoved((prev) => [...prev, tags[tags.length - 1]]);
+      const removed = tags[tags.length - 1];
+      if (!initialSuggestionsRef.current?.has(removed)) {
+        setLocallyRemoved((prev) => [...prev, removed]);
+      }
       onChange(tags.slice(0, -1));
     }
   };
@@ -199,7 +207,10 @@ export function TagEditor({
   };
 
   const removeAt = (index: number) => {
-    setLocallyRemoved((prev) => [...prev, tags[index]]);
+    const removed = tags[index];
+    if (!initialSuggestionsRef.current?.has(removed)) {
+      setLocallyRemoved((prev) => [...prev, removed]);
+    }
     onChange(tags.filter((_, i) => i !== index));
     inputRef.current?.focus();
   };
