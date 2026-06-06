@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useState } from "react";
 
-import { AutoresizeInput } from "@/components/atoms";
+import { AutoresizeInput, Heading, Text } from "@/components/atoms";
 import { DialogFooter, DialogHeader, FormField, Select, TagEditor } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import { useDialogError } from "@/hooks/ui/useDialogError";
@@ -25,15 +25,33 @@ export function CreateTaskDialog({
   availableTags,
   onCreateTask,
 }: CreateTaskDialogProps) {
-  // State initializes once per mount. BoardPage remounts this dialog (via a
-  // `key` bumped on each open), so the form resets to a clean slate without a
-  // prop-sync effect.
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState(preselectedStatus ?? statuses[0]?.label ?? "");
   const [body, setBody] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const { error, setError, clearError } = useDialogError();
   const tagEditor = useTagEditorController();
+
+  const [confirmingClose, setConfirmingClose] = useState(false);
+
+  const isDirty = title !== "" || body !== "" || tags.length > 0;
+
+  const handleClose = () => {
+    if (isDirty && !confirmingClose) {
+      setConfirmingClose(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleConfirmDiscard = () => {
+    setConfirmingClose(false);
+    onClose();
+  };
+
+  const handleCancelDiscard = () => {
+    setConfirmingClose(false);
+  };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -62,57 +80,85 @@ export function CreateTaskDialog({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} closeAriaLabel="Cancel">
-      <DialogHeader title="New Task" onClose={onClose} closeAriaLabel="Cancel" />
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={confirmingClose ? handleCancelDiscard : handleClose}
+        closeAriaLabel="Cancel"
+      >
+        <DialogHeader title="New Task" onClose={handleClose} closeAriaLabel="Cancel" />
 
-      <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-4">
-        <FormField label="Title" error={error}>
-          <AutoresizeInput
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Task title"
-            autoFocus
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-4">
+          <FormField label="Title" error={error}>
+            <AutoresizeInput
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Task title"
+              autoFocus
+            />
+          </FormField>
+
+          <FormField label="Status">
+            <Select
+              value={status}
+              onChange={setStatus}
+              options={statuses.map((s) => ({ label: s.label, value: s.label }))}
+            />
+          </FormField>
+
+          <FormField label="Tags">
+            <TagEditor
+              ref={tagEditor.ref}
+              tags={tags}
+              onChange={setTags}
+              suggestions={availableTags}
+              ariaLabel="Tags"
+            />
+          </FormField>
+
+          <FormField label="Body">
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Body (optional)"
+              aria-label="Body"
+              rows={5}
+              className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-cork-accent/30 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none focus:ring-1"
+            />
+          </FormField>
+
+          <DialogFooter
+            onCancel={handleClose}
+            action={{
+              label: "Create",
+              icon: <Plus className="size-3.5" />,
+              type: "submit",
+            }}
           />
-        </FormField>
+        </form>
+      </Modal>
 
-        <FormField label="Status">
-          <Select
-            value={status}
-            onChange={setStatus}
-            options={statuses.map((s) => ({ label: s.label, value: s.label }))}
-          />
-        </FormField>
-
-        <FormField label="Tags">
-          <TagEditor
-            ref={tagEditor.ref}
-            tags={tags}
-            onChange={setTags}
-            suggestions={availableTags}
-            ariaLabel="Tags"
-          />
-        </FormField>
-
-        <FormField label="Body">
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Body (optional)"
-            aria-label="Body"
-            rows={5}
-            className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-cork-accent/30 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none focus:ring-1"
-          />
-        </FormField>
-
-        <DialogFooter
-          onCancel={onClose}
-          action={{
-            label: "Create",
-            icon: <Plus className="size-3.5" />,
-            type: "submit",
-          }}
-        />
-      </form>
-    </Modal>
+      {confirmingClose && (
+        <Modal isOpen={true} onClose={handleCancelDiscard} closeAriaLabel="Keep editing">
+          <div className="flex flex-col gap-4">
+            <Heading level={2} variant="page">
+              Discard changes?
+            </Heading>
+            <Text size="sm" className="text-cork-muted">
+              You have unsaved changes. Are you sure you want to discard them?
+            </Text>
+            <DialogFooter
+              onCancel={handleCancelDiscard}
+              cancelLabel="Keep editing"
+              action={{
+                label: "Discard",
+                color: "danger",
+                onClick: handleConfirmDiscard,
+              }}
+            />
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
