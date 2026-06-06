@@ -2,7 +2,7 @@ import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { Button, Heading, Input, Text } from "@/components/atoms";
+import { AutoresizeInput, Button, Heading, Text } from "@/components/atoms";
 import {
   DropdownMenu,
   ErrorBanner,
@@ -200,7 +200,7 @@ export function TaskDetailDialog({
             <Text variant="label" size="xs" className="block">
               Title
             </Text>
-            <Input
+            <AutoresizeInput
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={handleTitleBlur}

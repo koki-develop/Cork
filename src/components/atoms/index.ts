@@ -1,3 +1,4 @@
+export { AutoresizeInput, type AutoresizeInputProps } from "./AutoresizeInput";
 export { Badge, type BadgeProps } from "./Badge";
 export { Button, type ButtonProps } from "./Button";
 export { Heading, type HeadingProps } from "./Heading";

@@ -1,7 +1,7 @@
 import { Plus, X } from "lucide-react";
 import { type FormEvent, useRef, useState } from "react";
 
-import { Button, Heading, Input, Text } from "@/components/atoms";
+import { AutoresizeInput, Button, Heading, Text } from "@/components/atoms";
 import {
   ErrorBanner,
   IconButton,
@@ -72,7 +72,7 @@ export function CreateTaskDialog({
           <Text variant="label" size="xs" className="block">
             Title
           </Text>
-          <Input
+          <AutoresizeInput
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Task title"
