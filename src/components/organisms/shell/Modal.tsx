@@ -93,6 +93,9 @@ function ModalDialog({
         // Escape pressed: stop the browser from closing the dialog immediately
         // so AnimatePresence can run the exit animation before close() fires.
         e.preventDefault();
+        // If a floating popup (e.g. Select dropdown) is open, let the child
+        // component handle Escape instead of closing the dialog.
+        if (document.querySelector('[data-floating-popup="true"]')) return;
         onClose();
       }}
       className="text-cork-text fixed inset-0 z-50 m-0 flex h-screen max-h-none w-screen max-w-none items-center justify-center border-0 bg-transparent p-0 outline-none backdrop:bg-transparent"
