@@ -1,5 +1,5 @@
 import { Plus, X } from "lucide-react";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 
 import { AutoresizeInput, Button, Heading, Text } from "@/components/atoms";
 import {
@@ -58,6 +58,14 @@ export function CreateTaskDialog({
       });
   };
 
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      const form = e.currentTarget as HTMLFormElement;
+      form.requestSubmit();
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} closeAriaLabel="Cancel">
       <div className="mb-6 flex items-center justify-between gap-3">
@@ -67,7 +75,7 @@ export function CreateTaskDialog({
         <IconButton icon={<X className="size-4" />} aria-label="Cancel" onClick={onClose} />
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <Text variant="label" size="xs" className="block">
             Title
