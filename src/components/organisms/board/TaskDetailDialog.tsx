@@ -153,6 +153,7 @@ export function TaskDetailDialog({
         onClose={handleClose}
         closeAriaLabel="Close"
         containerClassName="max-w-2xl"
+        inert={deleteConfirmOpen}
       >
         <div className="flex items-center justify-end gap-1">
           <DropdownMenu
@@ -181,7 +182,6 @@ export function TaskDetailDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={handleTitleBlur}
-              autoFocus
             />
           </FormField>
 

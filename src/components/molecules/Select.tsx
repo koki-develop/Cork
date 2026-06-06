@@ -81,7 +81,10 @@ export function Select({ value, onChange, options }: SelectProps) {
             </m.div>
           )}
         </AnimatePresence>,
-        document.body,
+        // Portal into the enclosing <dialog> when the select lives inside a
+        // modal — body-portaled popups are below the dialog's top layer
+        // and would be hidden behind the backdrop.
+        triggerRef.current?.closest("dialog") ?? document.body,
       )}
     </>
   );

@@ -85,6 +85,7 @@ export function CreateTaskDialog({
         isOpen={isOpen}
         onClose={confirmingClose ? handleCancelDiscard : handleClose}
         closeAriaLabel="Cancel"
+        inert={confirmingClose}
       >
         <DialogHeader title="New Task" onClose={handleClose} closeAriaLabel="Cancel" />
 
@@ -94,7 +95,7 @@ export function CreateTaskDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Task title"
-              autoFocus
+              data-autofocus
             />
           </FormField>
 

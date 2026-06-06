@@ -11,6 +11,10 @@ export type TagSuggestionPopoverProps = {
   onSelect: (suggestion: string) => void;
   onHover: (index: number) => void;
   popoverRef?: Ref<HTMLDivElement>;
+  /** Portal mount target. Defaults to document.body — pass the closest
+   *  open <dialog> when rendered inside a modal so the popover joins the
+   *  dialog's top layer and stays visible above the backdrop. */
+  container?: Element;
 };
 
 export function TagSuggestionPopover({
@@ -21,6 +25,7 @@ export function TagSuggestionPopover({
   onSelect,
   onHover,
   popoverRef,
+  container,
 }: TagSuggestionPopoverProps) {
   return createPortal(
     <AnimatePresence>
@@ -65,6 +70,6 @@ export function TagSuggestionPopover({
         </m.div>
       )}
     </AnimatePresence>,
-    document.body,
+    container ?? document.body,
   );
 }

@@ -257,6 +257,10 @@ export function TagEditor({
         onSelect={handleSuggestionClick}
         onHover={setSelectedIndex}
         popoverRef={suggestionPopoverRef}
+        // Portal into the enclosing <dialog> when the editor lives inside a
+        // modal — body-portaled popovers are below the dialog's top layer
+        // and would be hidden behind the backdrop.
+        container={containerRef.current?.closest("dialog") ?? undefined}
       />
     </>
   );
