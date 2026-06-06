@@ -84,7 +84,6 @@ export function KanbanColumn({
             className="w-full shrink-0"
           >
             <Plus className="size-3.5" />
-            New Task
           </Button>
         )}
         <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto">
