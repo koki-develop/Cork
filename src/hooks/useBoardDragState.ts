@@ -3,12 +3,7 @@ import type { DragEndEvent, DragOverEvent } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { useState } from "react";
 
-import {
-  calculateMidpoint,
-  groupTasksByStatus,
-  moveTaskToIndex,
-  UNKNOWN_STATUS,
-} from "@/lib/board";
+import { computeDropOrder, groupTasksByStatus, moveTaskToIndex, UNKNOWN_STATUS } from "@/lib/board";
 import type { StatusEntry, Task } from "@/types";
 
 /**
@@ -108,7 +103,6 @@ export function useBoardDragState({
       const taskId = String(source.id);
       const newStatus = Object.entries(tasksByColumn).find(([, ids]) => ids.includes(taskId))?.[0];
       const task = tasksById.get(taskId);
-
       const targetColumn = newStatus ?? task?.status;
       if (!targetColumn) return;
 
@@ -119,22 +113,9 @@ export function useBoardDragState({
 
       const columnIds = tasksByColumn[targetColumn];
       const idx = columnIds.indexOf(taskId);
-      const prevTask = idx > 0 ? tasksById.get(columnIds[idx - 1]) : null;
-      const nextTask = idx < columnIds.length - 1 ? tasksById.get(columnIds[idx + 1]) : null;
-
-      let newOrder = calculateMidpoint(prevTask?.order ?? null, nextTask?.order ?? null);
-
-      if (
-        prevTask?.order === null ||
-        nextTask?.order === null ||
-        newOrder === prevTask?.order ||
-        newOrder === nextTask?.order
-      ) {
-        await onRenumberTasks(columnIds);
-        newOrder = idx;
-      }
-
-      await onMoveTask(taskId, targetColumn, newOrder);
+      const { order, renumber } = computeDropOrder(columnIds, idx, tasksById);
+      if (renumber) await onRenumberTasks(columnIds);
+      await onMoveTask(taskId, targetColumn, order);
     }
   };
 

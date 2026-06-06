@@ -6,8 +6,7 @@ import {
 } from "@dnd-kit/react";
 import { Plus } from "lucide-react";
 
-import { Button, Text } from "@/components/atoms";
-import { ErrorBanner } from "@/components/molecules";
+import { Button, ErrorBanner, Text } from "@/components/atoms";
 import type { EditingEntry } from "@/types";
 
 import { StatusRow } from "./StatusRow";

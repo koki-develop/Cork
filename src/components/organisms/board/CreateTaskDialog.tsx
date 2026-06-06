@@ -1,15 +1,11 @@
-import { Plus, X } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
+import { Plus } from "lucide-react";
+import { type FormEvent, type KeyboardEvent, useState } from "react";
 
-import { AutoresizeInput, Button, Heading, Text } from "@/components/atoms";
-import {
-  ErrorBanner,
-  IconButton,
-  Select,
-  TagEditor,
-  type TagEditorHandle,
-} from "@/components/molecules";
+import { AutoresizeInput } from "@/components/atoms";
+import { DialogFooter, DialogHeader, FormField, Select, TagEditor } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
+import { useDialogError } from "@/hooks/ui/useDialogError";
+import { useTagEditorController } from "@/hooks/ui/useTagEditorController";
 import type { StatusEntry } from "@/types";
 
 export type CreateTaskDialogProps = {
@@ -36,8 +32,8 @@ export function CreateTaskDialog({
   const [status, setStatus] = useState(preselectedStatus ?? statuses[0]?.label ?? "");
   const [body, setBody] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const tagEditorRef = useRef<TagEditorHandle>(null);
+  const { error, setError, clearError } = useDialogError();
+  const tagEditor = useTagEditorController();
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -46,9 +42,8 @@ export function CreateTaskDialog({
       setError("Title is required");
       return;
     }
-    setError(null);
-    const pendingTag = tagEditorRef.current?.flushPending() ?? "";
-    const finalTags = pendingTag ? [...tags, pendingTag] : tags;
+    clearError();
+    const finalTags = tagEditor.flushAndMerge(tags);
     onCreateTask(trimmed, status, body.trim(), finalTags)
       .then(() => {
         onClose();
@@ -68,58 +63,37 @@ export function CreateTaskDialog({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} closeAriaLabel="Cancel">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <Heading level={2} variant="page">
-          New Task
-        </Heading>
-        <IconButton icon={<X className="size-4" />} aria-label="Cancel" onClick={onClose} />
-      </div>
+      <DialogHeader title="New Task" onClose={onClose} closeAriaLabel="Cancel" />
 
       <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Text variant="label" size="xs" className="block">
-            Title
-          </Text>
+        <FormField label="Title" error={error}>
           <AutoresizeInput
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Task title"
             autoFocus
           />
-          {error && <ErrorBanner className="mt-1">{error}</ErrorBanner>}
-        </div>
+        </FormField>
 
-        <div className="flex flex-col gap-1.5">
-          <Text variant="label" size="xs" className="block">
-            Status
-          </Text>
+        <FormField label="Status">
           <Select
             value={status}
             onChange={setStatus}
-            options={statuses.map((s) => ({
-              label: s.label,
-              value: s.label,
-            }))}
+            options={statuses.map((s) => ({ label: s.label, value: s.label }))}
           />
-        </div>
+        </FormField>
 
-        <div className="flex flex-col gap-1.5">
-          <Text variant="label" size="xs" className="block">
-            Tags
-          </Text>
+        <FormField label="Tags">
           <TagEditor
-            ref={tagEditorRef}
+            ref={tagEditor.ref}
             tags={tags}
             onChange={setTags}
             suggestions={availableTags}
             ariaLabel="Tags"
           />
-        </div>
+        </FormField>
 
-        <div className="flex flex-col gap-1.5">
-          <Text variant="label" size="xs" className="block">
-            Body
-          </Text>
+        <FormField label="Body">
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -128,17 +102,16 @@ export function CreateTaskDialog({
             rows={5}
             className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-cork-accent/30 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none focus:ring-1"
           />
-        </div>
+        </FormField>
 
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="secondary" size="md" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" size="md">
-            <Plus className="size-3.5" />
-            Create
-          </Button>
-        </div>
+        <DialogFooter
+          onCancel={onClose}
+          action={{
+            label: "Create",
+            icon: <Plus className="size-3.5" />,
+            type: "submit",
+          }}
+        />
       </form>
     </Modal>
   );

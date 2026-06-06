@@ -1,9 +1,11 @@
 export { ContextMenu, type ContextMenuProps } from "./ContextMenu";
+export { DialogFooter, type DialogFooterProps } from "./DialogFooter";
+export { DialogHeader, type DialogHeaderProps } from "./DialogHeader";
 export { DragHandle, type DragHandleProps } from "./DragHandle";
 export { DropdownMenu, type DropdownMenuItem, type DropdownMenuProps } from "./DropdownMenu";
-export { ErrorBanner, type ErrorBannerProps } from "./ErrorBanner";
 export { FilterButton, type FilterButtonProps } from "./FilterButton";
 export { FilterRow, type FilterRowProps } from "./FilterRow";
+export { FormField, type FormFieldProps } from "./FormField";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { PathDisplay, type PathDisplayProps } from "./PathDisplay";
 export { SearchBar, type SearchBarHandle, type SearchBarProps } from "./SearchBar";
@@ -15,4 +17,5 @@ export {
   type TagOperandInputMode,
   type TagOperandInputProps,
 } from "./TagOperandInput";
+export { TagSuggestionPopover, type TagSuggestionPopoverProps } from "./TagSuggestionPopover";
 export { WelcomeHero, type WelcomeHeroProps } from "./WelcomeHero";

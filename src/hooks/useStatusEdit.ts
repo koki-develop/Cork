@@ -3,7 +3,13 @@ import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/react
 import { useEffect, useRef, useState } from "react";
 
 import { saveStatuses } from "@/api";
-import { labelKey } from "@/lib/statuses";
+import {
+  buildCandidateStatuses,
+  buildRenameMap,
+  hasDuplicateLabel,
+  labelKey,
+  statusEntriesEqual,
+} from "@/lib/statuses";
 import type { EditingEntry, StatusEntry } from "@/types";
 
 type Options = {
@@ -23,10 +29,9 @@ export function useStatusEdit(
   const [focusId, setFocusId] = useState<string | null>(null);
 
   const lastPersisted = useRef<StatusEntry[]>(initialStatuses.map((s) => ({ label: s.label })));
-  const persistedLabelsById = useRef<Map<string, string> | null>(null);
-  if (persistedLabelsById.current === null) {
-    persistedLabelsById.current = new Map(editing.map((e) => [e.id, e.label]));
-  }
+  const persistedLabelsById = useRef<Map<string, string>>(
+    new Map(editing.map((e) => [e.id, e.label])),
+  );
 
   const initialKey = labelKey(initialStatuses);
 
@@ -44,29 +49,20 @@ export function useStatusEdit(
   }, [initialKey, initialStatuses]);
 
   const persist = async (next: EditingEntry[]): Promise<boolean> => {
-    const trimmed = next.map((e) => e.label.trim()).filter((label) => label.length > 0);
-    const lowered = trimmed.map((label) => label.toLowerCase());
-    if (new Set(lowered).size !== lowered.length) {
+    const candidate = buildCandidateStatuses(next);
+
+    if (hasDuplicateLabel(candidate)) {
       setError("Duplicate labels are not allowed.");
       return false;
     }
     setError(null);
 
-    const candidate: StatusEntry[] = trimmed.map((label) => ({ label }));
-    const prev = lastPersisted.current;
-    const isSame =
-      prev.length === candidate.length && candidate.every((c, i) => c.label === prev[i]?.label);
-    if (isSame) return true;
+    if (statusEntriesEqual(candidate, lastPersisted.current)) return true;
 
-    const renameMap: Record<string, string> = {};
-    if (prev.length === candidate.length) {
-      for (const entry of next) {
-        const prevLabel = persistedLabelsById.current?.get(entry.id);
-        if (prevLabel !== undefined && prevLabel !== entry.label.trim()) {
-          renameMap[prevLabel] = entry.label.trim();
-        }
-      }
-    }
+    const renameMap =
+      candidate.length === lastPersisted.current.length
+        ? buildRenameMap(next, persistedLabelsById.current)
+        : {};
 
     await saveStatuses(candidate, renameMap);
     lastPersisted.current = candidate;

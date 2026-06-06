@@ -1,6 +1,8 @@
 import { clsx } from "clsx";
 import { AnimatePresence, m } from "motion/react";
-import { type ReactNode, useEffect, useEffectEvent } from "react";
+import { type ReactNode } from "react";
+
+import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
 
 export type ModalProps = {
   isOpen: boolean;
@@ -17,18 +19,7 @@ export function Modal({
   closeAriaLabel = "Close",
   containerClassName,
 }: ModalProps) {
-  const onCloseEvent = useEffectEvent(onClose);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) {
-        onCloseEvent();
-      }
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [isOpen]);
+  useEscapeKey(onClose, isOpen, { respectDefaultPrevented: true });
 
   return (
     <AnimatePresence>

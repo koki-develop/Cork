@@ -1,17 +1,11 @@
 import { Plus } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
-import {
-  type KeyboardEvent,
-  type RefObject,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, type RefObject, useEffect, useEffectEvent, useRef } from "react";
 
 import { Button, Text } from "@/components/atoms";
 import { FilterRow } from "@/components/molecules";
+import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
+import { useClickOutside } from "@/hooks/ui/useClickOutside";
 import { isValidFilter } from "@/lib/filter";
 import type { TagFilter } from "@/types";
 
@@ -35,41 +29,13 @@ export function TagFilterPopover({
   const popoverRef = useRef<HTMLDivElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const firstRowRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{
-    top: number;
-    right: number;
-  } | null>(null);
 
-  useLayoutEffect(() => {
-    if (!isOpen) return;
-    const anchor = anchorRef.current;
-    if (!anchor) return;
-    const rect = anchor.getBoundingClientRect();
-    setPosition({
-      top: rect.bottom + 4,
-      right: globalThis.innerWidth - rect.right,
-    });
-  }, [isOpen, anchorRef]);
+  const rect = useAnchorRect(anchorRef, isOpen);
+  const position = rect
+    ? { top: rect.bottom + 4, right: globalThis.innerWidth - rect.right }
+    : null;
 
-  const onCloseEvent = useEffectEvent(onClose);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (popoverRef.current?.contains(target)) return;
-      if (anchorRef.current?.contains(target)) return;
-      // Floating popups (Select dropdowns, autocomplete suggestions) are
-      // portaled to document.body, so they appear "outside" the popover DOM.
-      // Treat them as inside for outside-click purposes.
-      if (target instanceof Element && target.closest("[data-floating-popup]")) {
-        return;
-      }
-      onCloseEvent();
-    };
-    document.addEventListener("mousedown", handleMouseDown);
-    return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [isOpen, anchorRef]);
+  useClickOutside([popoverRef, anchorRef], onClose, isOpen, { ignorePortalPopups: true });
 
   // Set initial focus only when the popover opens — not on every filter
   // add/remove. Reading `filters.length` here is intentionally stale-safe

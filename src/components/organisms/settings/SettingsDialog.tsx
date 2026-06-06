@@ -1,8 +1,6 @@
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/react";
-import { X } from "lucide-react";
 
-import { Heading } from "@/components/atoms";
-import { IconButton } from "@/components/molecules";
+import { DialogHeader } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import type { EditingEntry } from "@/types";
 
@@ -44,12 +42,7 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} closeAriaLabel="Close settings">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <Heading level={2} variant="page">
-          Settings
-        </Heading>
-        <IconButton icon={<X className="size-4" />} aria-label="Close" onClick={onClose} />
-      </div>
+      <DialogHeader title="Settings" onClose={onClose} />
 
       <WorkspaceDirectoryField path={currentDir} onPickDirectory={onPickDirectory} />
 

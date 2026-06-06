@@ -1,6 +1,9 @@
 import { clsx } from "clsx";
 import { AnimatePresence, m } from "motion/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
+
+import { useClickOutside } from "@/hooks/ui/useClickOutside";
+import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
 
 export type DropdownMenuItem = {
   label: string;
@@ -24,23 +27,8 @@ export function DropdownMenu({ trigger, triggerAriaLabel, items }: DropdownMenuP
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [open]);
+  useClickOutside([ref], () => setOpen(false), open);
+  useEscapeKey(() => setOpen(false), open);
 
   return (
     <div ref={ref} className="relative">

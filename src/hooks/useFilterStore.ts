@@ -11,9 +11,9 @@ const SAVE_DEBOUNCE_MS = 500;
 
 export function useFilterStore(workspaceDir: string | null): {
   filters: TagFilter[];
-  scheduleSave: (filters: TagFilter[]) => void;
+  setFilters: (next: TagFilter[]) => void;
 } {
-  const [filters, setFilters] = useState<TagFilter[]>([]);
+  const [filters, setFiltersState] = useState<TagFilter[]>([]);
   const saveTimerRef = useRef<number | null>(null);
   const workspaceDirRef = useRef(workspaceDir);
   workspaceDirRef.current = workspaceDir;
@@ -28,7 +28,7 @@ export function useFilterStore(workspaceDir: string | null): {
   useEffect(() => {
     cancelPendingSave();
     if (workspaceDir === null) {
-      setFilters([]);
+      setFiltersState([]);
       return;
     }
 
@@ -36,7 +36,7 @@ export function useFilterStore(workspaceDir: string | null): {
     getWorkspaceFilters().then(
       (stored) => {
         if (cancelled) return;
-        setFilters(
+        setFiltersState(
           stored.map((s) =>
             "tags" in s
               ? { id: crypto.randomUUID(), operator: s.operator, tags: s.tags }
@@ -63,18 +63,19 @@ export function useFilterStore(workspaceDir: string | null): {
     };
   }, []);
 
-  const scheduleSave = useCallback((filters: TagFilter[]) => {
+  const setFilters = useCallback((next: TagFilter[]) => {
+    setFiltersState(next);
     if (workspaceDirRef.current === null) return;
     if (saveTimerRef.current !== null) {
       globalThis.clearTimeout(saveTimerRef.current);
     }
     saveTimerRef.current = globalThis.setTimeout(() => {
       saveTimerRef.current = null;
-      setWorkspaceFilters(filters.map(toStored)).catch((err) => {
+      setWorkspaceFilters(next.map(toStored)).catch((err) => {
         toast.error(`Failed to save filters: ${err}`);
       });
     }, SAVE_DEBOUNCE_MS) as unknown as number;
   }, []);
 
-  return { filters, scheduleSave };
+  return { filters, setFilters };
 }

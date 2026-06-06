@@ -101,3 +101,29 @@ export function calculateMidpoint(prev: number | null, next: number | null): num
   if (next === null) return prev + 1.0;
   return (prev + next) / 2.0;
 }
+
+/**
+ * Picks the new `order` slot for a card just dropped at `idx` in `columnIds`,
+ * along with whether the column must be renumbered first.
+ *
+ * Renumber triggers when either neighbor's order is `null` (legacy tasks
+ * with no order can't anchor a midpoint) or when the midpoint collides with
+ * a neighbor's order (floating-point precision exhausted). In the renumber
+ * branch the new order falls back to the integer index so the backend's
+ * subsequent re-sort places the card at the same slot.
+ */
+export function computeDropOrder(
+  columnIds: string[],
+  idx: number,
+  tasksById: Map<string, Task>,
+): { order: number; renumber: boolean } {
+  const prevTask = idx > 0 ? tasksById.get(columnIds[idx - 1]) : null;
+  const nextTask = idx < columnIds.length - 1 ? tasksById.get(columnIds[idx + 1]) : null;
+  const midpoint = calculateMidpoint(prevTask?.order ?? null, nextTask?.order ?? null);
+  const renumber =
+    prevTask?.order === null ||
+    nextTask?.order === null ||
+    midpoint === prevTask?.order ||
+    midpoint === nextTask?.order;
+  return { order: renumber ? idx : midpoint, renumber };
+}

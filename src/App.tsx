@@ -2,52 +2,16 @@ import { AnimatePresence, domAnimation, LazyMotion, MotionConfig, m } from "moti
 import { Toaster } from "sonner";
 
 import { BoardPage, WelcomePage } from "@/components/pages";
-import { useWorkspace } from "@/hooks/useWorkspace";
+import { useCurrentDir } from "@/hooks/useCurrentDir";
 
 function App() {
-  const {
-    dir,
-    tasks,
-    statuses,
-    query,
-    filters,
-    availableTags,
-    loadTasks,
-    loadStatuses,
-    setDir,
-    createTask,
-    updateTask,
-    deleteTask,
-    moveTask,
-    renumberTasks,
-    reorderStatuses,
-    handleQueryChange,
-    handleFiltersChange,
-  } = useWorkspace();
+  const { dir, setDir } = useCurrentDir();
 
   const pageKey = dir ? "board" : "welcome";
-  const page = !dir ? (
-    <WelcomePage onDirectorySelected={setDir} />
+  const page = dir ? (
+    <BoardPage key={dir} dir={dir} setDir={setDir} />
   ) : (
-    <BoardPage
-      dir={dir}
-      tasks={tasks}
-      statuses={statuses}
-      searchQuery={query}
-      filters={filters}
-      availableTags={availableTags}
-      loadTasks={loadTasks}
-      loadStatuses={loadStatuses}
-      setDir={setDir}
-      onSearchChange={handleQueryChange}
-      onFiltersChange={handleFiltersChange}
-      createTask={createTask}
-      updateTask={updateTask}
-      deleteTask={deleteTask}
-      moveTask={moveTask}
-      renumberTasks={renumberTasks}
-      reorderStatuses={reorderStatuses}
-    />
+    <WelcomePage onDirectorySelected={setDir} />
   );
 
   return (

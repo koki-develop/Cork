@@ -1,6 +1,9 @@
 import { clsx } from "clsx";
 import { AnimatePresence, m } from "motion/react";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useRef } from "react";
+
+import { useClickOutside } from "@/hooks/ui/useClickOutside";
+import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
 
 import type { DropdownMenuItem } from "./DropdownMenu";
 
@@ -17,29 +20,10 @@ const itemColorStyles: Record<NonNullable<DropdownMenuItem["color"]>, string> = 
 
 export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const open = position !== null;
 
-  // Effect Event so the listeners read the latest onClose without
-  // re-subscribing on every parent render.
-  const onCloseEvent = useEffectEvent(onClose);
-
-  useEffect(() => {
-    if (!position) return;
-    const handleClick = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        onCloseEvent();
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseEvent();
-    };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [position]);
+  useClickOutside([wrapperRef], onClose, open, { primaryButtonOnly: true });
+  useEscapeKey(onClose, open);
 
   return (
     <div ref={wrapperRef} className="pointer-events-none fixed inset-0 z-50">

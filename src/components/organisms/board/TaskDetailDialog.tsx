@@ -2,17 +2,15 @@ import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { AutoresizeInput, Button, Heading, Text } from "@/components/atoms";
-import {
-  DropdownMenu,
-  ErrorBanner,
-  IconButton,
-  Select,
-  TagEditor,
-  type TagEditorHandle,
-} from "@/components/molecules";
+import { AutoresizeInput } from "@/components/atoms";
+import { DropdownMenu, FormField, IconButton, Select, TagEditor } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
+import { useDialogError } from "@/hooks/ui/useDialogError";
+import { useTagEditorController } from "@/hooks/ui/useTagEditorController";
+import { computeDirtyUpdates, type TaskFormSnapshot, withTaskUpdates } from "@/lib/task";
 import type { StatusEntry, Task, TaskUpdates } from "@/types";
+
+import { DeleteTaskConfirmDialog } from "./DeleteTaskConfirmDialog";
 
 export type TaskDetailDialogProps = {
   isOpen: boolean;
@@ -23,9 +21,6 @@ export type TaskDetailDialogProps = {
   onSaveTask: (taskId: string, updates: TaskUpdates) => Promise<void>;
   onDeleteTask: () => Promise<void>;
 };
-
-const tagsEqual = (a: string[], b: string[]) =>
-  a.length === b.length && a.every((t, i) => t === b[i]);
 
 export function TaskDetailDialog({
   isOpen,
@@ -44,31 +39,22 @@ export function TaskDetailDialog({
   const [status, setStatus] = useState(task.status);
   const [body, setBody] = useState(task.body);
   const [tags, setTags] = useState<string[]>(task.tags);
-  const [error, setError] = useState<string | null>(null);
+  const { error, setError, clearError } = useDialogError();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const originalRef = useRef({
+  const originalRef = useRef<TaskFormSnapshot>({
     title: task.title,
     status: task.status,
     body: task.body,
     tags: task.tags,
   });
-  const tagEditorRef = useRef<TagEditorHandle>(null);
-
-  const hasFieldChanged = (field: "title" | "status" | "body", value: string) =>
-    value !== originalRef.current[field];
-
-  const hasTagsChanged = (next: string[]) => !tagsEqual(next, originalRef.current.tags);
+  const tagEditor = useTagEditorController();
 
   const save = async (updates: TaskUpdates) => {
-    setError(null);
+    clearError();
     try {
       await onSaveTask(task.id, updates);
-      if (updates.title !== undefined) originalRef.current.title = updates.title;
-      if (updates.status !== undefined) originalRef.current.status = updates.status;
-      if (updates.body !== undefined) originalRef.current.body = updates.body;
-      if (updates.tags !== undefined) originalRef.current.tags = updates.tags;
+      originalRef.current = withTaskUpdates(originalRef.current, updates);
     } catch (e) {
       setError(String(e));
       // Roll local input state back to the last-persisted values so the UI
@@ -87,39 +73,33 @@ export function TaskDetailDialog({
       setTitle(originalRef.current.title);
       return;
     }
-    if (hasFieldChanged("title", trimmed)) {
+    if (trimmed !== originalRef.current.title) {
       save({ title: trimmed });
     }
   };
 
   const handleStatusChange = (newStatus: string) => {
     setStatus(newStatus);
-    if (hasFieldChanged("status", newStatus)) {
+    if (newStatus !== originalRef.current.status) {
       save({ status: newStatus });
     }
   };
 
   const handleBodyBlur = () => {
-    if (hasFieldChanged("body", body)) {
+    if (body !== originalRef.current.body) {
       save({ body });
     }
   };
 
   const handleTagsChange = (next: string[]) => {
     setTags(next);
-    if (hasTagsChanged(next)) {
-      save({ tags: next });
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    setDeleteError(null);
-    try {
-      await onDeleteTask();
-      setDeleteConfirmOpen(false);
-    } catch (e) {
-      setDeleteError(String(e));
-    }
+    const dirty = computeDirtyUpdates(originalRef.current, {
+      title: originalRef.current.title,
+      status: originalRef.current.status,
+      body: originalRef.current.body,
+      tags: next,
+    });
+    if (dirty.tags !== undefined) save({ tags: next });
   };
 
   const handleCopyPath = async () => {
@@ -137,25 +117,25 @@ export function TaskDetailDialog({
     // something new. Tag chip add/remove already triggers immediate saves
     // via handleTagsChange, so close-time tag-flush only matters when
     // there is unsubmitted text in the editor's input.
-    const pendingTag = tagEditorRef.current?.flushPending() ?? "";
-    const dirtyUpdates: TaskUpdates = {};
-    const trimmed = title.trim();
-    if (trimmed && hasFieldChanged("title", trimmed)) dirtyUpdates.title = trimmed;
-    if (hasFieldChanged("status", status)) dirtyUpdates.status = status;
-    if (hasFieldChanged("body", body)) dirtyUpdates.body = body;
-    if (pendingTag) {
-      const finalTags = [...tags, pendingTag];
-      setTags(finalTags);
-      dirtyUpdates.tags = finalTags;
-    }
+    const pendingTag = tagEditor.flushPending();
+    const finalTags = pendingTag ? [...tags, pendingTag] : tags;
+    const trimmedTitle = title.trim();
+    const current: TaskFormSnapshot = {
+      // Blank title is silently kept as the original (the title-required
+      // invariant only applies on field blur, not on dialog close).
+      title: trimmedTitle || originalRef.current.title,
+      status,
+      body,
+      tags: finalTags,
+    };
+    const dirtyUpdates = computeDirtyUpdates(originalRef.current, current);
+
+    if (pendingTag) setTags(finalTags);
 
     if (Object.keys(dirtyUpdates).length > 0) {
       try {
         await onSaveTask(task.id, dirtyUpdates);
-        if (dirtyUpdates.title !== undefined) originalRef.current.title = dirtyUpdates.title;
-        if (dirtyUpdates.status !== undefined) originalRef.current.status = dirtyUpdates.status;
-        if (dirtyUpdates.body !== undefined) originalRef.current.body = dirtyUpdates.body;
-        if (dirtyUpdates.tags !== undefined) originalRef.current.tags = dirtyUpdates.tags;
+        originalRef.current = withTaskUpdates(originalRef.current, dirtyUpdates);
       } catch (e) {
         setError(String(e));
         // Keep the dialog open so the user can see their unsaved edits
@@ -196,50 +176,34 @@ export function TaskDetailDialog({
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Text variant="label" size="xs" className="block">
-              Title
-            </Text>
+          <FormField label="Title" error={error}>
             <AutoresizeInput
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={handleTitleBlur}
               autoFocus
             />
-            {error && <ErrorBanner className="mt-1">{error}</ErrorBanner>}
-          </div>
+          </FormField>
 
-          <div className="flex flex-col gap-1.5">
-            <Text variant="label" size="xs" className="block">
-              Status
-            </Text>
+          <FormField label="Status">
             <Select
               value={status}
               onChange={handleStatusChange}
-              options={statuses.map((s) => ({
-                label: s.label,
-                value: s.label,
-              }))}
+              options={statuses.map((s) => ({ label: s.label, value: s.label }))}
             />
-          </div>
+          </FormField>
 
-          <div className="flex flex-col gap-1.5">
-            <Text variant="label" size="xs" className="block">
-              Tags
-            </Text>
+          <FormField label="Tags">
             <TagEditor
-              ref={tagEditorRef}
+              ref={tagEditor.ref}
               tags={tags}
               onChange={handleTagsChange}
               suggestions={availableTags}
               ariaLabel="Tags"
             />
-          </div>
+          </FormField>
 
-          <div className="flex flex-col gap-1.5">
-            <Text variant="label" size="xs" className="block">
-              Body
-            </Text>
+          <FormField label="Body">
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -249,44 +213,19 @@ export function TaskDetailDialog({
               rows={12}
               className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-cork-accent/30 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none focus:ring-1"
             />
-          </div>
+          </FormField>
         </div>
       </Modal>
 
-      <Modal
+      <DeleteTaskConfirmDialog
         isOpen={deleteConfirmOpen}
-        onClose={() => {
+        taskTitle={task.title}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={async () => {
+          await onDeleteTask();
           setDeleteConfirmOpen(false);
-          setDeleteError(null);
         }}
-        closeAriaLabel="Cancel delete"
-        containerClassName="max-w-sm"
-      >
-        <div className="flex flex-col gap-4">
-          <Heading level={2} variant="page">
-            Delete task?
-          </Heading>
-          <Text size="sm" className="text-cork-muted">
-            This will permanently delete &ldquo;{task.title}&rdquo;. This action cannot be undone.
-          </Text>
-          {deleteError && <ErrorBanner>{deleteError}</ErrorBanner>}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={() => {
-                setDeleteConfirmOpen(false);
-                setDeleteError(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button variant="primary" color="danger" size="md" onClick={handleConfirmDelete}>
-              Delete
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      />
     </>
   );
 }

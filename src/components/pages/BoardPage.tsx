@@ -1,60 +1,51 @@
 import { DragDropProvider } from "@dnd-kit/react";
-import { Copy, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getTask, onOpenSettings, pickDirectory, setWorkspaceDirectory } from "@/api";
-import { Button, Heading, Text } from "@/components/atoms";
-import { ContextMenu, FilterButton, SearchBar, type SearchBarHandle } from "@/components/molecules";
-import { CreateTaskDialog, KanbanColumn, TaskDetailDialog } from "@/components/organisms/board";
+import { FilterButton, SearchBar, type SearchBarHandle } from "@/components/molecules";
+import {
+  CreateTaskDialog,
+  DeleteTaskConfirmDialog,
+  KanbanColumn,
+  TaskContextMenu,
+  type TaskContextMenuState,
+  TaskDetailDialog,
+} from "@/components/organisms/board";
 import { SettingsDialog } from "@/components/organisms/settings";
-import { AppHeader, Modal, TagFilterPopover } from "@/components/organisms/shell";
+import { AppHeader, TagFilterPopover } from "@/components/organisms/shell";
 import { BoardLayout } from "@/components/templates";
 import { useBoardDragState } from "@/hooks/useBoardDragState";
 import { useStatusEdit } from "@/hooks/useStatusEdit";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { UNKNOWN_STATUS } from "@/lib/board";
 import { isValidFilter } from "@/lib/filter";
-import type { StatusEntry, TagFilter, Task, TaskUpdates } from "@/types";
+import type { Task, TaskUpdates } from "@/types";
 
 export type BoardPageProps = {
   dir: string;
-  tasks: Task[];
-  statuses: StatusEntry[];
-  searchQuery: string;
-  filters: TagFilter[];
-  availableTags: string[];
-  loadTasks: () => void;
-  loadStatuses: () => void;
   setDir: (path: string) => void;
-  onSearchChange: (value: string) => void;
-  onFiltersChange: (next: TagFilter[]) => void;
-  createTask: (title: string, status: string, body?: string, tags?: string[]) => Promise<void>;
-  updateTask: (taskId: string, updates: TaskUpdates) => Promise<Task>;
-  deleteTask: (taskId: string) => Promise<void>;
-  moveTask: (taskId: string, status: string, order: number) => Promise<void>;
-  renumberTasks: (paths: string[]) => Promise<void>;
-  reorderStatuses: (statuses: StatusEntry[]) => Promise<void>;
 };
 
-export function BoardPage({
-  dir,
-  tasks,
-  statuses,
-  searchQuery,
-  filters,
-  availableTags,
-  loadTasks,
-  loadStatuses,
-  setDir,
-  onSearchChange,
-  onFiltersChange,
-  createTask,
-  updateTask,
-  deleteTask,
-  moveTask,
-  renumberTasks,
-  reorderStatuses,
-}: BoardPageProps) {
+export function BoardPage({ dir, setDir }: BoardPageProps) {
+  const {
+    tasks,
+    query,
+    statuses,
+    filters,
+    availableTags,
+    setQuery,
+    setFilters,
+    loadTasks,
+    loadStatuses,
+    createTask,
+    updateTask,
+    deleteTask,
+    moveTask,
+    renumberTasks,
+    reorderStatuses,
+  } = useWorkspace(dir);
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => setSettingsOpen(true);
 
@@ -91,30 +82,12 @@ export function BoardPage({
   };
   const closeDetailDialog = () => setDetailDialogTask(null);
 
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    taskId: string;
-  } | null>(null);
-
+  const [contextMenu, setContextMenu] = useState<TaskContextMenuState | null>(null);
   const [deleteConfirmTaskId, setDeleteConfirmTaskId] = useState<string | null>(null);
 
   const handleCardContextMenu = useCallback((e: React.MouseEvent, taskId: string) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, taskId });
-  }, []);
-
-  const handleContextMenuCopyPath = useCallback(async (taskId: string) => {
-    try {
-      await navigator.clipboard.writeText(taskId);
-      toast.success("Copied path to clipboard");
-    } catch {
-      toast.error("Failed to copy path to clipboard");
-    }
-  }, []);
-
-  const handleContextMenuDelete = useCallback((taskId: string) => {
-    setDeleteConfirmTaskId(taskId);
   }, []);
 
   useEffect(() => {
@@ -204,6 +177,8 @@ export function BoardPage({
     setDir(path);
   };
 
+  const deleteConfirmTask = deleteConfirmTaskId ? tasksById.get(deleteConfirmTaskId) : undefined;
+
   return (
     <>
       <DragDropProvider onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
@@ -214,7 +189,7 @@ export function BoardPage({
           toolbar={
             <div className="flex items-center gap-4 px-6 pt-6 pb-0">
               <div className="min-w-0 flex-1">
-                <SearchBar ref={searchBarRef} value={searchQuery} onChange={onSearchChange} />
+                <SearchBar ref={searchBarRef} value={query} onChange={setQuery} />
               </div>
               <FilterButton
                 ref={filterButtonRef}
@@ -251,7 +226,7 @@ export function BoardPage({
         onClose={() => setFilterOpen(false)}
         anchorRef={filterButtonRef}
         filters={filters}
-        onFiltersChange={onFiltersChange}
+        onFiltersChange={setFilters}
         availableTags={availableTags}
       />
       <CreateTaskDialog
@@ -275,60 +250,21 @@ export function BoardPage({
           onDeleteTask={() => handleDeleteTask(lastDetailDialogTask.id)}
         />
       )}
-      <ContextMenu
-        position={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null}
+      <TaskContextMenu
+        state={contextMenu}
         onClose={() => setContextMenu(null)}
-        items={[
-          {
-            label: "Copy path",
-            icon: <Copy className="size-3.5" />,
-            onClick: () => {
-              if (contextMenu) handleContextMenuCopyPath(contextMenu.taskId);
-            },
-          },
-          {
-            label: "Delete",
-            icon: <Trash2 className="size-3.5" />,
-            color: "danger",
-            onClick: () => {
-              if (contextMenu) handleContextMenuDelete(contextMenu.taskId);
-            },
-          },
-        ]}
+        onDelete={(taskId) => setDeleteConfirmTaskId(taskId)}
       />
-      {deleteConfirmTaskId && tasksById.has(deleteConfirmTaskId) && (
-        <Modal
+      {deleteConfirmTask && (
+        <DeleteTaskConfirmDialog
           isOpen={true}
-          onClose={() => setDeleteConfirmTaskId(null)}
-          closeAriaLabel="Cancel delete"
-          containerClassName="max-w-sm"
-        >
-          <div className="flex flex-col gap-4">
-            <Heading level={2} variant="page">
-              Delete task?
-            </Heading>
-            <Text size="sm" className="text-cork-muted">
-              This will permanently delete &ldquo;
-              {tasksById.get(deleteConfirmTaskId)?.title}&rdquo;. This action cannot be undone.
-            </Text>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="md" onClick={() => setDeleteConfirmTaskId(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                color="danger"
-                size="md"
-                onClick={() => {
-                  handleDeleteTask(deleteConfirmTaskId);
-                  setDeleteConfirmTaskId(null);
-                }}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </Modal>
+          taskTitle={deleteConfirmTask.title}
+          onCancel={() => setDeleteConfirmTaskId(null)}
+          onConfirm={async () => {
+            await handleDeleteTask(deleteConfirmTask.id);
+            setDeleteConfirmTaskId(null);
+          }}
+        />
       )}
       <SettingsDialog
         isOpen={settingsOpen}

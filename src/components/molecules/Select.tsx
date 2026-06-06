@@ -1,7 +1,11 @@
 import { Check, ChevronDown } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
+import { useClickOutside } from "@/hooks/ui/useClickOutside";
+import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
 
 export type SelectOption = {
   label: string;
@@ -16,40 +20,14 @@ export type SelectProps = {
 
 export function Select({ value, onChange, options }: SelectProps) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useLayoutEffect(() => {
-    if (!open) return;
-    const el = triggerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-  }, [open]);
+  const rect = useAnchorRect(triggerRef, open);
+  const pos = rect ? { top: rect.bottom + 4, left: rect.left, width: rect.width } : null;
 
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (dropdownRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [open]);
+  useClickOutside([triggerRef, dropdownRef], () => setOpen(false), open);
+  useEscapeKey(() => setOpen(false), open);
 
   return (
     <>

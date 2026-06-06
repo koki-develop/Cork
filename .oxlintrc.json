@@ -144,12 +144,12 @@
                   "@/components/pages",
                   "@/components/pages/**",
                   "@/hooks",
-                  "@/hooks/**",
+                  "@/hooks/*",
                   "@/api",
                   "@/api/**",
                   "@tauri-apps/**"
                 ],
-                "message": "Molecules may only compose atoms."
+                "message": "Molecules compose atoms (+ UI-infra hooks under @/hooks/ui/). No domain hooks, no @/api, no Tauri."
               }
             ]
           }
@@ -170,12 +170,12 @@
                   "@/components/pages",
                   "@/components/pages/**",
                   "@/hooks",
-                  "@/hooks/**",
+                  "@/hooks/*",
                   "@/api",
                   "@/api/**",
                   "@tauri-apps/**"
                 ],
-                "message": "Organisms compose atoms/molecules. Receive side-effects via props."
+                "message": "Organisms compose atoms/molecules (+ UI-infra hooks under @/hooks/ui/). Domain side-effects via props."
               }
             ]
           }
@@ -198,7 +198,7 @@
                   "@/components/pages",
                   "@/components/pages/**",
                   "@/hooks",
-                  "@/hooks/**",
+                  "@/hooks/*",
                   "@/api",
                   "@/api/**",
                   "@tauri-apps/**"
@@ -226,7 +226,7 @@
                   "@/components/pages",
                   "@/components/pages/**",
                   "@/hooks",
-                  "@/hooks/**",
+                  "@/hooks/*",
                   "@/api",
                   "@/api/**",
                   "@tauri-apps/**"

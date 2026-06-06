@@ -28,9 +28,11 @@ Enforced by `.oxlintrc.json` (`no-restricted-imports` + per-path `overrides`).
 - `api/` — thin Tauri command wrappers (`invoke()` / `listen()` only here)
 - `lib/` — pure helpers (no React, no Tauri, no `@/api`)
 - `hooks/` — stateful React hooks; allowed to call `@/api` + `@/lib`
+  - `hooks/ui/` — UI-infra hooks (outside-click, anchor rect, escape key). May be imported from `molecules/` and `organisms/`. No `@/api`.
+  - Top-level `hooks/use*.ts` — domain hooks. Only `App.tsx` and `pages/` may import.
 - `types/` — domain types
 - `components/` — UI (atomic design; see `components/AGENTS.md`)
-- `App.tsx` — routing root; calls `useWorkspace` and routes between pages
+- `App.tsx` — routing root; calls `useCurrentDir` and routes between pages. `useWorkspace(dir)` is called inside `BoardPage`.
 
 ## Styling
 
