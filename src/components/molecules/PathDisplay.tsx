@@ -42,7 +42,7 @@ export function PathDisplay(props: PathDisplayProps) {
   }
 
   return (
-    <Text as="span" variant="mono" size="xs" truncate className={clsx("max-w-64", className)}>
+    <Text as="span" variant="mono" size="xs" truncate className={clsx("block min-w-0", className)}>
       {path}
     </Text>
   );

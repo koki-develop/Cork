@@ -17,15 +17,15 @@ export function AppHeader({ currentDir, taskCount, onOpenSettings }: AppHeaderPr
     <header
       data-tauri-drag-region="deep"
       className={clsx(
-        "border-cork-border/50 flex shrink-0 items-center justify-between border-b py-3",
+        "border-cork-border/50 flex shrink-0 items-center justify-between gap-4 border-b py-3",
         isMac ? "pr-6 pl-24" : "px-6",
       )}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <PathDisplay path={currentDir} />
       </div>
       <div className="flex items-center gap-2">
-        <Text variant="muted" size="xs">
+        <Text variant="muted" size="xs" className="whitespace-nowrap">
           {taskCount} {taskCount === 1 ? "task" : "tasks"}
         </Text>
         <IconButton
