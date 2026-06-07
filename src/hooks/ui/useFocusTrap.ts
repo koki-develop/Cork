@@ -35,9 +35,15 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, enable
         return;
       }
 
+      // `button:not([disabled])` and the other tag-specific selectors don't
+      // know about `tabindex="-1"` — e.g. the Modal backdrop is a tabIndex=-1
+      // button that still matches `button:not([disabled])`. Filter by the
+      // canonical tabIndex property so opted-out elements never enter the
+      // cycle (otherwise `focusable[0]` is the backdrop, `active === first`
+      // never matches the real first tab stop, and Shift+Tab leaks out).
       const focusable = Array.from(
         container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-      ).filter((el) => el.offsetParent !== null);
+      ).filter((el) => el.offsetParent !== null && el.tabIndex >= 0);
 
       if (focusable.length === 0) {
         e.preventDefault();
@@ -46,6 +52,21 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, enable
 
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
+
+      // Container itself focused (e.g. Modal opens with no [data-autofocus]
+      // and falls back to focusing its own tabIndex=-1 wrapper). It's not in
+      // the focusable cycle, so without intercepting here the browser default
+      // Shift+Tab would escape backward into whatever came before the
+      // container in document order. Wrap explicitly in both directions.
+      if (active === container) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          last.focus();
+        } else {
+          first.focus();
+        }
+        return;
+      }
 
       if (!(active instanceof Node) || !container.contains(active)) {
         e.preventDefault();
