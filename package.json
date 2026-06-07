@@ -7,6 +7,8 @@
     "prepare": "husky",
     "dev": "vite",
     "build": "tsc && vite build",
+    "prebundle": "tauri build",
+    "bundle": "tauri bundle",
     "preview": "vite preview",
     "tauri": "tauri",
     "format": "oxlint --fix && oxfmt",
