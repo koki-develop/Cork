@@ -15,5 +15,5 @@ Kanban surface — column, card, and the create / detail / delete dialogs. Must 
 
 ## Conventions
 
-- Dialogs are wrapped in `shell/Modal`. When stacking dialogs, pass `inert` to the parent — see `shell/Modal.tsx` for why native `showModal()` doesn't auto-inert parents.
+- Dialogs are wrapped in `shell/Modal`. When stacking dialogs, pass `inert` to the parent so it stops trapping focus / handling Escape while the nested dialog is up.
 - Cards are addressed by `Task.id` (the file path). dnd-kit droppables of type `card` belong to a column via their `group`.
