@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Task {
@@ -400,13 +401,7 @@ pub fn update_task(
 
     let target_path = if title_changed {
         let new_path = dir_canonical.join(format!("{}.md", new_title));
-        if new_path.exists() && new_path != path_canonical {
-            return Err(CommandError::DuplicateTask);
-        }
-        fs::write(&new_path, &new_content)?;
-        if new_path != path_canonical {
-            fs::remove_file(&path_canonical)?;
-        }
+        rename_and_write_task(&path_canonical, &new_path, &new_content)?;
         new_path
     } else {
         fs::write(&path_canonical, &new_content)?;
@@ -470,6 +465,52 @@ pub fn renumber_tasks(
         fs::write(&path_canonical, updated)?;
     }
     state.invalidate_cache();
+    Ok(())
+}
+
+static RENAME_TMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+/// Writes `content` to `dst`, renaming from `src` to `dst` when they differ.
+///
+/// On a case-insensitive filesystem (default macOS APFS, NTFS), a case-only
+/// title change makes `dst.exists()` report true while `dst` and `src`
+/// actually point to the same file. Treating that as a duplicate would
+/// reject legitimate `aaa` → `aaA` renames; conversely, the original
+/// `write(dst) + remove(src)` sequence would write the new content and
+/// then immediately delete it. We distinguish the cases with
+/// `canonicalize()` and, for case-only renames, go through a temp name so
+/// the directory entry's case is updated even on filesystems where
+/// `rename(2)` is a no-op when source and destination differ only in case
+/// (notably older HFS+).
+fn rename_and_write_task(src: &Path, dst: &Path, content: &str) -> CmdResult<()> {
+    if src == dst {
+        fs::write(src, content)?;
+        return Ok(());
+    }
+
+    let same_file =
+        dst.exists() && dst.canonicalize().ok().as_deref() == Some(src);
+
+    if dst.exists() && !same_file {
+        return Err(CommandError::DuplicateTask);
+    }
+
+    if same_file {
+        let parent = dst
+            .parent()
+            .ok_or_else(|| CommandError::other("destination has no parent"))?;
+        let tmp = parent.join(format!(
+            ".cork-rename-{}-{}.tmp",
+            std::process::id(),
+            RENAME_TMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::rename(src, &tmp)?;
+        fs::rename(&tmp, dst)?;
+        fs::write(dst, content)?;
+    } else {
+        fs::write(dst, content)?;
+        fs::remove_file(src)?;
+    }
     Ok(())
 }
 
@@ -586,6 +627,125 @@ mod tests {
     fn sanitize_title_composes_replacements_with_trim() {
         // Slash replacement happens before trim.
         assert_eq!(sanitize_title(" foo/bar ").unwrap(), "foo-bar");
+    }
+
+    // --- rename_and_write_task -----------------------------------------------
+
+    /// Detect at runtime whether the test's tempdir lives on a
+    /// case-insensitive filesystem. Used to skip case-only assertions on
+    /// case-sensitive filesystems (Linux ext4 in CI, APFS case-sensitive)
+    /// where the production path simply doesn't apply.
+    fn fs_is_case_insensitive(dir: &Path) -> bool {
+        let lower = dir.join("__cork_case_probe.tmp");
+        if fs::write(&lower, b"").is_err() {
+            return false;
+        }
+        let upper = dir.join("__CORK_CASE_PROBE.tmp");
+        let result = upper.exists();
+        fs::remove_file(&lower).ok();
+        result
+    }
+
+    #[test]
+    fn rename_writes_in_place_when_src_equals_dst() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("a.md");
+        fs::write(&path, "old").unwrap();
+
+        rename_and_write_task(&path, &path, "new").unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+    }
+
+    #[test]
+    fn rename_to_new_path_moves_file_and_updates_content() {
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("old.md");
+        let dst = dir.path().join("new.md");
+        fs::write(&src, "old").unwrap();
+
+        rename_and_write_task(&src, &dst, "new").unwrap();
+
+        assert!(!src.exists());
+        assert_eq!(fs::read_to_string(&dst).unwrap(), "new");
+    }
+
+    #[test]
+    fn rename_to_existing_distinct_file_returns_duplicate() {
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("a.md");
+        let dst = dir.path().join("b.md");
+        fs::write(&src, "a content").unwrap();
+        fs::write(&dst, "b content").unwrap();
+
+        let err = rename_and_write_task(&src, &dst, "new").unwrap_err();
+        assert!(matches!(err, CommandError::DuplicateTask));
+
+        // Neither file should have been touched.
+        assert_eq!(fs::read_to_string(&src).unwrap(), "a content");
+        assert_eq!(fs::read_to_string(&dst).unwrap(), "b content");
+    }
+
+    #[test]
+    fn rename_case_only_updates_filename_case_on_case_insensitive_fs() {
+        let dir = TempDir::new().unwrap();
+        if !fs_is_case_insensitive(dir.path()) {
+            // On case-sensitive filesystems (CI Linux), `aaA.md` doesn't
+            // exist when `aaa.md` does, so the case-only branch is
+            // unreachable. The "distinct files" test already covers the
+            // case-sensitive path.
+            return;
+        }
+
+        // Use canonical paths to match the production code path. macOS
+        // tempfile crates may return paths under `/var/folders/...` which
+        // canonicalize to `/private/var/folders/...`; without
+        // canonicalizing src, the `dst.canonicalize() == src` equality
+        // check would compare a canonical path to a non-canonical one and
+        // miss.
+        let dir_canonical = fs::canonicalize(dir.path()).unwrap();
+        let src = dir_canonical.join("aaa.md");
+        fs::write(&src, "old content").unwrap();
+        let dst = dir_canonical.join("aaA.md");
+
+        rename_and_write_task(&src, &dst, "new content").unwrap();
+
+        // Content was updated.
+        assert_eq!(fs::read_to_string(&dst).unwrap(), "new content");
+
+        // On-disk directory entry now uses the new case. Without the
+        // two-step rename, older HFS+ leaves the on-disk name as `aaa.md`
+        // even though both paths resolve to the same inode.
+        let md_entries: Vec<String> = fs::read_dir(&dir_canonical)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter_map(|e| e.file_name().into_string().ok())
+            .filter(|n| n.ends_with(".md"))
+            .collect();
+        assert_eq!(md_entries, vec!["aaA.md".to_string()]);
+    }
+
+    #[test]
+    fn rename_case_only_does_not_leak_temp_file() {
+        let dir = TempDir::new().unwrap();
+        if !fs_is_case_insensitive(dir.path()) {
+            return;
+        }
+
+        let dir_canonical = fs::canonicalize(dir.path()).unwrap();
+        let src = dir_canonical.join("foo.md");
+        fs::write(&src, "x").unwrap();
+        let dst = dir_canonical.join("Foo.md");
+
+        rename_and_write_task(&src, &dst, "y").unwrap();
+
+        let leftover: Vec<String> = fs::read_dir(&dir_canonical)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter_map(|e| e.file_name().into_string().ok())
+            .filter(|n| n.starts_with(".cork-rename-"))
+            .collect();
+        assert!(leftover.is_empty(), "leftover temp files: {:?}", leftover);
     }
 
     // --- read_task_preview ---------------------------------------------------
