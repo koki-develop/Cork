@@ -283,6 +283,7 @@ export function TagEditor({
       <TagSuggestionPopover
         open={popoverOpen}
         suggestions={filteredSuggestions}
+        query={pending}
         selectedIndex={selectedIndex}
         position={suggestionPos}
         onSelect={handleSuggestionClick}

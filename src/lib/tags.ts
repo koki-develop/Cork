@@ -26,3 +26,23 @@ export const fuzzySubsequenceMatch = (candidate: string, query: string): boolean
   }
   return true;
 };
+
+/**
+ * Indices in `candidate` of the characters matched by `query`'s subsequence
+ * scan, or `null` if no match. Empty query returns `[]`. Used by autocomplete
+ * UI to bold the matched characters.
+ */
+export const fuzzySubsequenceMatchIndices = (candidate: string, query: string): number[] | null => {
+  if (!query) return [];
+  const c = candidate.toLowerCase();
+  const q = query.toLowerCase();
+  const indices: number[] = [];
+  let ci = 0;
+  for (let qi = 0; qi < q.length; qi++) {
+    while (ci < c.length && c[ci] !== q[qi]) ci++;
+    if (ci === c.length) return null;
+    indices.push(ci);
+    ci++;
+  }
+  return indices;
+};

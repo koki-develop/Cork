@@ -1,11 +1,17 @@
 import { clsx } from "clsx";
+import { Hash } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import type { Ref } from "react";
 import { createPortal } from "react-dom";
 
+import { fuzzySubsequenceMatchIndices } from "@/lib/tags";
+
 export type TagSuggestionPopoverProps = {
   open: boolean;
   suggestions: string[];
+  /** Current input text. Used to bold the fuzzy-matched characters in each
+   *  suggestion. Optional — when omitted, labels render unstyled. */
+  query?: string;
   selectedIndex: number;
   position: { top: number; left: number; width: number } | null;
   onSelect: (suggestion: string) => void;
@@ -17,9 +23,31 @@ export type TagSuggestionPopoverProps = {
   container?: Element;
 };
 
+function HighlightedLabel({ label, query }: { label: string; query: string | undefined }) {
+  if (!query) return <>{label}</>;
+  const indices = fuzzySubsequenceMatchIndices(label, query);
+  if (!indices || indices.length === 0) return <>{label}</>;
+  const matched = new Set(indices);
+  const chars = Array.from(label);
+  return (
+    <>
+      {chars.map((ch, i) =>
+        matched.has(i) ? (
+          <span key={i} className="text-cork-accent-hover font-semibold">
+            {ch}
+          </span>
+        ) : (
+          <span key={i}>{ch}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 export function TagSuggestionPopover({
   open,
   suggestions,
+  query,
   selectedIndex,
   position,
   onSelect,
@@ -38,7 +66,7 @@ export function TagSuggestionPopover({
           // be treated as "inside" for outside-click detection.
           data-floating-popup="true"
           style={{ top: position.top, left: position.left, width: position.width }}
-          className="border-cork-border/60 bg-cork-surface fixed z-[60] max-h-[200px] origin-top-left overflow-y-auto rounded-lg border text-xs shadow-2xl"
+          className="border-cork-border/40 bg-cork-elevated fixed z-[60] max-h-[200px] origin-top-left overflow-y-auto rounded-lg border p-1 text-xs shadow-xl"
           initial={{ opacity: 0, scale: 0.95, y: -4 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -4 }}
@@ -59,11 +87,21 @@ export function TagSuggestionPopover({
                 onMouseEnter={() => onHover(index)}
                 onClick={() => onSelect(suggestion)}
                 className={clsx(
-                  "block w-full cursor-pointer px-2 py-1.5 text-left",
-                  isHighlighted ? "bg-cork-accent/15 text-cork-accent-hover" : "text-cork-text",
+                  "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-150",
+                  isHighlighted
+                    ? "bg-cork-accent/15 text-cork-text"
+                    : "text-cork-muted hover:bg-cork-accent/5 hover:text-cork-text",
                 )}
               >
-                {suggestion}
+                <Hash
+                  className={clsx(
+                    "size-3 shrink-0 transition-colors",
+                    isHighlighted ? "text-cork-accent-hover" : "text-cork-muted/60",
+                  )}
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  <HighlightedLabel label={suggestion} query={query} />
+                </span>
               </button>
             );
           })}
