@@ -8,6 +8,7 @@ export type IconButtonProps = {
   variant?: ButtonProps["variant"];
   color?: ButtonProps["color"];
   onClick?: ButtonProps["onClick"];
+  onMouseDown?: ButtonProps["onMouseDown"];
   className?: string;
 };
 
@@ -17,6 +18,7 @@ export function IconButton({
   variant = "ghost",
   color = "default",
   onClick,
+  onMouseDown,
   className,
 }: IconButtonProps) {
   return (
@@ -25,6 +27,7 @@ export function IconButton({
       color={color}
       size="sm"
       onClick={onClick}
+      onMouseDown={onMouseDown}
       className={className}
       aria-label={ariaLabel}
     >

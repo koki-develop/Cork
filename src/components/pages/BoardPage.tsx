@@ -161,13 +161,22 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
   };
 
   const handleSettingsClose = async () => {
+    // Mirrors the task detail dialog's close discipline. The flush always
+    // re-runs validation + save with the latest edits, so the user can fix
+    // an inline error and close cleanly in one press. The previous-error
+    // snapshot distinguishes "flush just surfaced this" (stay open so it's
+    // visible) from "the error was already visible before this attempt"
+    // (commit: discard the bad state, toast, close).
+    const previousError = error;
     try {
       await flushStatuses();
+      setSettingsOpen(false);
     } catch (e) {
+      if (!previousError) return;
       toast.error(String(e));
       resetStatuses();
+      setSettingsOpen(false);
     }
-    setSettingsOpen(false);
   };
 
   const handlePickDirectory = async () => {

@@ -105,6 +105,9 @@ function ModalDialog({
         tabIndex={-1}
         className="absolute inset-0 bg-black/60 backdrop-blur-xs"
         onClick={onClose}
+        // Keep focus on the active field so its blur-driven save handler
+        // doesn't race the close click.
+        onMouseDown={(e) => e.preventDefault()}
         aria-label={closeAriaLabel}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
