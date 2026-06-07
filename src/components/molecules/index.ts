@@ -7,6 +7,7 @@ export { FilterButton, type FilterButtonProps } from "./FilterButton";
 export { FilterRow, type FilterRowProps } from "./FilterRow";
 export { FormField, type FormFieldProps } from "./FormField";
 export { IconButton, type IconButtonProps } from "./IconButton";
+export { MenuList, type MenuListProps } from "./MenuList";
 export { PathDisplay, type PathDisplayProps } from "./PathDisplay";
 export { SearchBar, type SearchBarHandle, type SearchBarProps } from "./SearchBar";
 export { Select, type SelectOption, type SelectProps } from "./Select";

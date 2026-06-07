@@ -16,6 +16,7 @@ Atoms, external libraries, and **only** `@/hooks/ui/*` (UI-infra hooks). No orga
 | `FormField.tsx`            | Label + control + inline error wrapper.                                                  |
 | `DropdownMenu.tsx`         | Anchored menu list (used by task context menu).                                          |
 | `ContextMenu.tsx`          | Right-click context menu shell.                                                          |
+| `MenuList.tsx`             | Focus-managed menu items shared by `DropdownMenu` and `ContextMenu`.                     |
 | `Select.tsx`               | Custom select with portaled popover and keyboard nav.                                    |
 | `SearchBar.tsx`            | Title search input. Exposes a `SearchBarHandle` so `BoardPage` can focus it via `Cmd+F`. |
 | `FilterButton.tsx`         | Header button with active-count badge.                                                   |

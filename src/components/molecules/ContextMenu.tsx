@@ -1,4 +1,3 @@
-import { clsx } from "clsx";
 import { AnimatePresence, m } from "motion/react";
 import { useLayoutEffect, useRef, useState } from "react";
 
@@ -6,6 +5,7 @@ import { useClickOutside } from "@/hooks/ui/useClickOutside";
 import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
 
 import type { DropdownMenuItem } from "./DropdownMenu";
+import { MenuList } from "./MenuList";
 
 export type ContextMenuProps = {
   items: [DropdownMenuItem, ...DropdownMenuItem[]];
@@ -27,11 +27,6 @@ type ResolvedPlacement = {
 };
 
 const VIEWPORT_MARGIN = 8;
-
-const itemColorStyles: Record<NonNullable<DropdownMenuItem["color"]>, string> = {
-  default: "text-cork-text hover:bg-cork-accent/10",
-  danger: "text-red-400 hover:bg-red-500/10 hover:text-red-300",
-};
 
 function computePlacement(
   desired: { x: number; y: number },
@@ -96,6 +91,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
           <m.div
             ref={menuRef}
             key={`${position.x}-${position.y}`}
+            data-floating-popup="true"
             className="border-cork-border/40 bg-cork-elevated pointer-events-auto fixed z-50 w-max overflow-hidden rounded-lg border shadow-xl"
             style={{
               left: placement?.x ?? position.x,
@@ -108,23 +104,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
             exit={{ opacity: 0, scale: 0.95, y: -4 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
           >
-            {items.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => {
-                  onClose();
-                  item.onClick();
-                }}
-                className={clsx(
-                  "flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150",
-                  itemColorStyles[item.color ?? "default"],
-                )}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
+            <MenuList items={items} onSelect={onClose} />
           </m.div>
         )}
       </AnimatePresence>
