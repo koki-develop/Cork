@@ -126,6 +126,10 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
       onRenumberTasks: renumberTasks,
     });
 
+  // Toolbar is inert during a card drag — the pointer otherwise focuses the
+  // SearchBar input as the dragged card passes over it.
+  const [isDragging, setIsDragging] = useState(false);
+
   const {
     editing,
     error,
@@ -190,13 +194,20 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
 
   return (
     <>
-      <DragDropProvider onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+      <DragDropProvider
+        onDragStart={() => setIsDragging(true)}
+        onDragOver={handleDragOver}
+        onDragEnd={(event) => {
+          setIsDragging(false);
+          return handleDragEnd(event);
+        }}
+      >
         <BoardLayout
           header={
             <AppHeader currentDir={dir} taskCount={tasks.length} onOpenSettings={openSettings} />
           }
           toolbar={
-            <div className="flex items-center gap-4 px-6 pt-6 pb-0">
+            <div inert={isDragging} className="flex items-center gap-4 px-6 pt-6 pb-0">
               <div className="min-w-0 flex-1">
                 <SearchBar ref={searchBarRef} value={query} onChange={setQuery} />
               </div>
