@@ -54,6 +54,8 @@ export function TagEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const suggestionPopoverRef = useRef<HTMLDivElement>(null);
   const initialSuggestionsRef = useRef<Set<string> | null>(null);
+  const refocusRequestedRef = useRef(false);
+  const focusLastChipRequestedRef = useRef(false);
 
   // Capture the set of tags that existed in the workspace when this editor
   // mounted. Tags NOT in this set were typed by the user and don't exist in
@@ -79,6 +81,28 @@ export function TagEditor({
       inputRef.current.focus();
     }
   }, [autoFocus]);
+
+  // focus() on a disabled input is a no-op — defer until re-render enables it.
+  useEffect(() => {
+    if (refocusRequestedRef.current && !isFull) {
+      refocusRequestedRef.current = false;
+      inputRef.current?.focus();
+    }
+  }, [isFull]);
+
+  // When commit fills the editor, the input becomes disabled and browser
+  // focus drops to <body>. Re-anchor focus to the last chip's remove
+  // button so the next Tab continues from inside this row instead of
+  // being pulled to the popover's first focusable.
+  useEffect(() => {
+    if (focusLastChipRequestedRef.current && isFull) {
+      focusLastChipRequestedRef.current = false;
+      const buttons = containerRef.current?.querySelectorAll<HTMLButtonElement>(
+        'button[aria-label^="Remove tag "]',
+      );
+      buttons?.[buttons.length - 1]?.focus();
+    }
+  }, [isFull]);
 
   // Container size depends on tags/pending — recompute when they change.
   const popoverOpen = suggestionsEnabled && suggestionOpen;
@@ -108,7 +132,12 @@ export function TagEditor({
     const next = commitPending(tags, value);
     setPending("");
     setSelectedIndex(-1);
-    if (next !== tags) onChange(next);
+    if (next !== tags) {
+      onChange(next);
+      if (maxTags !== undefined && next.length >= maxTags) {
+        focusLastChipRequestedRef.current = true;
+      }
+    }
   };
 
   const removeAt = (index: number) => {
@@ -117,7 +146,11 @@ export function TagEditor({
       setLocallyRemoved((prev) => [...prev, removed]);
     }
     onChange(tags.filter((_, i) => i !== index));
-    inputRef.current?.focus();
+    if (isFull) {
+      refocusRequestedRef.current = true;
+    } else {
+      inputRef.current?.focus();
+    }
   };
 
   const removeLast = () => {
