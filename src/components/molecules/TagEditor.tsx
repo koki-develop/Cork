@@ -133,14 +133,20 @@ export function TagEditor({
     if (!suggestionsEnabled || !suggestionOpen) return false;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((i) =>
-        filteredSuggestions.length === 0 ? 0 : Math.min(i + 1, filteredSuggestions.length - 1),
-      );
+      setSelectedIndex((i) => {
+        if (filteredSuggestions.length === 0) return 0;
+        if (i < 0) return 0;
+        return (i + 1) % filteredSuggestions.length;
+      });
       return true;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((i) => (i <= 0 ? 0 : i - 1));
+      setSelectedIndex((i) => {
+        if (filteredSuggestions.length === 0) return 0;
+        if (i < 0) return filteredSuggestions.length - 1;
+        return (i - 1 + filteredSuggestions.length) % filteredSuggestions.length;
+      });
       return true;
     }
     if (e.key === "Escape") {
