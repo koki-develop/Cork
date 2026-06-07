@@ -31,7 +31,7 @@ pub fn update(content: &str, updates: &[(&str, serde_json::Value)]) -> String {
                 }
             }
             let yaml = serialize(&data);
-            format!("---\n{}---\n{}", yaml, body)
+            format!("---\n{}---\n\n{}", yaml, body)
         }
         Err(_) => {
             let mut fm = String::from("---\n");
@@ -68,7 +68,7 @@ pub fn remove_keys(content: &str, keys: &[&str]) -> Result<String, String> {
             }
             let yaml = serialize(&data);
             Ok(ensure_trailing_newline(format!(
-                "---\n{}---\n{}",
+                "---\n{}---\n\n{}",
                 yaml, body
             )))
         }
@@ -298,7 +298,7 @@ mod tests {
         let original = "---\nstatus: todo\n---\nLine one.\n\nLine two.\n";
         let updated = update(original, &[("status", serde_json::json!("doing"))]);
         let body_start = updated.find("\n---\n").unwrap() + 5;
-        assert_eq!(&updated[body_start..], "Line one.\n\nLine two.\n");
+        assert_eq!(&updated[body_start..], "\nLine one.\n\nLine two.\n");
         // No stray extra "---" markers were prepended.
         assert_eq!(updated.matches("---").count(), 2);
     }
@@ -511,7 +511,7 @@ mod tests {
         let content = "---\nstatus: todo\ntags:\n  - x\n---\nLine one.\n\nLine two.\n";
         let stripped = remove_keys(content, &["tags"]).unwrap();
         let body_start = stripped.find("\n---\n").unwrap() + 5;
-        assert_eq!(&stripped[body_start..], "Line one.\n\nLine two.\n");
+        assert_eq!(&stripped[body_start..], "\nLine one.\n\nLine two.\n");
     }
 
     #[test]

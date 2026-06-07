@@ -385,8 +385,8 @@ pub fn update_task(
         let with_updates = frontmatter::update(&content, &fm_updates);
         let marker = "\n---\n";
         let rebuilt = match with_updates.find(marker) {
-            Some(pos) => format!("{}{}", &with_updates[..pos + marker.len()], new_body),
-            None => format!("---\n---\n{}", new_body),
+            Some(pos) => format!("{}\n---\n\n{}", &with_updates[..pos], new_body),
+            None => format!("---\n---\n\n{}", new_body),
         };
         frontmatter::ensure_trailing_newline(rebuilt)
     } else {
