@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 
 import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
 import { useFocusTrap } from "@/hooks/ui/useFocusTrap";
+import { useIsTopOfModalStack } from "@/hooks/ui/useModalStack";
 
 export type ModalProps = {
   isOpen: boolean;
@@ -11,10 +12,6 @@ export type ModalProps = {
   children: ReactNode;
   closeAriaLabel?: string;
   containerClassName?: string;
-  /** Set true while a nested modal is open above this one. Disables this
-   *  modal's focus trap, Escape handler, and pointer interaction so the
-   *  nested modal owns input. */
-  inert?: boolean;
 };
 
 export function Modal({
@@ -23,7 +20,6 @@ export function Modal({
   children,
   closeAriaLabel = "Close",
   containerClassName,
-  inert,
 }: ModalProps) {
   return (
     <AnimatePresence>
@@ -32,7 +28,6 @@ export function Modal({
           onClose={onClose}
           closeAriaLabel={closeAriaLabel}
           containerClassName={containerClassName}
-          inert={inert}
         >
           {children}
         </ModalContainer>
@@ -46,7 +41,6 @@ type ModalContainerProps = {
   children: ReactNode;
   closeAriaLabel: string;
   containerClassName?: string;
-  inert?: boolean;
 };
 
 function ModalContainer({
@@ -54,17 +48,17 @@ function ModalContainer({
   children,
   closeAriaLabel,
   containerClassName,
-  inert,
 }: ModalContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const isTop = useIsTopOfModalStack();
 
-  useFocusTrap(containerRef, !inert);
+  useFocusTrap(containerRef, isTop);
   useEscapeKey(() => {
     // If a floating popup (e.g. Select dropdown) is open, let the child
     // component handle Escape instead of closing the modal.
     if (document.querySelector('[data-floating-popup="true"]')) return;
     onClose();
-  }, !inert);
+  }, isTop);
 
   // For initial focus we override the browser's default (which would land on
   // the first focusable child — typically the header close button):
@@ -97,7 +91,7 @@ function ModalContainer({
       role="dialog"
       aria-modal="true"
       tabIndex={-1}
-      inert={inert}
+      inert={!isTop}
       className="text-cork-text fixed inset-0 z-50 flex h-screen w-screen items-center justify-center outline-none"
     >
       <m.button

@@ -70,12 +70,7 @@ export function SettingsDialog({
 
   return (
     <>
-      <Modal
-        isOpen={isOpen}
-        onClose={onClose}
-        closeAriaLabel="Close settings"
-        inert={removingIndex !== null}
-      >
+      <Modal isOpen={isOpen} onClose={onClose} closeAriaLabel="Close settings">
         <DialogHeader title="Settings" onClose={onClose} />
 
         <WorkspaceDirectoryField path={currentDir} onPickDirectory={onPickDirectory} />
