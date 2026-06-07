@@ -17,7 +17,11 @@ export function AppHeader({ currentDir, taskCount, onOpenSettings }: AppHeaderPr
     <header
       data-tauri-drag-region="deep"
       className={clsx(
-        "border-cork-border/50 flex shrink-0 items-center justify-between gap-4 border-b py-3",
+        // z-[55] keeps the header above Modal's z-50 backdrop so the window
+        // drag region and traffic-light cluster stay reachable while a modal
+        // is open. Stays below z-[60] popovers (Select / TagSuggestion) so
+        // dropdowns opened inside a modal still cover the header.
+        "border-cork-border/50 relative z-[55] flex shrink-0 items-center justify-between gap-4 border-b py-3",
         isMac ? "pr-6 pl-24" : "px-6",
       )}
     >
