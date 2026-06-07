@@ -527,7 +527,7 @@ fn sanitize_title(title: &str) -> CmdResult<String> {
     Ok(trimmed)
 }
 
-/// Reads only frontmatter + up to 2 non-empty body lines from a file.
+/// Reads only frontmatter + up to 100 bytes of body from a file.
 /// Returns None if the file does not start with "---" (no frontmatter).
 fn read_task_preview(file_path: &Path) -> Option<String> {
     let file = fs::File::open(file_path).ok()?;
@@ -549,14 +549,12 @@ fn read_task_preview(file_path: &Path) -> Option<String> {
     }
 
     let mut body_lines: Vec<String> = Vec::new();
-    let mut non_empty = 0u32;
+    let mut total_bytes: usize = 0;
     for line in lines {
         let Ok(line) = line else { break };
-        if !line.trim().is_empty() {
-            non_empty += 1;
-        }
+        total_bytes += line.len();
         body_lines.push(line);
-        if non_empty >= 2 {
+        if total_bytes >= 100 {
             break;
         }
     }
@@ -794,31 +792,31 @@ mod tests {
     }
 
     #[test]
-    fn preview_stops_after_two_non_empty_body_lines() {
+    fn preview_stops_after_body_exceeds_100_bytes() {
         let dir = TempDir::new().unwrap();
         let f = write(
             dir.path(),
             "a.md",
-            "---\nstatus: todo\n---\nL1\nL2\nL3-should-not-appear\n",
+            &format!("---\nstatus: todo\n---\n{}\n{}\nC-should-not-appear\n", "A".repeat(50), "B".repeat(50)),
         );
         let preview = read_task_preview(&f).unwrap();
-        assert!(preview.contains("L1"));
-        assert!(preview.contains("L2"));
-        assert!(!preview.contains("L3-should-not-appear"));
+        assert!(preview.contains(&"A".repeat(50)));
+        assert!(preview.contains(&"B".repeat(50)));
+        assert!(!preview.contains("C-should-not-appear"));
     }
 
     #[test]
-    fn preview_includes_blank_lines_between_non_empty_lines() {
+    fn preview_includes_blank_lines_between_body_lines() {
         let dir = TempDir::new().unwrap();
         let f = write(
             dir.path(),
             "a.md",
-            "---\nstatus: todo\n---\nfirst\n\nsecond\nthird-excluded\n",
+            &format!("---\nstatus: todo\n---\n{}\n\n{}\nthird-excluded\n", "X".repeat(60), "Y".repeat(60)),
         );
         let preview = read_task_preview(&f).unwrap();
-        // Blank line is included as part of body, "third" is excluded.
-        assert!(preview.contains("first"));
-        assert!(preview.contains("second"));
+        // Blank line is included as part of body, "third-excluded" is excluded.
+        assert!(preview.contains(&"X".repeat(60)));
+        assert!(preview.contains(&"Y".repeat(60)));
         assert!(!preview.contains("third-excluded"));
     }
 

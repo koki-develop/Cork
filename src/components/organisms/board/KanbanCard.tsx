@@ -22,11 +22,8 @@ export function KanbanCard({ task, group, index, onClick, onContextMenu }: Kanba
     accept: "card",
   });
 
-  const bodyPreview = task.body
-    .split("\n")
-    .filter((l) => l.trim())
-    .slice(0, 2)
-    .join("\n");
+  const bodyPreview =
+    task.body.length > 100 ? task.body.slice(0, 100).trimEnd() + "…" : task.body.trim();
 
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions: clickable+draggable card needs a div for dnd-kit sortable ref
