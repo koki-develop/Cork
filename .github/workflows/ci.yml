@@ -30,4 +30,4 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - run: bun run bundle
+      - run: bun run tauri build --no-bundle
