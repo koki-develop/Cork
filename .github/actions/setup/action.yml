@@ -1,0 +1,15 @@
+name: Setup
+description: Setup the environment for the runner
+
+runs:
+  using: composite
+  steps:
+    - uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
+    - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+    - run: bun install --frozen-lockfile
+      shell: bash
