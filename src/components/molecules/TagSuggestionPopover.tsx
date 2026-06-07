@@ -87,7 +87,7 @@ export function TagSuggestionPopover({
                 onMouseEnter={() => onHover(index)}
                 onClick={() => onSelect(suggestion)}
                 className={clsx(
-                  "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-150",
+                  "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left",
                   isHighlighted
                     ? "bg-cork-accent/15 text-cork-text"
                     : "text-cork-muted hover:bg-cork-accent/5 hover:text-cork-text",
