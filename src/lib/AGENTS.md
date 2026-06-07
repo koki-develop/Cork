@@ -1,0 +1,11 @@
+# Pure helpers (`src/lib/`)
+
+Domain helpers that take inputs and return values. **No React, no Tauri, no `@/api`** (enforced by `.oxlintrc.json`). Testable in isolation; safe to import from any other layer.
+
+## Files
+
+- `board.ts` — Kanban column state derivation. `groupTasksByStatus`, `moveTaskToIndex` (geometry-aware insertion for column empty-area drops), `calculateMidpoint` + `computeDropOrder` (the floating-point `order` slot picker that triggers a backend `renumber` when precision is exhausted), and the `UNKNOWN_STATUS` sentinel for tasks whose status no longer matches any column.
+- `filter.ts` — `isValidFilter`: trims operand-less tag filters out of visible-count / save payloads.
+- `statuses.ts` — Status edit support: `labelKey` (cheap equality), `buildCandidateStatuses` (trim + drop blanks), `hasDuplicateLabel`, `statusEntriesEqual`, `buildRenameMap` (drives backend frontmatter migration on rename).
+- `tags.ts` — `commitPending` (dedup + trim a pending tag input), `fuzzySubsequenceMatch` (autocomplete predicate).
+- `task.ts` — Task form diff: `TaskFormSnapshot`, `computeDirtyUpdates` (returns a sparse `TaskUpdates`), `withTaskUpdates`.

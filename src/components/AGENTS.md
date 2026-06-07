@@ -1,4 +1,14 @@
-# Component rules (atomic design)
+# Components (`src/components/`)
+
+UI under atomic design. Each layer has its own `AGENTS.md` for per-layer detail; this file is the cross-layer contract.
+
+## Tree
+
+- `atoms/` — Single-element primitives. See `atoms/AGENTS.md`.
+- `molecules/` — Small compositions of atoms. See `molecules/AGENTS.md`.
+- `organisms/` — Self-contained UI blocks, domain-split. See `organisms/AGENTS.md`.
+- `templates/` — Layout skeletons with slots. See `templates/AGENTS.md`.
+- `pages/` — Wiring layer. See `pages/AGENTS.md`.
 
 ## Layer responsibilities
 
@@ -12,34 +22,10 @@
 
 `App.tsx` (one level up) shares page-tier privileges as the routing root and workspace state hoist point.
 
-## Organism domains
-
-- `board/` — Kanban card / column
-- `settings/` — Settings dialog and its parts
-- `shell/` — App-chrome infrastructure (header, modal). Importable from any domain.
-
-**`board/` ↔ `settings/` cross-import is forbidden.** `shell/` is open to all.
-
 ## Dependency rules
 
-- Lower layer cannot import upper layer (atoms cannot import molecules etc.)
-- Upper layer can skip layers downward (a page can import an atom directly)
-- Organisms and below receive Tauri / domain-hook side-effects via props
-- Molecules and organisms may import `@/hooks/ui/*` (UI-infra: `useClickOutside`, `useEscapeKey`, `useAnchorRect`) but NOT top-level domain hooks (`@/hooks/useWorkspace`, etc.)
-- Enforced by `.oxlintrc.json` `no-restricted-imports` with per-path `overrides`
-
-When you add a new organism domain folder, add a matching `overrides` entry in `.oxlintrc.json` to forbid cross-domain imports.
-
-## `pages/BoardPage` is the orchestration hub
-
-It is the **single caller** of `useWorkspace`, `useBoardDragState`, and `useStatusEdit`, and the **owner of**:
-
-- `settingsOpen` state
-- The `menu:open-settings` event subscription (the native `Cmd+,` shortcut)
-- The board-scoped `DragDropProvider`
-
-`App.tsx` owns only `dir` (via `useCurrentDir`) and routes between `WelcomePage` and `BoardPage`. `BoardPage` is keyed on `dir` so workspace switches remount cleanly. Status-list DnD has its own `DragDropProvider` inside `organisms/settings/StatusList` because the scope is self-contained there.
-
-## Tauri side-effect handler placement
-
-dnd-kit `DragDropProvider` itself is a UI scope manager and may live in any organism. Handlers that perform Tauri side-effects (e.g. persist on drag end) must originate in a page and be passed down as props.
+- Lower layer cannot import upper layer (atoms cannot import molecules etc.).
+- Upper layer can skip layers downward (a page can import an atom directly).
+- Organisms and below receive Tauri / domain-hook side-effects via props.
+- Molecules and organisms may import `@/hooks/ui/*` (UI-infra: `useClickOutside`, `useEscapeKey`, `useAnchorRect`, ...) but NOT top-level domain hooks (`@/hooks/useWorkspace`, etc.).
+- Enforced by `.oxlintrc.json` `no-restricted-imports` with per-path `overrides`.

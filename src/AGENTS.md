@@ -1,5 +1,17 @@
 # Frontend conventions (`src/`)
 
+Per-directory detail lives in each subdirectory's `AGENTS.md`. This file is the trunk: the tree, the rules that span directories, and the styling layer.
+
+## Tree
+
+- `api/` — Tauri command wrappers (the only place that calls `invoke()` / `listen()`). See `api/AGENTS.md`.
+- `lib/` — Pure helpers (no React, no Tauri). See `lib/AGENTS.md`.
+- `hooks/` — Stateful React hooks. Domain vs UI-infra split. See `hooks/AGENTS.md`.
+- `types/` — Domain types shared across layers. See `types/AGENTS.md`.
+- `components/` — UI under atomic design. See `components/AGENTS.md`.
+- `App.tsx` — Routing root. Calls `useCurrentDir` and routes between `WelcomePage` and `BoardPage`. Owns `dir` only; workspace state lives inside `BoardPage`.
+- `main.tsx` — React entry. Default-imports `App`.
+
 ## Path alias
 
 `@/* → src/*` (configured in `tsconfig.json` `compilerOptions.paths` + `vite.config.ts` `resolve.alias`). Use `@/...` for cross-layer imports; relative paths (`./Foo`) only for same-folder siblings.
@@ -10,7 +22,7 @@ Named exports throughout. **The one exception is `App.tsx`** — it keeps `expor
 
 ## File-vs-folder
 
-1 component = 1 file by default. Promote to a same-name folder (`Button.tsx` → `Button/Button.tsx` + `Button/index.ts`) only when adding tests, sub-components, or a co-located hook.
+1 component / hook = 1 file by default. Promote to a same-name folder (`Button.tsx` → `Button/Button.tsx` + `Button/index.ts`) only when adding tests, sub-components, or a co-located hook.
 
 ## Side-effect boundary
 
@@ -21,18 +33,7 @@ Named exports throughout. **The one exception is `App.tsx`** — it keeps `expor
 | `@tauri-apps/plugin-fs` (`watch`)  | `src/hooks/` and `src/api/` only           |
 | Project hooks (`@/hooks/*`)        | `App.tsx` and `src/components/pages/` only |
 
-Enforced by `.oxlintrc.json` (`no-restricted-imports` + per-path `overrides`).
-
-## Tree
-
-- `api/` — thin Tauri command wrappers (`invoke()` / `listen()` only here)
-- `lib/` — pure helpers (no React, no Tauri, no `@/api`)
-- `hooks/` — stateful React hooks; allowed to call `@/api` + `@/lib`
-  - `hooks/ui/` — UI-infra hooks (outside-click, anchor rect, escape key). May be imported from `molecules/` and `organisms/`. No `@/api`.
-  - Top-level `hooks/use*.ts` — domain hooks. Only `App.tsx` and `pages/` may import.
-- `types/` — domain types
-- `components/` — UI (atomic design; see `components/AGENTS.md`)
-- `App.tsx` — routing root; calls `useCurrentDir` and routes between pages. `useWorkspace(dir)` is called inside `BoardPage`.
+Enforced by `.oxlintrc.json` (`no-restricted-imports` + per-path `overrides`). The atomic-design layer-vs-layer rules live in `components/AGENTS.md`.
 
 ## Styling
 
