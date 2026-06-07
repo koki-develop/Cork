@@ -12,6 +12,9 @@
   --color-cork-text: #f1f5f9;
   --color-cork-accent: #6366f1;
   --color-cork-accent-hover: #818cf8;
+  --color-cork-danger-bg: #220808;
+  --color-cork-danger-border: #5c1a1a;
+  --color-cork-danger-text: #f87171;
 }
 
 @layer base {
@@ -41,6 +44,15 @@
   [data-tauri-drag-region] select,
   [data-tauri-drag-region] textarea {
     app-region: no-drag;
+  }
+
+  .toast-error {
+    background: var(--color-cork-danger-bg) !important;
+    border-color: var(--color-cork-danger-border) !important;
+  }
+
+  .toast-error [data-icon] {
+    color: var(--color-cork-danger-text) !important;
   }
 
   @media (prefers-reduced-motion: reduce) {

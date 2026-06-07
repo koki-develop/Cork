@@ -39,6 +39,9 @@ function App() {
               color: "var(--color-cork-text)",
               fontSize: "14px",
             },
+            classNames: {
+              error: "toast-error",
+            },
           }}
         />
       </MotionConfig>
