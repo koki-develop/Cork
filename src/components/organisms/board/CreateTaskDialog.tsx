@@ -123,7 +123,7 @@ export function CreateTaskDialog({
               placeholder="Body (optional)"
               aria-label="Body"
               rows={5}
-              className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 focus:border-cork-accent/50 focus:ring-cork-accent/30 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none focus:ring-1"
+              className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm"
             />
           </FormField>
 

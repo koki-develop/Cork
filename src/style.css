@@ -32,6 +32,15 @@
     @apply bg-cork-accent/30 text-cork-text;
   }
 
+  *:focus {
+    outline: none;
+  }
+
+  *:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--color-cork-accent) 50%, transparent);
+    outline-offset: 0;
+  }
+
   [data-tauri-drag-region] {
     app-region: drag;
     user-select: none;
@@ -63,5 +72,11 @@
       animation-iteration-count: 1;
       transition-duration: 0.01ms;
     }
+  }
+}
+
+@layer utilities {
+  *:focus-visible {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
   }
 }

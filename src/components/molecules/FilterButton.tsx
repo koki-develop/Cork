@@ -19,9 +19,8 @@ export function FilterButton({ count, isOpen, onClick, ref }: FilterButtonProps)
       aria-expanded={isOpen}
       aria-haspopup="dialog"
       className={clsx(
-        "bg-cork-elevated/60 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors duration-200 outline-none",
+        "bg-cork-elevated/60 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors duration-200",
         "hover:border-cork-border/60 hover:bg-cork-elevated",
-        "focus-visible:ring-cork-accent focus-visible:ring-1",
         active ? "border-cork-accent/50 text-cork-text" : "border-cork-border/40 text-cork-muted",
       )}
     >

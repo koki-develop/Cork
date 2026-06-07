@@ -72,21 +72,23 @@ export function KanbanColumn({
       </div>
       <div
         className={clsx(
-          "flex min-h-0 flex-1 flex-col gap-2 p-3 transition-colors duration-200",
+          "flex min-h-0 flex-1 flex-col transition-colors duration-200",
           isCardDropTarget && "bg-cork-accent/[0.06] ring-cork-accent/30 ring-1 ring-inset",
         )}
       >
         {showNewTaskButton && (
-          <Button
-            variant="dashed"
-            size="sm"
-            onClick={() => onCreateTask(label)}
-            className="w-full shrink-0"
-          >
-            <Plus className="size-3.5" />
-          </Button>
+          <div className="shrink-0 px-3 pt-3">
+            <Button
+              variant="dashed"
+              size="sm"
+              onClick={() => onCreateTask(label)}
+              className="w-full"
+            >
+              <Plus className="size-3.5" />
+            </Button>
+          </div>
         )}
-        <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto">
+        <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto p-3">
           {taskIds.map((id, i) => {
             const task = tasksById.get(id);
             if (!task) return null;

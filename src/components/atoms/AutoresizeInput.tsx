@@ -57,9 +57,8 @@ export function AutoresizeInput({
       onChange={handleChange}
       onKeyDown={handleKeyDown}
       className={clsx(
-        "border-cork-border/40 bg-cork-elevated/60 text-cork-text block w-full resize-none overflow-hidden rounded-lg border px-3 py-1.5 text-sm transition-colors duration-200 outline-none",
+        "border-cork-border/40 bg-cork-elevated/60 text-cork-text block w-full resize-none overflow-hidden rounded-lg border px-3 py-1.5 text-sm",
         "placeholder:text-cork-muted/50",
-        "focus:border-cork-accent/50 focus:ring-cork-accent/30 focus:ring-1",
         className,
       )}
       {...props}

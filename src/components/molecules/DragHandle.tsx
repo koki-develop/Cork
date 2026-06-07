@@ -12,7 +12,7 @@ export function DragHandle({ handleRef, "aria-label": ariaLabel }: DragHandlePro
       ref={handleRef}
       type="button"
       aria-label={ariaLabel}
-      className="text-cork-muted focus-visible:ring-cork-accent/50 inline-flex size-5 shrink-0 cursor-grab items-center justify-center rounded focus-visible:ring-1 focus-visible:outline-none active:cursor-grabbing"
+      className="text-cork-muted inline-flex size-5 shrink-0 cursor-grab items-center justify-center rounded active:cursor-grabbing"
     >
       <GripVertical className="size-3.5" />
     </button>
