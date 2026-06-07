@@ -1,11 +1,12 @@
 import { Plus } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
-import { type KeyboardEvent, type RefObject, useEffect, useEffectEvent, useRef } from "react";
+import { type RefObject, useEffect, useEffectEvent, useRef } from "react";
 
 import { Button, Text } from "@/components/atoms";
 import { FilterRow } from "@/components/molecules";
 import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
 import { useClickOutside } from "@/hooks/ui/useClickOutside";
+import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
 import { isValidFilter } from "@/lib/filter";
 import type { TagFilter } from "@/types";
 
@@ -36,6 +37,10 @@ export function TagFilterPopover({
     : null;
 
   useClickOutside([popoverRef, anchorRef], onClose, isOpen, { ignorePortalPopups: true });
+  useEscapeKey(() => {
+    if (document.querySelector('[data-floating-popup="true"]')) return;
+    onClose();
+  }, isOpen);
 
   // Set initial focus only when the popover opens — not on every filter
   // add/remove. Reading `filters.length` here is intentionally stale-safe
@@ -73,13 +78,6 @@ export function TagFilterPopover({
     }
   }, [isOpen, anchorRef]);
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onClose();
-    }
-  };
-
   const handleAddFilter = () => {
     const next: TagFilter[] = [
       ...filters,
@@ -110,7 +108,6 @@ export function TagFilterPopover({
           ref={popoverRef}
           role="dialog"
           aria-label="Filter tasks"
-          onKeyDown={handleKeyDown}
           className="border-cork-border/60 bg-cork-surface fixed z-40 flex max-h-[80vh] w-[480px] origin-top-right flex-col overflow-hidden rounded-xl border shadow-2xl"
           style={{ top: position.top, right: position.right }}
           initial={{ opacity: 0, scale: 0.95, y: -4 }}
