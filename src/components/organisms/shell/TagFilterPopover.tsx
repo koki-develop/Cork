@@ -7,6 +7,7 @@ import { FilterRow } from "@/components/molecules";
 import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
 import { useClickOutside } from "@/hooks/ui/useClickOutside";
 import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
+import { useFocusTrap } from "@/hooks/ui/useFocusTrap";
 import { isValidFilter } from "@/lib/filter";
 import type { TagFilter } from "@/types";
 
@@ -28,8 +29,6 @@ export function TagFilterPopover({
   availableTags,
 }: TagFilterPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
-  const addButtonRef = useRef<HTMLButtonElement>(null);
-  const firstRowRef = useRef<HTMLDivElement>(null);
 
   const rect = useAnchorRect(anchorRef, isOpen);
   const position = rect
@@ -41,20 +40,11 @@ export function TagFilterPopover({
     if (document.querySelector('[data-floating-popup="true"]')) return;
     onClose();
   }, isOpen);
-
-  // Set initial focus only when the popover opens — not on every filter
-  // add/remove. Reading `filters.length` here is intentionally stale-safe
-  // because the effect only fires on `isOpen` transition.
-  // eslint-disable-next-line react-hooks/exhaustive-deps: only refocus on open transition
-  useEffect(() => {
-    if (!isOpen) return;
-    if (filters.length === 0) {
-      addButtonRef.current?.focus();
-    } else {
-      const select = firstRowRef.current?.querySelector<HTMLButtonElement>("button[type='button']");
-      select?.focus();
-    }
-  }, [isOpen]);
+  // No auto-focus on open: the trap's "outside container → first focusable"
+  // branch pulls focus in on the first Tab, which is enough and avoids a
+  // stray focus ring on the first Select for mouse users (see Modal.tsx for
+  // the same reasoning behind its `[data-autofocus]` opt-in).
+  useFocusTrap(popoverRef, isOpen);
 
   // Prune empty-operand filters on close transition (regardless of trigger).
   // The popover keeps them around while open so the user can keep typing without
@@ -139,7 +129,7 @@ export function TagFilterPopover({
               </div>
             ) : (
               filters.map((filter, index) => (
-                <div key={filter.id} ref={index === 0 ? firstRowRef : undefined}>
+                <div key={filter.id}>
                   {index > 0 && (
                     <div className="my-2 flex items-center gap-2">
                       <div className="border-cork-border/30 flex-1 border-t" />
@@ -160,7 +150,7 @@ export function TagFilterPopover({
             )}
           </div>
           <div className="border-cork-border/40 border-t px-4 py-2.5">
-            <Button ref={addButtonRef} variant="dashed" size="md" onClick={handleAddFilter}>
+            <Button variant="dashed" size="md" onClick={handleAddFilter}>
               <Plus className="size-3.5" />
               Add filter
             </Button>
