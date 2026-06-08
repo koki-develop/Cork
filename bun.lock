@@ -8,6 +8,7 @@
         "@dnd-kit/helpers": "0.4.0",
         "@dnd-kit/react": "0.4.0",
         "@fontsource-variable/inter": "5.2.8",
+        "@fontsource-variable/space-grotesk": "5.2.10",
         "@tailwindcss/vite": "4.3.0",
         "@tauri-apps/api": "2.11.0",
         "@tauri-apps/plugin-fs": "2.5.1",
@@ -163,6 +164,8 @@
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.7.1", "", { "dependencies": { "@eslint/core": "^1.2.1", "levn": "^0.4.1" } }, "sha512-rZAP3aVgB9ds9KOeUSL+zZ21hPmo8dh6fnIFwRQj5EAZl9gzR7wxYbYXYysAM8CTqGmUGyp2S4kUdV17MnGuWQ=="],
 
     "@fontsource-variable/inter": ["@fontsource-variable/inter@5.2.8", "", {}, "sha512-kOfP2D+ykbcX/P3IFnokOhVRNoTozo5/JxhAIVYLpea/UBmCQ/YWPBfWIDuBImXX/15KH+eKh4xpEUyS2sQQGQ=="],
+
+    "@fontsource-variable/space-grotesk": ["@fontsource-variable/space-grotesk@5.2.10", "", {}, "sha512-yJQO/o35/hAP3CFnpdFTwQku2yzJOae2HIpBmqkOVoxhhXJaQP3g+b6Jrz7u+eI7A5ZdCIf88uMWpBJdFiGr5w=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.2", "", { "dependencies": { "@humanfs/types": "^0.15.0" } }, "sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA=="],
 

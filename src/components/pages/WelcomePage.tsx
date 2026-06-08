@@ -20,7 +20,6 @@ export function WelcomePage({ onDirectorySelected }: WelcomePageProps) {
     <WelcomeLayout>
       <WelcomeHero
         title="Cork"
-        subtitle="Kanban board for local Markdown files"
         ctaLabel="Select Workspace Directory"
         ctaIcon={<FolderOpen className="size-4" />}
         onCta={handleSelect}

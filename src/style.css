@@ -1,8 +1,10 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/space-grotesk";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
 
   --color-cork-bg: #020617;
   --color-cork-surface: #0f172a;

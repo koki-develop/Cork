@@ -1,25 +1,23 @@
 import type { ReactNode } from "react";
 
-import { Button, Heading, Text } from "@/components/atoms";
+import logoUrl from "@/assets/logo.png";
+import { Button, Heading } from "@/components/atoms";
 
 export type WelcomeHeroProps = {
   title: string;
-  subtitle: string;
   ctaLabel: string;
   ctaIcon?: ReactNode;
   onCta: () => void;
 };
 
-export function WelcomeHero({ title, subtitle, ctaLabel, ctaIcon, onCta }: WelcomeHeroProps) {
+export function WelcomeHero({ title, ctaLabel, ctaIcon, onCta }: WelcomeHeroProps) {
   return (
     <div className="flex flex-col items-center gap-8">
-      <div className="flex flex-col items-center gap-3">
-        <Heading level={1} variant="hero">
+      <div className="flex flex-col items-center gap-4">
+        <Heading level={1} variant="hero" className="font-display">
           {title}
         </Heading>
-        <Text variant="muted" size="sm">
-          {subtitle}
-        </Text>
+        <img src={logoUrl} alt="" className="size-28 drop-shadow-[0_0_2px_rgba(255,255,255,0.5)]" />
       </div>
       <Button variant="primary" size="lg" onClick={onCta} className="gap-2 rounded-xl">
         {ctaIcon}
