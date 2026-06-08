@@ -10,12 +10,7 @@ export function useWorkspaceStatuses(dir: string | null) {
 
   const loadStatuses = useCallback(async () => {
     const result = await getStatuses();
-    if (result === null) {
-      setStatuses(DEFAULT_STATUSES);
-      await saveStatuses(DEFAULT_STATUSES);
-    } else {
-      setStatuses(result);
-    }
+    setStatuses(result ?? DEFAULT_STATUSES);
   }, []);
 
   const reorderStatuses = useCallback(
