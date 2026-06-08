@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.0](https://github.com/koki-develop/Cork/compare/v0.0.2...v0.1.0) (2026-06-08)
+
+
+### Features
+
+* Release v0.1.0 ([401c389](https://github.com/koki-develop/Cork/commit/401c38952dd58a6c30d4503eeceec75d4ff4db0b))
+* Show app logo on WelcomePage ([2597feb](https://github.com/koki-develop/Cork/commit/2597feb46c09a366b835992604b2ceb21fb03f29))
+
 ## [0.0.2](https://github.com/koki-develop/Cork/compare/v0.0.1...v0.0.2) (2026-06-08)
 
 
