@@ -6,7 +6,11 @@ use tauri_plugin_fs::FsExt;
 use tauri_plugin_store::StoreExt;
 
 const SETTINGS_FILE: &str = "settings.json";
-const WORKSPACE_KEY: &str = "workspace_dir";
+
+/// Persisted as a JSON array of path strings, most recent first.
+const WORKSPACE_HISTORY_KEY: &str = "workspace_history";
+
+const MAX_WORKSPACE_HISTORY: usize = 50;
 
 // Per-workspace settings live under `workspaces.<path>.<setting>`. New
 // workspace-scoped settings should be added as additional sub-keys without
@@ -37,7 +41,10 @@ pub fn set_workspace_directory(
         .allow_directory(&dir, false)
         .map_err(CommandError::other)?;
     let store = app.store(SETTINGS_FILE).map_err(CommandError::other)?;
-    store.set(WORKSPACE_KEY, path);
+    let existing = store.get(WORKSPACE_HISTORY_KEY);
+    let history = parse_workspace_history(existing.as_ref());
+    let updated = prepend_unique_capped(history, path, MAX_WORKSPACE_HISTORY);
+    store.set(WORKSPACE_HISTORY_KEY, history_to_json(&updated));
     store.save().map_err(CommandError::other)?;
     Ok(())
 }
@@ -51,23 +58,56 @@ pub fn get_workspace_directory(
         return Some(dir.to_string_lossy().to_string());
     }
 
-    let stored = read_stored_workspace(&app)?;
-    if !stored.exists() {
-        return None;
-    }
+    let store = app.store(SETTINGS_FILE).ok()?;
+    let history = parse_workspace_history(store.get(WORKSPACE_HISTORY_KEY).as_ref());
+    // Skip entries that no longer resolve to a directory (drive unplugged,
+    // directory deleted, replaced by a file) and use the most recent
+    // surviving one. We do NOT mutate history on restore — startup is a
+    // read of "the most recent intent", not a new open event, so the order
+    // remains driven exclusively by explicit `set_workspace_directory`
+    // calls.
+    let dir = history
+        .into_iter()
+        .map(PathBuf::from)
+        .find(|p| p.is_dir())?;
 
-    state.set_workspace(stored.clone());
-    if let Err(e) = app.fs_scope().allow_directory(&stored, false) {
+    state.set_workspace(dir.clone());
+    if let Err(e) = app.fs_scope().allow_directory(&dir, false) {
         eprintln!("failed to allow directory in fs scope: {e}");
     }
-    Some(stored.to_string_lossy().to_string())
+    Some(dir.to_string_lossy().to_string())
 }
 
-fn read_stored_workspace(app: &tauri::AppHandle) -> Option<PathBuf> {
-    let store = app.store(SETTINGS_FILE).ok()?;
-    let value = store.get(WORKSPACE_KEY)?;
-    let dir = value.as_str()?;
-    Some(PathBuf::from(dir))
+/// Lenient on input shape: a missing key, a non-array value, or non-string
+/// array entries produce an empty list rather than an error. The history is
+/// best-effort UX state — refusing to start because of a hand-edited
+/// settings file would be worse than dropping the bad entries and letting
+/// the next write rebuild it cleanly.
+fn parse_workspace_history(value: Option<&serde_json::Value>) -> Vec<String> {
+    match value {
+        Some(serde_json::Value::Array(arr)) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn prepend_unique_capped(mut list: Vec<String>, new: String, cap: usize) -> Vec<String> {
+    list.retain(|p| p != &new);
+    list.insert(0, new);
+    list.truncate(cap);
+    list
+}
+
+fn history_to_json(history: &[String]) -> serde_json::Value {
+    serde_json::Value::Array(
+        history
+            .iter()
+            .cloned()
+            .map(serde_json::Value::String)
+            .collect(),
+    )
 }
 
 #[tauri::command]
@@ -87,14 +127,13 @@ pub fn get_workspace_filters(
     let Some(workspace_entry) = workspaces.get(&key) else {
         return Ok(Vec::new());
     };
-    let workspace = workspace_entry.as_object().ok_or_else(|| {
-        CommandError::other(format!("`workspaces.{}` is corrupted", key))
-    })?;
+    let workspace = workspace_entry
+        .as_object()
+        .ok_or_else(|| CommandError::other(format!("`workspaces.{}` is corrupted", key)))?;
     let Some(filters_value) = workspace.get(FILTERS_SUBKEY) else {
         return Ok(Vec::new());
     };
-    serde_json::from_value::<Vec<StoredFilter>>(filters_value.clone())
-        .map_err(CommandError::other)
+    serde_json::from_value::<Vec<StoredFilter>>(filters_value.clone()).map_err(CommandError::other)
 }
 
 /// Set or remove a single setting on a workspace, returning the new top-level
@@ -194,8 +233,7 @@ mod tests {
     #[test]
     fn update_workspaces_inserts_into_empty_store() {
         let value = filters_json(&["bug"]);
-        let result =
-            update_workspaces_map(None, "/path/a", FILTERS_SUBKEY, Some(value)).unwrap();
+        let result = update_workspaces_map(None, "/path/a", FILTERS_SUBKEY, Some(value)).unwrap();
         let map = result.expect("non-empty map expected");
         let entry = map.get("/path/a").unwrap().as_object().unwrap();
         assert!(entry.contains_key("filters"));
@@ -252,13 +290,15 @@ mod tests {
         });
         let result =
             update_workspaces_map(Some(&existing), "/path/a", FILTERS_SUBKEY, None).unwrap();
-        assert!(result.is_none(), "expected None to signal deletion of workspaces key");
+        assert!(
+            result.is_none(),
+            "expected None to signal deletion of workspaces key"
+        );
     }
 
     #[test]
     fn update_workspaces_returns_none_when_clearing_empty_store() {
-        let result =
-            update_workspaces_map(None, "/path/a", FILTERS_SUBKEY, None).unwrap();
+        let result = update_workspaces_map(None, "/path/a", FILTERS_SUBKEY, None).unwrap();
         assert!(result.is_none());
     }
 
@@ -301,6 +341,126 @@ mod tests {
         let map = result.expect("non-empty map expected");
         assert!(map.contains_key("/path/a"));
         assert!(map.contains_key("/path/b"));
+    }
+
+    #[test]
+    fn parse_workspace_history_returns_empty_for_none() {
+        assert!(parse_workspace_history(None).is_empty());
+    }
+
+    #[test]
+    fn parse_workspace_history_parses_array_of_strings() {
+        let value = json!(["/a", "/b", "/c"]);
+        let parsed = parse_workspace_history(Some(&value));
+        assert_eq!(parsed, vec!["/a", "/b", "/c"]);
+    }
+
+    #[test]
+    fn parse_workspace_history_drops_non_string_entries() {
+        let value = json!(["/a", 1, null, "/b", true, {}]);
+        let parsed = parse_workspace_history(Some(&value));
+        assert_eq!(parsed, vec!["/a", "/b"]);
+    }
+
+    #[test]
+    fn parse_workspace_history_returns_empty_for_non_array() {
+        for v in [json!("not array"), json!({}), json!(42), json!(null)] {
+            assert!(
+                parse_workspace_history(Some(&v)).is_empty(),
+                "expected empty for {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn prepend_unique_inserts_into_empty_list() {
+        let result = prepend_unique_capped(Vec::new(), "/a".to_string(), 10);
+        assert_eq!(result, vec!["/a".to_string()]);
+    }
+
+    #[test]
+    fn prepend_unique_pushes_new_entry_to_front() {
+        let result = prepend_unique_capped(
+            vec!["/b".to_string(), "/c".to_string()],
+            "/a".to_string(),
+            10,
+        );
+        assert_eq!(
+            result,
+            vec!["/a".to_string(), "/b".to_string(), "/c".to_string()]
+        );
+    }
+
+    #[test]
+    fn prepend_unique_dedupes_and_moves_existing_entry_to_front() {
+        let result = prepend_unique_capped(
+            vec!["/b".to_string(), "/a".to_string(), "/c".to_string()],
+            "/a".to_string(),
+            10,
+        );
+        assert_eq!(
+            result,
+            vec!["/a".to_string(), "/b".to_string(), "/c".to_string()]
+        );
+    }
+
+    #[test]
+    fn prepend_unique_is_noop_when_entry_already_at_front() {
+        let result = prepend_unique_capped(
+            vec!["/a".to_string(), "/b".to_string()],
+            "/a".to_string(),
+            10,
+        );
+        assert_eq!(result, vec!["/a".to_string(), "/b".to_string()]);
+    }
+
+    #[test]
+    fn prepend_unique_truncates_to_cap() {
+        let result = prepend_unique_capped(
+            vec!["/x".to_string(), "/y".to_string(), "/z".to_string()],
+            "/a".to_string(),
+            2,
+        );
+        assert_eq!(result, vec!["/a".to_string(), "/x".to_string()]);
+    }
+
+    #[test]
+    fn prepend_unique_dedupes_entries_past_the_cap() {
+        // Dedup runs before truncation, so an existing entry currently sitting
+        // beyond `cap` is still removed before promotion — preventing it
+        // from re-appearing alongside the new front entry.
+        let result = prepend_unique_capped(
+            vec!["/x".to_string(), "/y".to_string(), "/a".to_string()],
+            "/a".to_string(),
+            2,
+        );
+        assert_eq!(result, vec!["/a".to_string(), "/x".to_string()]);
+    }
+
+    #[test]
+    fn prepend_unique_caps_at_one_keeps_only_the_new_entry() {
+        let result = prepend_unique_capped(
+            vec!["/x".to_string(), "/y".to_string()],
+            "/a".to_string(),
+            1,
+        );
+        assert_eq!(result, vec!["/a".to_string()]);
+    }
+
+    #[test]
+    fn history_to_json_emits_plain_string_array() {
+        // Pins the on-disk shape so a future refactor of `history_to_json`
+        // can't silently break existing users' settings files.
+        let value = history_to_json(&["/a".to_string(), "/b".to_string()]);
+        assert_eq!(value, json!(["/a", "/b"]));
+    }
+
+    #[test]
+    fn history_to_json_roundtrips_through_parse() {
+        let original = vec!["/a".to_string(), "/b".to_string(), "/c".to_string()];
+        let value = history_to_json(&original);
+        let parsed = parse_workspace_history(Some(&value));
+        assert_eq!(parsed, original);
     }
 
     #[test]
