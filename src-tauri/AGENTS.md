@@ -13,7 +13,7 @@ src-tauri/src/
 ├── security.rs        workspace-scope path checks
 ├── frontmatter.rs     YAML frontmatter parse / update / serialize
 ├── menu.rs            macOS menu setup
-├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory)
+├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters) + workspace history
 ├── task.rs            Task type + task commands (list/get/create/update/delete/renumber, ...)
 └── status.rs          StatusEntry type + status commands + .cork.json read/write
 ```
@@ -40,7 +40,7 @@ Frontend write commands take a `path` argument. They **must** verify the path li
 
 ## Capabilities
 
-Capabilities are declared in `capabilities/default.json`. Current grants: `core:default`, `opener:default`, `fs:default`, `fs:allow-watch`, `store:default`. Any new Tauri plugin or fs operation likely needs a capability addition here.
+Capabilities are declared in `capabilities/default.json`. Current grants: `core:default`, `core:window:allow-start-dragging`, `opener:default`, `fs:default`, `fs:allow-watch`, `store:default`. Any new Tauri plugin or fs operation likely needs a capability addition here.
 
 ## Cargo deps
 
@@ -57,6 +57,7 @@ Covered modules:
 - `security.rs` — `canonical_workspace` / `ensure_in_workspace` / `check_in_workspace`, including symlink and `..` escape rejection
 - `frontmatter.rs` — `parse` / `update` / `serialize` and the private `format_yaml_float`
 - `task.rs` — `sanitize_title` and `read_task_preview`
+- `workspace.rs` — `parse_workspace_history` / `history_to_json` / `prepend_unique_capped` (workspace-history pure helpers) and `update_workspaces_map` (persisted-store mutation)
 
 Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime), `menu::setup`, `workspace::pick_directory` (GUI), and `workspace::set/get_workspace_directory` (need `AppHandle`). The commands are thin wrappers over the tested helpers, so the practical risk of skipping them is small.
 

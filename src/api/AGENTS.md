@@ -4,7 +4,7 @@ Thin wrappers around `invoke()` / `listen()`. The **only** place in `src/` allow
 
 ## Files
 
-- `tasks.ts` — Task CRUD: `listTasks`, `listAllTags`, `getTask`, `createTask`, `moveTask`, `renumberTasks`, `updateTask`, `deleteTask`. `TagFilter` is normalized to `StoredFilter` before sending.
+- `tasks.ts` — Task CRUD: `listTasks`, `listAllTags`, `getTask`, `createTask`, `moveTask`, `renumberTasks`, `updateTask`, `deleteTask`, and `reconcileExternalStatusChanges` (re-scan task frontmatter after external edits). `TagFilter` is normalized to `StoredFilter` before sending.
 - `statuses.ts` — Status list: `getStatuses`, `saveStatuses` (the optional `renameMap` argument drives the backend's task-frontmatter migration on label rename).
 - `workspace.ts` — Workspace dir + persisted filters: `pickDirectory`, `getWorkspaceDirectory`, `setWorkspaceDirectory`, `getWorkspaceFilters`, `setWorkspaceFilters`.
 - `menu.ts` — Native menu events: `onOpenSettings` (subscription to `menu:open-settings`).
