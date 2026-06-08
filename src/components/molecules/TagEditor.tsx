@@ -11,6 +11,7 @@ import {
 
 import { TagChip } from "@/components/atoms";
 import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
+import { isImeKeyEvent } from "@/lib/keyboard";
 import { commitPending, fuzzySubsequenceMatch } from "@/lib/tags";
 
 import { TagSuggestionPopover } from "./TagSuggestionPopover";
@@ -192,12 +193,11 @@ export function TagEditor({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    // WebKit (Safari / Tauri WKWebView) fires compositionend BEFORE the
-    // keydown that confirmed the IME, so isComposing is already false by
-    // the time we get here and the Enter would commit the pending tag.
-    // keyCode is 229 for IME-generated key events (13 for a real Enter) —
-    // deprecated but the only reliable cross-browser signal for this case.
-    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    // IME-generated keydowns (composition / confirm / cancel) belong to the
+    // IME — letting them through would commit a pending tag on the Enter that
+    // confirmed the conversion, or close the suggestion popover on the Esc
+    // that cancelled it.
+    if (isImeKeyEvent(e)) return;
     if (handleSuggestionNavKey(e)) return;
 
     if (e.key === "Enter" || e.key === "," || e.key === "Tab") {

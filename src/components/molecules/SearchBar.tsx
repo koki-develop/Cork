@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { type Ref, useImperativeHandle, useRef } from "react";
 
 import { Input } from "@/components/atoms";
+import { isImeKeyEvent } from "@/lib/keyboard";
 
 export type SearchBarHandle = {
   focus: () => void;
@@ -24,6 +25,9 @@ export function SearchBar({ value, onChange, ref }: SearchBarProps) {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
+      // Esc during IME composition cancels the in-flight conversion — don't
+      // also clear the input or blur, that belongs to the IME.
+      if (isImeKeyEvent(e)) return;
       if (value !== "") onChange("");
       inputRef.current?.blur();
     }
