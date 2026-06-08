@@ -31,6 +31,7 @@ pub fn run() {
             task::renumber_tasks,
             task::delete_task,
             task::get_task,
+            task::reconcile_external_status_changes,
             status::get_statuses,
             status::save_statuses,
         ])

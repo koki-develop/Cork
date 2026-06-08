@@ -1,12 +1,12 @@
 use crate::error::{CmdResult, CommandError};
 use crate::frontmatter;
 use crate::security;
-use crate::state::AppState;
+use crate::state::{AppState, TaskSnapshot};
 use nucleo_matcher::pattern::{AtomKind, CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
@@ -172,12 +172,14 @@ pub fn list_tasks(
     let cached = if has_query || has_filters {
         state.get_cached_tasks().unwrap_or_else(|| {
             let all = read_all_tasks(&dir);
-            state.set_cached_tasks(all);
-            state.get_cached_tasks().unwrap()
+            state.set_cached_tasks(all.clone());
+            state.seed_last_reported_if_empty(&all);
+            all
         })
     } else {
         let all = read_all_tasks(&dir);
         state.set_cached_tasks(all.clone());
+        state.seed_last_reported_if_empty(&all);
         all
     };
 
@@ -192,15 +194,25 @@ pub fn list_all_tags(state: tauri::State<'_, AppState>) -> Vec<String> {
 
     let cached = state.get_cached_tasks().unwrap_or_else(|| {
         let all = read_all_tasks(&dir);
-        state.set_cached_tasks(all);
-        state.get_cached_tasks().unwrap()
+        state.set_cached_tasks(all.clone());
+        state.seed_last_reported_if_empty(&all);
+        all
     });
 
     collect_unique_tags_sorted(&cached)
 }
 
 fn read_all_tasks(dir: &Path) -> Vec<Task> {
-    let md_files: Vec<PathBuf> = fs::read_dir(dir)
+    // Canonicalize so the resulting task ids match what mutation commands
+    // produce (those go through `security::ensure_in_workspace`, which
+    // returns canonical paths). Without this, on filesystems where the
+    // workspace path is non-canonical (e.g. macOS `/var/folders` →
+    // `/private/var/folders`), the snapshot keyed by mutation ids would
+    // never match the list_tasks ids, and reconciliation would silently
+    // skip every task. Fall back to `dir` as-is when canonicalize fails so
+    // we still attempt the scan (the error surfaces via `read_dir` below).
+    let scan_dir = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    let md_files: Vec<PathBuf> = fs::read_dir(&scan_dir)
         .map(|entries| {
             entries
                 .flatten()
@@ -233,14 +245,7 @@ fn read_all_tasks(dir: &Path) -> Vec<Task> {
         })
         .collect();
 
-    tasks.sort_by(|a, b| {
-        let a_order = a.order.unwrap_or(f64::MAX);
-        let b_order = b.order.unwrap_or(f64::MAX);
-        a_order
-            .partial_cmp(&b_order)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| a.title.cmp(&b.title))
-    });
+    sort_tasks_by_order(&mut tasks);
     tasks
 }
 
@@ -302,8 +307,11 @@ pub fn create_task(
     fs::write(&file_path, content)?;
     state.invalidate_cache();
 
+    let id = file_path.to_string_lossy().to_string();
+    state.upsert_last_reported(id.clone(), status.clone(), order);
+
     Ok(Task {
-        id: file_path.to_string_lossy().to_string(),
+        id,
         title,
         status,
         body,
@@ -399,9 +407,14 @@ pub fn update_task(
         _ => new_content,
     };
 
+    let old_id = path_canonical.to_string_lossy().to_string();
     let target_path = if title_changed {
         let new_path = dir_canonical.join(format!("{}.md", new_title));
         rename_and_write_task(&path_canonical, &new_path, &new_content)?;
+        // Title change = file rename = id change. Drop the old key so the
+        // snapshot doesn't carry a phantom entry for a path no longer on
+        // disk; the new id is inserted below.
+        state.remove_last_reported(&old_id);
         new_path
     } else {
         fs::write(&path_canonical, &new_content)?;
@@ -410,8 +423,11 @@ pub fn update_task(
 
     state.invalidate_cache();
 
+    let id = target_path.to_string_lossy().to_string();
+    state.upsert_last_reported(id.clone(), new_status.clone(), current_order);
+
     Ok(Task {
-        id: target_path.to_string_lossy().to_string(),
+        id,
         title: new_title,
         status: new_status,
         body: new_body,
@@ -439,6 +455,7 @@ pub fn move_task(
     );
     fs::write(&path, updated)?;
     state.invalidate_cache();
+    state.upsert_last_reported(path.to_string_lossy().to_string(), status, Some(order));
     Ok(())
 }
 
@@ -448,6 +465,7 @@ pub fn delete_task(path: String, state: tauri::State<'_, AppState>) -> CmdResult
     let path = security::ensure_in_workspace(&dir, Path::new(&path))?;
     fs::remove_file(&path)?;
     state.invalidate_cache();
+    state.remove_last_reported(&path.to_string_lossy());
     Ok(())
 }
 
@@ -458,13 +476,156 @@ pub fn renumber_tasks(
 ) -> CmdResult<()> {
     let dir = state.require_workspace()?;
     let dir_canonical = security::canonical_workspace(&dir)?;
+    // Snapshot once up front so we don't clone the whole HashMap per path.
+    // `upsert_last_reported` further down mutates the live snapshot, but the
+    // values we read here (status) are per-path and never modified by other
+    // iterations, so a single-shot clone is sufficient for the lookups.
+    let snapshot = state.get_last_reported();
     for (i, path) in paths.iter().enumerate() {
         let path_canonical = security::check_in_workspace(&dir_canonical, Path::new(path))?;
         let content = fs::read_to_string(&path_canonical)?;
         let updated = frontmatter::update(&content, &[("order", serde_json::json!(i as f64))]);
         fs::write(&path_canonical, updated)?;
+        // Only `order` changes here; preserve the existing snapshot's
+        // status (or leave the entry alone if it isn't snapshotted yet —
+        // the next reconcile will seed it after a list_tasks refresh).
+        let id = path_canonical.to_string_lossy().to_string();
+        if let Some((status, _)) = snapshot.get(&id) {
+            state.upsert_last_reported(id, status.clone(), Some(i as f64));
+        }
     }
     state.invalidate_cache();
+    Ok(())
+}
+
+/// Detects status changes that look like external file edits — `status`
+/// differs from the last-seen snapshot while `order` is unchanged — and
+/// assigns those tasks a new `order` that places them at the top of their
+/// new column. Status-only edits are the case the user actually wants
+/// repaired: when they open the .md file in an editor and flip
+/// `status: Todo` → `status: Doing`, the stale `order` value carries over,
+/// landing the task somewhere in the middle of the new column where it's
+/// hard to find.
+///
+/// Skipped: title changes (the file rename changes the id, so no diff is
+/// detectable), body / tags changes (status equal → no diff), and edits
+/// where the user touched `order` themselves (different order → assume
+/// intentional placement).
+///
+/// The new order for each moved task is `min(orders in new column) - 1`,
+/// distributing one slot per moved task to avoid collisions when multiple
+/// tasks land in the same destination column at once.
+pub fn compute_reconciled_orders(
+    tasks: &[Task],
+    prev: &HashMap<String, TaskSnapshot>,
+) -> HashMap<String, f64> {
+    let to_move: Vec<(&str, &str)> = tasks
+        .iter()
+        .filter_map(|task| {
+            let (prev_status, prev_order) = prev.get(&task.id)?;
+            let order_unchanged = match (*prev_order, task.order) {
+                (None, None) => true,
+                (Some(a), Some(b)) => a == b,
+                _ => false,
+            };
+            if prev_status != &task.status && order_unchanged {
+                Some((task.id.as_str(), task.status.as_str()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if to_move.is_empty() {
+        return HashMap::new();
+    }
+
+    let moved_ids: HashSet<&str> = to_move.iter().map(|m| m.0).collect();
+    let mut by_dest: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (id, status) in &to_move {
+        by_dest.entry(*status).or_default().push(*id);
+    }
+
+    let mut new_orders: HashMap<String, f64> = HashMap::new();
+    for (dest_status, moved_in_dest) in &by_dest {
+        let min_existing = tasks
+            .iter()
+            .filter(|t| t.status == *dest_status && !moved_ids.contains(t.id.as_str()))
+            .filter_map(|t| t.order)
+            .fold(f64::INFINITY, f64::min);
+        // Empty column anchors at 0; with prior cards, slot decreasingly
+        // below the smallest existing `order`. The `- 1.0 - i` step gives
+        // each batched task a distinct slot so they don't collapse to the
+        // same float when multiple are reconciled at once.
+        let base = if min_existing.is_finite() {
+            min_existing
+        } else {
+            1.0
+        };
+        for (i, id) in moved_in_dest.iter().enumerate() {
+            new_orders.insert(id.to_string(), base - 1.0 - i as f64);
+        }
+    }
+
+    new_orders
+}
+
+fn sort_tasks_by_order(tasks: &mut [Task]) {
+    tasks.sort_by(|a, b| {
+        let a_order = a.order.unwrap_or(f64::MAX);
+        let b_order = b.order.unwrap_or(f64::MAX);
+        a_order
+            .partial_cmp(&b_order)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.title.cmp(&b.title))
+    });
+}
+
+/// Detect and repair external status edits — see `compute_reconciled_orders`.
+///
+/// Called by the frontend each time the workspace file watcher reports a
+/// `.md` change. The command invalidates the cache so this run reads fresh
+/// disk state, computes which tasks (if any) need a new `order`, writes
+/// those `order` updates back to disk, and refreshes both the cache and the
+/// snapshot so subsequent `list_tasks` calls return the reconciled list.
+///
+/// No-op when nothing changed: the frontend's own writes also fire the
+/// watcher, but by the time this runs the snapshot already matches disk so
+/// no reconciliation triggers.
+#[tauri::command]
+pub fn reconcile_external_status_changes(state: tauri::State<'_, AppState>) -> CmdResult<()> {
+    let Some(dir) = state.workspace() else {
+        return Ok(());
+    };
+
+    // The cache may have been populated from a query/filter call that ran
+    // before the external edit landed — invalidate so we read fresh.
+    state.invalidate_cache();
+    let mut fresh_tasks = read_all_tasks(&dir);
+
+    let prev = state.get_last_reported();
+    let new_orders = compute_reconciled_orders(&fresh_tasks, &prev);
+
+    // Write the order updates first; only mutate in-memory state once disk
+    // writes have all succeeded. Partial writes still update the snapshot
+    // on the next list_tasks call, but we don't want to claim success on
+    // the cache while disk is half-updated.
+    for (id, &new_order) in &new_orders {
+        let path = Path::new(id);
+        let content = fs::read_to_string(path)?;
+        let updated = frontmatter::update(&content, &[("order", serde_json::json!(new_order))]);
+        fs::write(path, updated)?;
+    }
+
+    for task in fresh_tasks.iter_mut() {
+        if let Some(&new_order) = new_orders.get(&task.id) {
+            task.order = Some(new_order);
+        }
+    }
+    sort_tasks_by_order(&mut fresh_tasks);
+
+    state.set_cached_tasks(fresh_tasks.clone());
+    state.set_last_reported(&fresh_tasks);
     Ok(())
 }
 
@@ -1374,5 +1535,190 @@ mod tests {
         ];
         let result = collect_unique_tags_sorted(&tasks);
         assert_eq!(result, vec!["bug", "feature", "p0"]);
+    }
+
+    // --- compute_reconciled_orders ------------------------------------------
+
+    fn rec_task(id: &str, status: &str, order: Option<f64>) -> Task {
+        Task {
+            id: id.into(),
+            title: id.into(),
+            status: status.into(),
+            body: String::new(),
+            order,
+            tags: Vec::new(),
+        }
+    }
+
+    fn snapshot(entries: &[(&str, &str, Option<f64>)]) -> HashMap<String, TaskSnapshot> {
+        entries
+            .iter()
+            .map(|(id, status, order)| (id.to_string(), (status.to_string(), *order)))
+            .collect()
+    }
+
+    #[test]
+    fn reconcile_status_changed_with_same_order_moves_to_top() {
+        // Disk shows status flipped Todo→Doing but the file still carries
+        // order=5.0 from when it lived in Todo. Two Doing tasks already exist
+        // at -1.0 and -2.0, so the moved card should slot at -3.0 (min - 1).
+        let tasks = vec![
+            rec_task("a", "Doing", Some(5.0)),
+            rec_task("b", "Doing", Some(-1.0)),
+            rec_task("c", "Doing", Some(-2.0)),
+        ];
+        let prev = snapshot(&[
+            ("a", "Todo", Some(5.0)),
+            ("b", "Doing", Some(-1.0)),
+            ("c", "Doing", Some(-2.0)),
+        ]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert_eq!(new_orders.len(), 1);
+        assert_eq!(new_orders.get("a"), Some(&-3.0));
+    }
+
+    #[test]
+    fn reconcile_ignores_status_change_with_different_order() {
+        // Internal updateTask flow sets both status and order together. The
+        // order-changed guard is what tells reconciliation that this wasn't
+        // a stale-order external edit.
+        let tasks = vec![rec_task("a", "Doing", Some(-1.0))];
+        let prev = snapshot(&[("a", "Todo", Some(5.0))]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert!(new_orders.is_empty());
+    }
+
+    #[test]
+    fn reconcile_ignores_unchanged_status() {
+        // Body / tags / title edits don't change status — must not touch order.
+        let tasks = vec![rec_task("a", "Todo", Some(5.0))];
+        let prev = snapshot(&[("a", "Todo", Some(5.0))]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert!(new_orders.is_empty());
+    }
+
+    #[test]
+    fn reconcile_ignores_tasks_missing_from_snapshot() {
+        // A newly-created (or renamed) file appears with no prior snapshot
+        // entry; we have no basis to call its status "changed", so leave it.
+        let tasks = vec![rec_task("a", "Doing", Some(5.0))];
+        let prev = snapshot(&[]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert!(new_orders.is_empty());
+    }
+
+    #[test]
+    fn reconcile_handles_none_order_unchanged() {
+        // Legacy tasks without `order: ` in frontmatter compare via None==None.
+        let tasks = vec![
+            rec_task("a", "Doing", None),
+            rec_task("b", "Doing", Some(2.0)),
+        ];
+        let prev = snapshot(&[("a", "Todo", None), ("b", "Doing", Some(2.0))]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert_eq!(new_orders.len(), 1);
+        assert_eq!(new_orders.get("a"), Some(&1.0));
+    }
+
+    #[test]
+    fn reconcile_treats_some_to_none_order_as_changed() {
+        // If the user externally stripped the `order:` line while flipping
+        // status, that's an explicit intent — respect it, don't repair.
+        let tasks = vec![rec_task("a", "Doing", None)];
+        let prev = snapshot(&[("a", "Todo", Some(5.0))]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert!(new_orders.is_empty());
+    }
+
+    #[test]
+    fn reconcile_empty_destination_column_anchors_at_zero() {
+        // No existing tasks in Doing → first moved card lands at 0.0 to
+        // mirror createTask's empty-column anchor. Without this, an empty
+        // column would inherit -1.0 from f64::INFINITY arithmetic.
+        let tasks = vec![rec_task("a", "Doing", Some(5.0))];
+        let prev = snapshot(&[("a", "Todo", Some(5.0))]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert_eq!(new_orders.get("a"), Some(&0.0));
+    }
+
+    #[test]
+    fn reconcile_excludes_moved_tasks_from_min_calculation() {
+        // Two tasks with stale Todo orders both flipped to Doing externally.
+        // The min-of-column must ignore the moved tasks themselves; otherwise
+        // a stale order of 5.0 would anchor base at 4.0 instead of using the
+        // genuine Doing minimum of -1.0.
+        let tasks = vec![
+            rec_task("a", "Doing", Some(5.0)),
+            rec_task("b", "Doing", Some(7.0)),
+            rec_task("c", "Doing", Some(-1.0)),
+        ];
+        let prev = snapshot(&[
+            ("a", "Todo", Some(5.0)),
+            ("b", "Done", Some(7.0)),
+            ("c", "Doing", Some(-1.0)),
+        ]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert_eq!(new_orders.len(), 2);
+        // Two moved cards landing in Doing → distinct slots below -1.0.
+        let mut sorted: Vec<f64> = new_orders.values().copied().collect();
+        sorted.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        assert_eq!(sorted, vec![-3.0, -2.0]);
+    }
+
+    #[test]
+    fn reconcile_distributes_distinct_orders_to_batched_moves() {
+        // Multiple cards flipped to the same destination column in one go
+        // must get distinct floats so the backend sort tiebreaker doesn't
+        // have to fall back to title comparison.
+        let tasks = vec![
+            rec_task("a", "Doing", Some(5.0)),
+            rec_task("b", "Doing", Some(7.0)),
+            rec_task("c", "Doing", Some(9.0)),
+            rec_task("anchor", "Doing", Some(0.0)),
+        ];
+        let prev = snapshot(&[
+            ("a", "Todo", Some(5.0)),
+            ("b", "Todo", Some(7.0)),
+            ("c", "Todo", Some(9.0)),
+            ("anchor", "Doing", Some(0.0)),
+        ]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert_eq!(new_orders.len(), 3);
+        let mut sorted: Vec<f64> = new_orders.values().copied().collect();
+        sorted.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        // All three slot below anchor (0.0) and are distinct.
+        assert_eq!(sorted, vec![-3.0, -2.0, -1.0]);
+    }
+
+    #[test]
+    fn reconcile_handles_different_destinations_independently() {
+        // Two externally-edited tasks landing in different columns each get
+        // anchored to their own column's minimum.
+        let tasks = vec![
+            rec_task("a", "Doing", Some(5.0)),
+            rec_task("b", "Done", Some(9.0)),
+            rec_task("d_anchor", "Doing", Some(-2.0)),
+            rec_task("e_anchor", "Done", Some(3.0)),
+        ];
+        let prev = snapshot(&[
+            ("a", "Todo", Some(5.0)),
+            ("b", "Todo", Some(9.0)),
+            ("d_anchor", "Doing", Some(-2.0)),
+            ("e_anchor", "Done", Some(3.0)),
+        ]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert_eq!(new_orders.get("a"), Some(&-3.0));
+        assert_eq!(new_orders.get("b"), Some(&2.0));
+    }
+
+    #[test]
+    fn reconcile_handles_status_to_unknown_value() {
+        // Status flipped to a label not in the workspace status config still
+        // counts as a status change — repair the order so the task lands at
+        // the top of whichever (Unknown) column it ends up in.
+        let tasks = vec![rec_task("a", "Custom", Some(5.0))];
+        let prev = snapshot(&[("a", "Todo", Some(5.0))]);
+        let new_orders = compute_reconciled_orders(&tasks, &prev);
+        assert_eq!(new_orders.get("a"), Some(&0.0));
     }
 }

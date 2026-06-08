@@ -31,6 +31,9 @@ export const moveTask = (path: string, status: string, order: number) =>
 
 export const renumberTasks = (paths: string[]) => invoke<void>("renumber_tasks", { paths });
 
+export const reconcileExternalStatusChanges = () =>
+  invoke<void>("reconcile_external_status_changes");
+
 export const updateTask = (path: string, updates: TaskUpdates) =>
   invoke<Task>("update_task", { path, ...updates });
 

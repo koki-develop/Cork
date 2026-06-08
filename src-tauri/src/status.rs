@@ -56,23 +56,42 @@ pub fn save_statuses(
         }
     }
 
-    md_files.par_iter().try_for_each(|path| -> CmdResult<()> {
-        let content = fs::read_to_string(path)?;
-        let (fm, _): (Option<StatusFrontmatter>, String) = frontmatter::parse(&content);
-        let Some(f) = fm else { return Ok(()) };
-        let Some(current_status) = f.status else {
-            return Ok(());
-        };
-        let Some(new_label) = rename_map.get(current_status.as_str()) else {
-            return Ok(());
-        };
-        if new_label == &current_status {
-            return Ok(());
-        }
-        let updated = frontmatter::update(&content, &[("status", serde_json::json!(new_label))]);
-        fs::write(path, updated)?;
-        Ok(())
-    })?;
+    let renamed: Vec<(PathBuf, String)> = md_files
+        .par_iter()
+        .filter_map(|path| -> Option<CmdResult<(PathBuf, String)>> {
+            let content = match fs::read_to_string(path) {
+                Ok(c) => c,
+                Err(e) => return Some(Err(e.into())),
+            };
+            let (fm, _): (Option<StatusFrontmatter>, String) = frontmatter::parse(&content);
+            let f = fm?;
+            let current_status = f.status?;
+            let new_label = rename_map.get(current_status.as_str())?;
+            if new_label == &current_status {
+                return None;
+            }
+            let updated =
+                frontmatter::update(&content, &[("status", serde_json::json!(new_label))]);
+            if let Err(e) = fs::write(path, updated) {
+                return Some(Err(e.into()));
+            }
+            Some(Ok((path.clone(), new_label.clone())))
+        })
+        .collect::<CmdResult<Vec<_>>>()?;
+
+    // Keep AppState in sync with disk: the cache from before the rename
+    // still holds the old status strings, and the reconciliation snapshot
+    // would otherwise treat the next genuine external edit on a renamed
+    // file as the rename itself, double-counting the change. Pull the new
+    // order back out of the snapshot if it exists; new files (not yet
+    // observed) just get skipped — the next reconcile will seed them.
+    state.invalidate_cache();
+    let existing = state.get_last_reported();
+    for (path, new_status) in &renamed {
+        let id = path.to_string_lossy().to_string();
+        let order = existing.get(&id).and_then(|(_, o)| *o);
+        state.upsert_last_reported(id, new_status.clone(), order);
+    }
 
     Ok(())
 }

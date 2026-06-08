@@ -7,6 +7,7 @@ export {
   listAllTags,
   listTasks,
   moveTask,
+  reconcileExternalStatusChanges,
   renumberTasks,
   updateTask,
 } from "./tasks";
