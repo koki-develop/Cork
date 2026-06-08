@@ -1,5 +1,9 @@
 name: Release Please
 
+defaults:
+  run:
+    shell: bash
+
 permissions: {}
 
 on:
@@ -64,4 +68,40 @@ jobs:
       - run: gh release upload "$TAG_NAME" artifacts/*.dmg --clobber --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag-name }}
+
+  homebrew-tap:
+    name: Update Homebrew Tap
+    if: ${{ needs.release-please.outputs.should-release == 'true' }}
+    timeout-minutes: 10
+    needs: [release-please, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: bun run ./scripts/build-cask.ts "${TAG_NAME#v}" --out ./cork.rb
+        env:
+          TAG_NAME: ${{ needs.release-please.outputs.tag-name }}
+
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        id: app-token
+        with:
+          app-id: ${{ secrets.HOMEBREW_TAP_APP_ID }}
+          private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: homebrew-tap
+          permission-contents: write # for updating files
+      - name: Update Homebrew Cask
+        run: |
+          SHA=$(gh api repos/koki-develop/homebrew-tap/contents/Casks/cork.rb --jq '.sha')
+          gh api --method PUT repos/koki-develop/homebrew-tap/contents/Casks/cork.rb \
+            --field message="chore: update cork to $TAG_NAME" \
+            --field content=@<(base64 -i ./cork.rb) \
+            --field sha="$SHA"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TAG_NAME: ${{ needs.release-please.outputs.tag-name }}
