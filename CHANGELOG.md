@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.2](https://github.com/koki-develop/Cork/compare/v0.0.1...v0.0.2) (2026-06-08)
+
+
+### Features
+
+* Release v0.0.2 ([60b9d3a](https://github.com/koki-develop/Cork/commit/60b9d3a94dd6d7ac8ac438aca9e9489ea9c825c3))
+
 ## 0.0.1 (2026-06-08)
 
 
