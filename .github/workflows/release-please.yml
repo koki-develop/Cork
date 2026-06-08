@@ -1,0 +1,67 @@
+name: Release Please
+
+permissions: {}
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release Please
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # for create a release
+      pull-requests: write # for open a pull request
+      issues: write # for create labels
+    outputs:
+      should-release: ${{ steps.release-please.outputs.release_created }}
+      tag-name: ${{ steps.release-please.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release-please
+        with:
+          release-type: node
+          token: ${{ github.token }}
+
+  build:
+    name: Build
+    if: ${{ needs.release-please.outputs.should-release == 'true' }}
+    timeout-minutes: 10
+    needs: release-please
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: bun run tauri build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dmg
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+  release:
+    name: Release
+    if: ${{ needs.release-please.outputs.should-release == 'true' }}
+    timeout-minutes: 10
+    needs: [release-please, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # for upload release assets
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dmg
+          path: artifacts
+      - run: gh release upload "$TAG_NAME" artifacts/*.dmg --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag-name }}
