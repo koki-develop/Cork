@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/koki-develop/Cork/compare/v0.1.0...v0.2.0) (2026-06-08)
+
+
+### Features
+
+* Move task to top of new column on external status edit ([af7bba7](https://github.com/koki-develop/Cork/commit/af7bba71f1b671d53193c4bcbca18f4c08be9a03))
+
+
+### Bug Fixes
+
+* Fix icon ([b138547](https://github.com/koki-develop/Cork/commit/b1385472922d049b64ec1eb6e8f36e312a015d06))
+* Skip IME composition keydowns in Escape handlers ([759814f](https://github.com/koki-develop/Cork/commit/759814f08e4dc5397ee906543f4a3e64fe0fd33a))
+
 ## [0.1.0](https://github.com/koki-develop/Cork/compare/v0.0.2...v0.1.0) (2026-06-08)
 
 
