@@ -3,106 +3,198 @@ use crate::task::Task;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// (status, order) we last observed for a given task id. Used to detect
 /// external status edits — see `task::reconcile_external_status_changes`.
 pub type TaskSnapshot = (String, Option<f64>);
 
+/// All AppState entries tied to a single window. Bundling them lets one
+/// `Mutex` cover the whole "switch this window's workspace" cascade
+/// (`set_workspace` resets `workspace`, `tasks_cache`, *and*
+/// `last_reported` together) instead of leaning on three independent locks
+/// that a concurrent reader could observe mid-mutation.
+#[derive(Default)]
+struct WindowState {
+    workspace: Option<PathBuf>,
+    tasks_cache: Option<Vec<Task>>,
+    last_reported: HashMap<String, TaskSnapshot>,
+}
+
+/// Process-wide AppState. Per-window slots live in `windows`, keyed by the
+/// `WebviewWindow::label()` value of each window, so two windows can hold
+/// independent workspaces, caches, and reconciliation snapshots without
+/// interfering with each other.
+///
+/// `next_window_id` feeds `next_window_label` and is never decremented:
+/// every new window (Reopen / `File > New Window`) gets a fresh
+/// `workspace-<n>` label. The first window created at process start has the
+/// fixed label `"main"` (set by `lib.rs::setup`); every other window picks
+/// up the next counter value. The `capabilities/default.json` allowlist
+/// matches both `"main"` and the `"workspace-*"` glob so this naming
+/// convention is the single source of truth.
 pub struct AppState {
-    workspace_dir: Mutex<Option<PathBuf>>,
-    tasks_cache: Mutex<Option<Vec<Task>>>,
-    last_reported: Mutex<HashMap<String, TaskSnapshot>>,
+    windows: Mutex<HashMap<String, WindowState>>,
+    next_window_id: AtomicU64,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
-            workspace_dir: Mutex::new(None),
-            tasks_cache: Mutex::new(None),
-            last_reported: Mutex::new(HashMap::new()),
+            windows: Mutex::new(HashMap::new()),
+            next_window_id: AtomicU64::new(0),
         }
     }
 
-    pub fn workspace(&self) -> Option<PathBuf> {
-        self.workspace_dir.lock().unwrap().clone()
+    pub fn workspace(&self, label: &str) -> Option<PathBuf> {
+        self.windows
+            .lock()
+            .unwrap()
+            .get(label)
+            .and_then(|s| s.workspace.clone())
     }
 
-    pub fn require_workspace(&self) -> CmdResult<PathBuf> {
-        self.workspace().ok_or(CommandError::NoWorkspace)
+    pub fn require_workspace(&self, label: &str) -> CmdResult<PathBuf> {
+        self.workspace(label).ok_or(CommandError::NoWorkspace)
     }
 
-    pub fn set_workspace(&self, dir: PathBuf) {
-        *self.workspace_dir.lock().unwrap() = Some(dir);
-        *self.tasks_cache.lock().unwrap() = None;
-        self.last_reported.lock().unwrap().clear();
+    /// Replace the workspace for one window and clear its caches in the
+    /// same lock acquisition. The single-`Mutex` design here is what
+    /// guarantees the cascade is atomic — a reader on the same window can
+    /// never observe "new workspace, stale cache" — and it keeps the
+    /// blast radius limited to the named label, leaving other windows
+    /// untouched. This is the multi-window counterpart of the original
+    /// "globally clear the cache on workspace switch" behaviour.
+    pub fn set_workspace(&self, label: &str, dir: PathBuf) {
+        let mut all = self.windows.lock().unwrap();
+        let entry = all.entry(label.to_string()).or_default();
+        entry.workspace = Some(dir);
+        entry.tasks_cache = None;
+        entry.last_reported.clear();
     }
 
-    pub fn get_cached_tasks(&self) -> Option<Vec<Task>> {
-        self.tasks_cache.lock().unwrap().clone()
+    pub fn get_cached_tasks(&self, label: &str) -> Option<Vec<Task>> {
+        self.windows
+            .lock()
+            .unwrap()
+            .get(label)
+            .and_then(|s| s.tasks_cache.clone())
     }
 
-    pub fn set_cached_tasks(&self, tasks: Vec<Task>) {
-        *self.tasks_cache.lock().unwrap() = Some(tasks);
+    pub fn set_cached_tasks(&self, label: &str, tasks: Vec<Task>) {
+        self.windows
+            .lock()
+            .unwrap()
+            .entry(label.to_string())
+            .or_default()
+            .tasks_cache = Some(tasks);
     }
 
-    pub fn invalidate_cache(&self) {
-        *self.tasks_cache.lock().unwrap() = None;
+    pub fn invalidate_cache(&self, label: &str) {
+        if let Some(state) = self.windows.lock().unwrap().get_mut(label) {
+            state.tasks_cache = None;
+        }
     }
 
-    pub fn get_last_reported(&self) -> HashMap<String, TaskSnapshot> {
-        self.last_reported.lock().unwrap().clone()
+    pub fn get_last_reported(&self, label: &str) -> HashMap<String, TaskSnapshot> {
+        self.windows
+            .lock()
+            .unwrap()
+            .get(label)
+            .map(|s| s.last_reported.clone())
+            .unwrap_or_default()
     }
 
-    /// Replace the last-reported snapshot with the (id → status, order) of
-    /// the given tasks. Always called by `reconcile_external_status_changes`
-    /// after reconciliation completes (so the snapshot matches the on-disk
-    /// state at that point). The snapshot is the baseline subsequent
-    /// reconciliations diff against.
-    pub fn set_last_reported(&self, tasks: &[Task]) {
-        let mut snapshot = self.last_reported.lock().unwrap();
-        snapshot.clear();
-        snapshot.reserve(tasks.len());
+    /// Replace the per-window last-reported snapshot with the (id → status,
+    /// order) of the given tasks. Always called by
+    /// `reconcile_external_status_changes` after reconciliation completes (so
+    /// the snapshot matches the on-disk state at that point). The snapshot is
+    /// the baseline subsequent reconciliations diff against.
+    pub fn set_last_reported(&self, label: &str, tasks: &[Task]) {
+        let mut all = self.windows.lock().unwrap();
+        let entry = all.entry(label.to_string()).or_default();
+        entry.last_reported.clear();
+        entry.last_reported.reserve(tasks.len());
         for task in tasks {
-            snapshot.insert(task.id.clone(), (task.status.clone(), task.order));
+            entry
+                .last_reported
+                .insert(task.id.clone(), (task.status.clone(), task.order));
         }
     }
 
-    /// Populate the snapshot only if it is currently empty. Used by
-    /// `list_tasks` to seed the baseline at session start (or after a
+    /// Populate the per-window snapshot only if it is currently empty. Used
+    /// by `list_tasks` to seed the baseline at session start (or after a
     /// workspace switch clears state); subsequent `list_tasks` calls must
     /// NOT touch the snapshot because doing so would let an internal write
     /// that races a fresh disk read silently absorb a concurrent external
     /// edit — the snapshot would inherit the post-edit state and the next
     /// reconciliation would see no diff to repair.
-    pub fn seed_last_reported_if_empty(&self, tasks: &[Task]) {
-        let mut snapshot = self.last_reported.lock().unwrap();
-        if !snapshot.is_empty() {
+    pub fn seed_last_reported_if_empty(&self, label: &str, tasks: &[Task]) {
+        let mut all = self.windows.lock().unwrap();
+        let entry = all.entry(label.to_string()).or_default();
+        if !entry.last_reported.is_empty() {
             return;
         }
-        snapshot.reserve(tasks.len());
+        entry.last_reported.reserve(tasks.len());
         for task in tasks {
-            snapshot.insert(task.id.clone(), (task.status.clone(), task.order));
+            entry
+                .last_reported
+                .insert(task.id.clone(), (task.status.clone(), task.order));
         }
     }
 
-    /// Update one entry of the snapshot — called by every internal write
-    /// command immediately after writing the .md file. Keeping the snapshot
-    /// in lockstep with our own writes is what lets reconciliation cleanly
-    /// distinguish an external edit from the lingering side-effects of an
-    /// earlier internal mutation: without it, an external edit that lands
-    /// while the previous internal write is still propagating through the
-    /// watcher debounce window would be misdiagnosed as an internal change
-    /// (because the snapshot would still hold the pre-internal-write
-    /// status) and slip past reconciliation.
-    pub fn upsert_last_reported(&self, id: String, status: String, order: Option<f64>) {
-        self.last_reported
+    /// Update one entry of the per-window snapshot — called by every
+    /// internal write command immediately after writing the .md file.
+    /// Keeping the snapshot in lockstep with our own writes is what lets
+    /// reconciliation cleanly distinguish an external edit from the
+    /// lingering side-effects of an earlier internal mutation: without it,
+    /// an external edit that lands while the previous internal write is
+    /// still propagating through the watcher debounce window would be
+    /// misdiagnosed as an internal change (because the snapshot would still
+    /// hold the pre-internal-write status) and slip past reconciliation.
+    pub fn upsert_last_reported(
+        &self,
+        label: &str,
+        id: String,
+        status: String,
+        order: Option<f64>,
+    ) {
+        self.windows
             .lock()
             .unwrap()
+            .entry(label.to_string())
+            .or_default()
+            .last_reported
             .insert(id, (status, order));
     }
 
-    pub fn remove_last_reported(&self, id: &str) {
-        self.last_reported.lock().unwrap().remove(id);
+    pub fn remove_last_reported(&self, label: &str, id: &str) {
+        if let Some(state) = self.windows.lock().unwrap().get_mut(label) {
+            state.last_reported.remove(id);
+        }
+    }
+
+    /// Drop the entire `WindowState` for a closed window. Called from the
+    /// `WindowEvent::Destroyed` handler in `lib.rs` so the map doesn't grow
+    /// indefinitely across an interactive session that opens and closes
+    /// many windows. `Destroyed` (not `CloseRequested`) is the right
+    /// signal because `CloseRequested` can be cancelled by
+    /// `prevent_close()`, and cleaning state for a window that's about to
+    /// keep living would break the next command issued from it.
+    pub fn remove_window(&self, label: &str) {
+        self.windows.lock().unwrap().remove(label);
+    }
+
+    /// Mint a fresh, never-reused window label of the form `workspace-<n>`.
+    /// Used by the menu's `New Window` handler and the macOS Dock-reopen
+    /// path. The counter is monotonic for the lifetime of the process —
+    /// closing a window does not free its label, which keeps the
+    /// `["main", "workspace-*"]` capability wildcard match unambiguous and
+    /// prevents AppState entries from a previously-closed window
+    /// accidentally bleeding into a newly-opened one.
+    pub fn next_window_label(&self) -> String {
+        let n = self.next_window_id.fetch_add(1, Ordering::Relaxed) + 1;
+        format!("workspace-{n}")
     }
 }
 
@@ -112,12 +204,15 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
 
+    const MAIN: &str = "main";
+    const W1: &str = "workspace-1";
+
     #[test]
     fn new_starts_empty() {
         let state = AppState::new();
-        assert!(state.workspace().is_none());
+        assert!(state.workspace(MAIN).is_none());
         assert!(matches!(
-            state.require_workspace(),
+            state.require_workspace(MAIN),
             Err(CommandError::NoWorkspace)
         ));
     }
@@ -126,17 +221,17 @@ mod tests {
     fn set_then_get_round_trips() {
         let state = AppState::new();
         let dir = PathBuf::from("/tmp/cork-test");
-        state.set_workspace(dir.clone());
-        assert_eq!(state.workspace(), Some(dir.clone()));
-        assert_eq!(state.require_workspace().unwrap(), dir);
+        state.set_workspace(MAIN, dir.clone());
+        assert_eq!(state.workspace(MAIN), Some(dir.clone()));
+        assert_eq!(state.require_workspace(MAIN).unwrap(), dir);
     }
 
     #[test]
-    fn set_replaces_previous_value() {
+    fn set_replaces_previous_value_for_same_label() {
         let state = AppState::new();
-        state.set_workspace(PathBuf::from("/tmp/a"));
-        state.set_workspace(PathBuf::from("/tmp/b"));
-        assert_eq!(state.workspace(), Some(PathBuf::from("/tmp/b")));
+        state.set_workspace(MAIN, PathBuf::from("/tmp/a"));
+        state.set_workspace(MAIN, PathBuf::from("/tmp/b"));
+        assert_eq!(state.workspace(MAIN), Some(PathBuf::from("/tmp/b")));
     }
 
     #[test]
@@ -144,13 +239,13 @@ mod tests {
         // Calling workspace() must not hold the lock — verified by acquiring it
         // again immediately and by the type itself (PathBuf is owned).
         let state = AppState::new();
-        state.set_workspace(PathBuf::from("/tmp/clone-check"));
-        let first = state.workspace().unwrap();
-        let second = state.workspace().unwrap();
+        state.set_workspace(MAIN, PathBuf::from("/tmp/clone-check"));
+        let first = state.workspace(MAIN).unwrap();
+        let second = state.workspace(MAIN).unwrap();
         assert_eq!(first, second);
         // After borrowing first, set should still work (no live guard).
-        state.set_workspace(PathBuf::from("/tmp/after"));
-        assert_eq!(state.workspace().unwrap(), PathBuf::from("/tmp/after"));
+        state.set_workspace(MAIN, PathBuf::from("/tmp/after"));
+        assert_eq!(state.workspace(MAIN).unwrap(), PathBuf::from("/tmp/after"));
     }
 
     fn make_task(id: &str, status: &str, order: Option<f64>) -> Task {
@@ -167,42 +262,35 @@ mod tests {
     #[test]
     fn last_reported_starts_empty() {
         let state = AppState::new();
-        assert!(state.get_last_reported().is_empty());
+        assert!(state.get_last_reported(MAIN).is_empty());
     }
 
     #[test]
     fn set_last_reported_replaces_previous_snapshot() {
         let state = AppState::new();
-        state.set_last_reported(&[make_task("a", "Todo", Some(0.0))]);
-        let first = state.get_last_reported();
+        state.set_last_reported(MAIN, &[make_task("a", "Todo", Some(0.0))]);
+        let first = state.get_last_reported(MAIN);
         assert_eq!(first.get("a"), Some(&("Todo".to_string(), Some(0.0))));
 
-        state.set_last_reported(&[
-            make_task("b", "Doing", Some(-1.0)),
-            make_task("c", "Done", None),
-        ]);
-        let second = state.get_last_reported();
+        state.set_last_reported(
+            MAIN,
+            &[
+                make_task("b", "Doing", Some(-1.0)),
+                make_task("c", "Done", None),
+            ],
+        );
+        let second = state.get_last_reported(MAIN);
         assert!(!second.contains_key("a"));
         assert_eq!(second.get("b"), Some(&("Doing".to_string(), Some(-1.0))));
         assert_eq!(second.get("c"), Some(&("Done".to_string(), None)));
     }
 
     #[test]
-    fn set_workspace_clears_last_reported() {
-        let state = AppState::new();
-        state.set_last_reported(&[make_task("a", "Todo", Some(0.0))]);
-        assert!(!state.get_last_reported().is_empty());
-
-        state.set_workspace(PathBuf::from("/tmp/new"));
-        assert!(state.get_last_reported().is_empty());
-    }
-
-    #[test]
     fn seed_last_reported_populates_when_empty() {
         let state = AppState::new();
-        state.seed_last_reported_if_empty(&[make_task("a", "Todo", Some(0.0))]);
+        state.seed_last_reported_if_empty(MAIN, &[make_task("a", "Todo", Some(0.0))]);
         assert_eq!(
-            state.get_last_reported().get("a"),
+            state.get_last_reported(MAIN).get("a"),
             Some(&("Todo".to_string(), Some(0.0)))
         );
     }
@@ -215,10 +303,10 @@ mod tests {
         // is only allowed to fire when the snapshot has never been
         // populated since the last workspace switch.
         let state = AppState::new();
-        state.set_last_reported(&[make_task("a", "Todo", Some(0.0))]);
-        state.seed_last_reported_if_empty(&[make_task("a", "Doing", Some(5.0))]);
+        state.set_last_reported(MAIN, &[make_task("a", "Todo", Some(0.0))]);
+        state.seed_last_reported_if_empty(MAIN, &[make_task("a", "Doing", Some(5.0))]);
         assert_eq!(
-            state.get_last_reported().get("a"),
+            state.get_last_reported(MAIN).get("a"),
             Some(&("Todo".to_string(), Some(0.0)))
         );
     }
@@ -229,9 +317,9 @@ mod tests {
         // must not hold the lock past return. Verified by snapshotting,
         // mutating via the API, and confirming the snapshot is unaffected.
         let state = AppState::new();
-        state.set_last_reported(&[make_task("a", "Todo", Some(0.0))]);
-        let snapshot = state.get_last_reported();
-        state.set_last_reported(&[make_task("a", "Doing", Some(-1.0))]);
+        state.set_last_reported(MAIN, &[make_task("a", "Todo", Some(0.0))]);
+        let snapshot = state.get_last_reported(MAIN);
+        state.set_last_reported(MAIN, &[make_task("a", "Doing", Some(-1.0))]);
         assert_eq!(snapshot.get("a"), Some(&("Todo".to_string(), Some(0.0))));
     }
 
@@ -243,7 +331,7 @@ mod tests {
             .map(|i| {
                 let state = Arc::clone(&state);
                 thread::spawn(move || {
-                    state.set_workspace(PathBuf::from(format!("/tmp/w{i}")));
+                    state.set_workspace(MAIN, PathBuf::from(format!("/tmp/w{i}")));
                 })
             })
             .collect();
@@ -253,8 +341,208 @@ mod tests {
 
         // After the contention, exactly one of the writes wins; the value must
         // be one of the ones we set and never None.
-        let got = state.workspace().expect("some writer must have won");
+        let got = state.workspace(MAIN).expect("some writer must have won");
         let s = got.to_string_lossy();
         assert!(s.starts_with("/tmp/w") && s.len() == 7, "unexpected value: {got:?}");
+    }
+
+    // --- per-window isolation -------------------------------------------------
+
+    #[test]
+    fn workspaces_are_isolated_by_label() {
+        let state = AppState::new();
+        state.set_workspace(MAIN, PathBuf::from("/tmp/A"));
+        state.set_workspace(W1, PathBuf::from("/tmp/B"));
+
+        assert_eq!(state.workspace(MAIN), Some(PathBuf::from("/tmp/A")));
+        assert_eq!(state.workspace(W1), Some(PathBuf::from("/tmp/B")));
+
+        // Mutating one label leaves the other untouched.
+        state.set_workspace(MAIN, PathBuf::from("/tmp/C"));
+        assert_eq!(state.workspace(MAIN), Some(PathBuf::from("/tmp/C")));
+        assert_eq!(state.workspace(W1), Some(PathBuf::from("/tmp/B")));
+    }
+
+    #[test]
+    fn tasks_cache_is_isolated_by_label() {
+        let state = AppState::new();
+        let main_tasks = vec![make_task("m", "Todo", Some(0.0))];
+        let w1_tasks = vec![
+            make_task("a", "Doing", Some(1.0)),
+            make_task("b", "Done", Some(2.0)),
+        ];
+
+        state.set_cached_tasks(MAIN, main_tasks.clone());
+        state.set_cached_tasks(W1, w1_tasks.clone());
+
+        assert_eq!(state.get_cached_tasks(MAIN).unwrap().len(), 1);
+        assert_eq!(state.get_cached_tasks(W1).unwrap().len(), 2);
+
+        state.invalidate_cache(MAIN);
+        assert!(state.get_cached_tasks(MAIN).is_none());
+        // W1 unaffected.
+        assert_eq!(state.get_cached_tasks(W1).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn last_reported_is_isolated_by_label() {
+        let state = AppState::new();
+        state.set_last_reported(MAIN, &[make_task("a", "Todo", Some(0.0))]);
+        state.upsert_last_reported(W1, "b".to_string(), "Doing".to_string(), Some(1.0));
+
+        let main = state.get_last_reported(MAIN);
+        let w1 = state.get_last_reported(W1);
+
+        assert_eq!(main.get("a"), Some(&("Todo".to_string(), Some(0.0))));
+        assert!(!main.contains_key("b"));
+        assert_eq!(w1.get("b"), Some(&("Doing".to_string(), Some(1.0))));
+        assert!(!w1.contains_key("a"));
+    }
+
+    // --- remove_window --------------------------------------------------------
+
+    #[test]
+    fn remove_window_clears_all_window_state() {
+        let state = AppState::new();
+        state.set_workspace(W1, PathBuf::from("/tmp/B"));
+        state.set_cached_tasks(W1, vec![make_task("a", "Todo", Some(0.0))]);
+        state.upsert_last_reported(W1, "a".to_string(), "Todo".to_string(), Some(0.0));
+
+        // Also seed another label so we can confirm removal is scoped.
+        state.set_workspace(MAIN, PathBuf::from("/tmp/A"));
+        state.set_cached_tasks(MAIN, vec![make_task("m", "Done", None)]);
+        state.upsert_last_reported(MAIN, "m".to_string(), "Done".to_string(), None);
+
+        state.remove_window(W1);
+
+        assert!(state.workspace(W1).is_none());
+        assert!(state.get_cached_tasks(W1).is_none());
+        assert!(state.get_last_reported(W1).is_empty());
+
+        // MAIN should be intact.
+        assert_eq!(state.workspace(MAIN), Some(PathBuf::from("/tmp/A")));
+        assert_eq!(state.get_cached_tasks(MAIN).unwrap().len(), 1);
+        assert_eq!(
+            state.get_last_reported(MAIN).get("m"),
+            Some(&("Done".to_string(), None))
+        );
+    }
+
+    #[test]
+    fn remove_window_is_no_op_for_unknown_label() {
+        let state = AppState::new();
+        state.set_workspace(MAIN, PathBuf::from("/tmp/A"));
+
+        state.remove_window("never-existed");
+
+        assert_eq!(state.workspace(MAIN), Some(PathBuf::from("/tmp/A")));
+    }
+
+    // --- next_window_label ----------------------------------------------------
+
+    #[test]
+    fn next_window_label_is_monotonic() {
+        let state = AppState::new();
+        assert_eq!(state.next_window_label(), "workspace-1");
+        assert_eq!(state.next_window_label(), "workspace-2");
+        assert_eq!(state.next_window_label(), "workspace-3");
+    }
+
+    #[test]
+    fn next_window_label_is_unique_across_threads() {
+        // Concurrent callers must each receive a distinct label; the
+        // `AtomicU64` guarantees no duplicates even when several Reopen /
+        // New Window events fire in close succession.
+        let state = Arc::new(AppState::new());
+        let n = 32;
+        let handles: Vec<_> = (0..n)
+            .map(|_| {
+                let s = Arc::clone(&state);
+                thread::spawn(move || s.next_window_label())
+            })
+            .collect();
+        let mut labels: Vec<String> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        labels.sort();
+        labels.dedup();
+        assert_eq!(labels.len(), n);
+        for label in &labels {
+            assert!(label.starts_with("workspace-"), "unexpected label {label}");
+        }
+    }
+
+    #[test]
+    fn next_window_label_continues_after_window_removed() {
+        // Closing a window must not free its label number: the counter is
+        // strictly monotonic across the entire process lifetime so a
+        // late-arriving Reopen can't be confused with an earlier closed
+        // window's leftover state.
+        let state = AppState::new();
+        let first = state.next_window_label();
+        let second = state.next_window_label();
+        state.remove_window(&first);
+        let third = state.next_window_label();
+        assert_eq!(first, "workspace-1");
+        assert_eq!(second, "workspace-2");
+        assert_eq!(third, "workspace-3");
+    }
+
+    // --- set_workspace scoping invariant -------------------------------------
+
+    #[test]
+    fn set_workspace_only_resets_target_label_caches() {
+        let state = AppState::new();
+
+        // Both labels primed.
+        state.set_workspace(MAIN, PathBuf::from("/tmp/A"));
+        state.set_cached_tasks(MAIN, vec![make_task("m", "Todo", Some(0.0))]);
+        state.upsert_last_reported(MAIN, "m".to_string(), "Todo".to_string(), Some(0.0));
+        state.set_workspace(W1, PathBuf::from("/tmp/B"));
+        state.set_cached_tasks(W1, vec![make_task("w", "Doing", Some(1.0))]);
+        state.upsert_last_reported(W1, "w".to_string(), "Doing".to_string(), Some(1.0));
+
+        // Re-set MAIN's workspace — MAIN's cache and last_reported clear;
+        // W1's are untouched.
+        state.set_workspace(MAIN, PathBuf::from("/tmp/A2"));
+
+        assert!(state.get_cached_tasks(MAIN).is_none());
+        assert!(state.get_last_reported(MAIN).is_empty());
+        assert_eq!(state.get_cached_tasks(W1).unwrap().len(), 1);
+        assert_eq!(
+            state.get_last_reported(W1).get("w"),
+            Some(&("Doing".to_string(), Some(1.0)))
+        );
+    }
+
+    #[test]
+    fn many_windows_can_coexist() {
+        let state = AppState::new();
+        for i in 0..16 {
+            let label = state.next_window_label();
+            state.set_workspace(&label, PathBuf::from(format!("/tmp/w{i}")));
+            state.set_cached_tasks(&label, vec![make_task(&format!("id-{i}"), "Todo", None)]);
+        }
+        // Every minted label retains its own per-window state in parallel.
+        for i in 0..16 {
+            let label = format!("workspace-{}", i + 1);
+            assert_eq!(
+                state.workspace(&label),
+                Some(PathBuf::from(format!("/tmp/w{i}")))
+            );
+            assert_eq!(
+                state.get_cached_tasks(&label).unwrap()[0].id,
+                format!("id-{i}")
+            );
+        }
+    }
+
+    #[test]
+    fn workspace_returns_none_for_unknown_label() {
+        let state = AppState::new();
+        state.set_workspace(MAIN, PathBuf::from("/tmp/A"));
+        assert!(state.workspace("never-existed").is_none());
+        assert!(matches!(
+            state.require_workspace("never-existed"),
+            Err(CommandError::NoWorkspace)
+        ));
     }
 }

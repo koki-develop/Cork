@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for the main window and every additional workspace-* window opened via File > New Window or the macOS Dock reopen path",
+  "windows": ["main", "workspace-*"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",

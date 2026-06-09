@@ -21,18 +21,23 @@ struct StatusFrontmatter {
 }
 
 #[tauri::command]
-pub fn get_statuses(state: tauri::State<'_, AppState>) -> Option<Vec<StatusEntry>> {
-    let dir = state.workspace()?;
+pub fn get_statuses(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, AppState>,
+) -> Option<Vec<StatusEntry>> {
+    let dir = state.workspace(window.label())?;
     read_statuses_from_workspace(&dir)
 }
 
 #[tauri::command]
 pub fn save_statuses(
+    window: tauri::WebviewWindow,
     state: tauri::State<'_, AppState>,
     statuses: Vec<StatusEntry>,
     rename_map: Option<HashMap<String, String>>,
 ) -> CmdResult<()> {
-    let dir = state.require_workspace()?;
+    let label = window.label();
+    let dir = state.require_workspace(label)?;
     write_statuses_to_workspace(&dir, &statuses)?;
 
     let Some(rename_map) = rename_map else {
@@ -85,12 +90,12 @@ pub fn save_statuses(
     // file as the rename itself, double-counting the change. Pull the new
     // order back out of the snapshot if it exists; new files (not yet
     // observed) just get skipped — the next reconcile will seed them.
-    state.invalidate_cache();
-    let existing = state.get_last_reported();
+    state.invalidate_cache(label);
+    let existing = state.get_last_reported(label);
     for (path, new_status) in &renamed {
         let id = path.to_string_lossy().to_string();
         let order = existing.get(&id).and_then(|(_, o)| *o);
-        state.upsert_last_reported(id, new_status.clone(), order);
+        state.upsert_last_reported(label, id, new_status.clone(), order);
     }
 
     Ok(())

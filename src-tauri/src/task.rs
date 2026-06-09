@@ -157,11 +157,13 @@ fn collect_unique_tags_sorted(tasks: &[Task]) -> Vec<String> {
 
 #[tauri::command]
 pub fn list_tasks(
+    window: tauri::WebviewWindow,
     query: Option<String>,
     filters: Option<Vec<TagFilter>>,
     state: tauri::State<'_, AppState>,
 ) -> Vec<Task> {
-    let Some(dir) = state.workspace() else {
+    let label = window.label();
+    let Some(dir) = state.workspace(label) else {
         return Vec::new();
     };
 
@@ -170,16 +172,16 @@ pub fn list_tasks(
     let has_filters = !filters_slice.is_empty();
 
     let cached = if has_query || has_filters {
-        state.get_cached_tasks().unwrap_or_else(|| {
+        state.get_cached_tasks(label).unwrap_or_else(|| {
             let all = read_all_tasks(&dir);
-            state.set_cached_tasks(all.clone());
-            state.seed_last_reported_if_empty(&all);
+            state.set_cached_tasks(label, all.clone());
+            state.seed_last_reported_if_empty(label, &all);
             all
         })
     } else {
         let all = read_all_tasks(&dir);
-        state.set_cached_tasks(all.clone());
-        state.seed_last_reported_if_empty(&all);
+        state.set_cached_tasks(label, all.clone());
+        state.seed_last_reported_if_empty(label, &all);
         all
     };
 
@@ -187,15 +189,19 @@ pub fn list_tasks(
 }
 
 #[tauri::command]
-pub fn list_all_tags(state: tauri::State<'_, AppState>) -> Vec<String> {
-    let Some(dir) = state.workspace() else {
+pub fn list_all_tags(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, AppState>,
+) -> Vec<String> {
+    let label = window.label();
+    let Some(dir) = state.workspace(label) else {
         return Vec::new();
     };
 
-    let cached = state.get_cached_tasks().unwrap_or_else(|| {
+    let cached = state.get_cached_tasks(label).unwrap_or_else(|| {
         let all = read_all_tasks(&dir);
-        state.set_cached_tasks(all.clone());
-        state.seed_last_reported_if_empty(&all);
+        state.set_cached_tasks(label, all.clone());
+        state.seed_last_reported_if_empty(label, &all);
         all
     });
 
@@ -250,8 +256,12 @@ fn read_all_tasks(dir: &Path) -> Vec<Task> {
 }
 
 #[tauri::command]
-pub fn get_task(path: String, state: tauri::State<'_, AppState>) -> CmdResult<Task> {
-    let dir = state.require_workspace()?;
+pub fn get_task(
+    window: tauri::WebviewWindow,
+    path: String,
+    state: tauri::State<'_, AppState>,
+) -> CmdResult<Task> {
+    let dir = state.require_workspace(window.label())?;
     let path = security::ensure_in_workspace(&dir, Path::new(&path))?;
 
     let content = fs::read_to_string(&path)?;
@@ -275,6 +285,7 @@ pub fn get_task(path: String, state: tauri::State<'_, AppState>) -> CmdResult<Ta
 
 #[tauri::command]
 pub fn create_task(
+    window: tauri::WebviewWindow,
     title: String,
     status: String,
     body: Option<String>,
@@ -282,7 +293,8 @@ pub fn create_task(
     tags: Option<Vec<String>>,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<Task> {
-    let dir = state.require_workspace()?;
+    let label = window.label();
+    let dir = state.require_workspace(label)?;
     let dir_canonical = security::canonical_workspace(&dir)?;
 
     let title = sanitize_title(&title)?;
@@ -305,10 +317,10 @@ pub fn create_task(
     let yaml = frontmatter::serialize(&fm_value);
     let content = frontmatter::ensure_trailing_newline(format!("---\n{}---\n\n{}", yaml, body));
     fs::write(&file_path, content)?;
-    state.invalidate_cache();
+    state.invalidate_cache(label);
 
     let id = file_path.to_string_lossy().to_string();
-    state.upsert_last_reported(id.clone(), status.clone(), order);
+    state.upsert_last_reported(label, id.clone(), status.clone(), order);
 
     Ok(Task {
         id,
@@ -321,7 +333,14 @@ pub fn create_task(
 }
 
 #[tauri::command]
+// `update_task` already had a wide signature; the per-window refactor pushed
+// it from 7 to 8 args by adding `window`. Bundling the fields into a struct
+// would force a coordinated change in the JS wrapper (`src/api/tasks.ts`)
+// and lose the parameter-by-parameter overrideability the frontend relies
+// on, so the wider arg list is the lesser evil.
+#[allow(clippy::too_many_arguments)]
 pub fn update_task(
+    window: tauri::WebviewWindow,
     path: String,
     title: Option<String>,
     status: Option<String>,
@@ -330,7 +349,8 @@ pub fn update_task(
     tags: Option<Vec<String>>,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<Task> {
-    let dir = state.require_workspace()?;
+    let label = window.label();
+    let dir = state.require_workspace(label)?;
     let dir_canonical = security::canonical_workspace(&dir)?;
     let path_canonical = security::check_in_workspace(&dir_canonical, Path::new(&path))?;
 
@@ -414,17 +434,17 @@ pub fn update_task(
         // Title change = file rename = id change. Drop the old key so the
         // snapshot doesn't carry a phantom entry for a path no longer on
         // disk; the new id is inserted below.
-        state.remove_last_reported(&old_id);
+        state.remove_last_reported(label, &old_id);
         new_path
     } else {
         fs::write(&path_canonical, &new_content)?;
         path_canonical
     };
 
-    state.invalidate_cache();
+    state.invalidate_cache(label);
 
     let id = target_path.to_string_lossy().to_string();
-    state.upsert_last_reported(id.clone(), new_status.clone(), current_order);
+    state.upsert_last_reported(label, id.clone(), new_status.clone(), current_order);
 
     Ok(Task {
         id,
@@ -438,12 +458,14 @@ pub fn update_task(
 
 #[tauri::command]
 pub fn move_task(
+    window: tauri::WebviewWindow,
     path: String,
     status: String,
     order: f64,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<()> {
-    let dir = state.require_workspace()?;
+    let label = window.label();
+    let dir = state.require_workspace(label)?;
     let path = security::ensure_in_workspace(&dir, Path::new(&path))?;
     let content = fs::read_to_string(&path)?;
     let updated = frontmatter::update(
@@ -454,33 +476,45 @@ pub fn move_task(
         ],
     );
     fs::write(&path, updated)?;
-    state.invalidate_cache();
-    state.upsert_last_reported(path.to_string_lossy().to_string(), status, Some(order));
+    state.invalidate_cache(label);
+    state.upsert_last_reported(
+        label,
+        path.to_string_lossy().to_string(),
+        status,
+        Some(order),
+    );
     Ok(())
 }
 
 #[tauri::command]
-pub fn delete_task(path: String, state: tauri::State<'_, AppState>) -> CmdResult<()> {
-    let dir = state.require_workspace()?;
+pub fn delete_task(
+    window: tauri::WebviewWindow,
+    path: String,
+    state: tauri::State<'_, AppState>,
+) -> CmdResult<()> {
+    let label = window.label();
+    let dir = state.require_workspace(label)?;
     let path = security::ensure_in_workspace(&dir, Path::new(&path))?;
     fs::remove_file(&path)?;
-    state.invalidate_cache();
-    state.remove_last_reported(&path.to_string_lossy());
+    state.invalidate_cache(label);
+    state.remove_last_reported(label, &path.to_string_lossy());
     Ok(())
 }
 
 #[tauri::command]
 pub fn renumber_tasks(
+    window: tauri::WebviewWindow,
     paths: Vec<String>,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<()> {
-    let dir = state.require_workspace()?;
+    let label = window.label();
+    let dir = state.require_workspace(label)?;
     let dir_canonical = security::canonical_workspace(&dir)?;
     // Snapshot once up front so we don't clone the whole HashMap per path.
     // `upsert_last_reported` further down mutates the live snapshot, but the
     // values we read here (status) are per-path and never modified by other
     // iterations, so a single-shot clone is sufficient for the lookups.
-    let snapshot = state.get_last_reported();
+    let snapshot = state.get_last_reported(label);
     for (i, path) in paths.iter().enumerate() {
         let path_canonical = security::check_in_workspace(&dir_canonical, Path::new(path))?;
         let content = fs::read_to_string(&path_canonical)?;
@@ -491,10 +525,10 @@ pub fn renumber_tasks(
         // the next reconcile will seed it after a list_tasks refresh).
         let id = path_canonical.to_string_lossy().to_string();
         if let Some((status, _)) = snapshot.get(&id) {
-            state.upsert_last_reported(id, status.clone(), Some(i as f64));
+            state.upsert_last_reported(label, id, status.clone(), Some(i as f64));
         }
     }
-    state.invalidate_cache();
+    state.invalidate_cache(label);
     Ok(())
 }
 
@@ -593,17 +627,21 @@ fn sort_tasks_by_order(tasks: &mut [Task]) {
 /// watcher, but by the time this runs the snapshot already matches disk so
 /// no reconciliation triggers.
 #[tauri::command]
-pub fn reconcile_external_status_changes(state: tauri::State<'_, AppState>) -> CmdResult<()> {
-    let Some(dir) = state.workspace() else {
+pub fn reconcile_external_status_changes(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, AppState>,
+) -> CmdResult<()> {
+    let label = window.label();
+    let Some(dir) = state.workspace(label) else {
         return Ok(());
     };
 
     // The cache may have been populated from a query/filter call that ran
     // before the external edit landed — invalidate so we read fresh.
-    state.invalidate_cache();
+    state.invalidate_cache(label);
     let mut fresh_tasks = read_all_tasks(&dir);
 
-    let prev = state.get_last_reported();
+    let prev = state.get_last_reported(label);
     let new_orders = compute_reconciled_orders(&fresh_tasks, &prev);
 
     // Write the order updates first; only mutate in-memory state once disk
@@ -624,8 +662,8 @@ pub fn reconcile_external_status_changes(state: tauri::State<'_, AppState>) -> C
     }
     sort_tasks_by_order(&mut fresh_tasks);
 
-    state.set_cached_tasks(fresh_tasks.clone());
-    state.set_last_reported(&fresh_tasks);
+    state.set_cached_tasks(label, fresh_tasks.clone());
+    state.set_last_reported(label, &fresh_tasks);
     Ok(())
 }
 
@@ -1578,10 +1616,19 @@ mod tests {
     }
 
     #[test]
-    fn reconcile_ignores_status_change_with_different_order() {
-        // Internal updateTask flow sets both status and order together. The
-        // order-changed guard is what tells reconciliation that this wasn't
-        // a stale-order external edit.
+    fn reconcile_does_not_repair_internal_writes_with_status_and_order() {
+        // Load-bearing invariant for multi-window safety. Every internal
+        // write that changes `status` is required (by the
+        // `specs/multi-window` spec) to write a new `order` at the same
+        // time, so cross-window watcher events look like
+        // "status diff + order diff". `compute_reconciled_orders` only
+        // treats "status diff + order *unchanged*" as a stale-order
+        // external edit; both-changed cases — including a sibling Cork
+        // window's `move_task` write landing on this window's disk —
+        // must be left alone. If this test ever flips to "expect a
+        // reposition", multi-window will silently fight itself: window B
+        // would yank every drag-move from window A back to the top of the
+        // destination column.
         let tasks = vec![rec_task("a", "Doing", Some(-1.0))];
         let prev = snapshot(&[("a", "Todo", Some(5.0))]);
         let new_orders = compute_reconciled_orders(&tasks, &prev);

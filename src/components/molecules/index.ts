@@ -9,6 +9,7 @@ export { FormField, type FormFieldProps } from "./FormField";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { MenuList, type MenuListProps } from "./MenuList";
 export { PathDisplay, type PathDisplayProps } from "./PathDisplay";
+export { RecentWorkspacesList, type RecentWorkspacesListProps } from "./RecentWorkspacesList";
 export { SearchBar, type SearchBarHandle, type SearchBarProps } from "./SearchBar";
 export { Select, type SelectOption, type SelectProps } from "./Select";
 export { TagEditor, type TagEditorHandle, type TagEditorProps } from "./TagEditor";

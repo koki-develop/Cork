@@ -2,6 +2,7 @@
 
 Frontend = React + atomic design (see `src/AGENTS.md`).
 Backend = Tauri v2 + Rust (see `src-tauri/AGENTS.md`).
+Multi-window: a single process can host any number of windows, each with its own workspace. The `File > New Window` menu / `Cmd+Shift+N` opens an empty welcome window, and the macOS Dock-reopen path restores the last-used workspace into a fresh window. Per-window state lives in `AppState` keyed by `WebviewWindow::label()`; see `src-tauri/AGENTS.md` for the state model.
 
 ## Stack
 

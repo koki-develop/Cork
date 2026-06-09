@@ -2,29 +2,38 @@
 
 ## Layout
 
-`main.rs` is the entry point and calls `cork_lib::run()`. `lib.rs` only declares modules and wires plugins, state, and `#[tauri::command]`s in `run()` — domain logic lives in the per-module files below.
+`main.rs` is the entry point and calls `cork_lib::run()`. `lib.rs` only declares modules and wires plugins, state, `#[tauri::command]`s, the `on_window_event` cleanup hook, and the macOS `RunEvent::Reopen` handler in `run()` — domain logic lives in the per-module files below.
 
 ```
 src-tauri/src/
 ├── main.rs            entry point (cork_lib::run())
-├── lib.rs             mod declarations + run()
-├── state.rs           AppState
+├── lib.rs             mod declarations + run() + Reopen handler + main window seed
+├── state.rs           AppState (per-window workspace / cache / snapshot maps)
 ├── error.rs           CommandError + CmdResult<T>
 ├── security.rs        workspace-scope path checks
 ├── frontmatter.rs     YAML frontmatter parse / update / serialize
-├── menu.rs            macOS menu setup
-├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters) + workspace history
+├── menu.rs            macOS menu (Cork / File > New Window / Edit / Window) + focused-window settings emit
+├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters, list_workspace_history) + workspace history + open_new_window_impl + build_workspace_window + seed_window_from_history + handle_macos_reopen
 ├── task.rs            Task type + task commands (list/get/create/update/delete/renumber, ...)
 └── status.rs          StatusEntry type + status commands + .cork.json read/write
 ```
 
 ## State
 
-`AppState { Mutex<Option<PathBuf>> }` (defined in `state.rs`) holds the currently selected workspace directory. Always go through the API rather than locking directly:
+`AppState` (defined in `state.rs`) holds **per-window** state so two windows can keep independent workspaces, caches, and reconciliation snapshots:
 
-- `state.workspace() -> Option<PathBuf>` — clone-and-release; returns `None` if unset
-- `state.require_workspace() -> CmdResult<PathBuf>` — returns `CommandError::NoWorkspace` if unset
-- `state.set_workspace(dir: PathBuf)`
+- `windows: Mutex<HashMap<String, WindowState>>` — window label → `WindowState { workspace, tasks_cache, last_reported }`. Bundling all three fields under one lock is what makes `set_workspace`'s cascade ("replace workspace, drop cache, clear snapshot") atomic — a concurrent reader on the same window can never observe a half-applied transition.
+- `next_window_id: AtomicU64` — monotonic counter feeding `next_window_label`
+
+All public methods take a `label: &str` so commands stay scoped to the calling window. Always go through the API rather than locking directly:
+
+- `state.workspace(label) -> Option<PathBuf>` — clone-and-release; returns `None` if unset
+- `state.require_workspace(label) -> CmdResult<PathBuf>` — returns `CommandError::NoWorkspace` if unset
+- `state.set_workspace(label, dir)` — replaces the workspace for one window and clears **only that window's** cache + last_reported snapshot
+- `state.remove_window(label)` — drops every entry tied to a closed window; called from the `WindowEvent::Destroyed` hook in `lib.rs`
+- `state.next_window_label() -> String` — mints `workspace-<n>` labels for new windows (Reopen / File > New Window). Strictly monotonic for the process lifetime — closed window numbers are never reused
+
+The label `"main"` is reserved for the first window created in `lib.rs::setup`. Every other window gets a fresh `workspace-<n>` label from `next_window_label`. The `capabilities/default.json` allowlist matches both `"main"` and `"workspace-*"` to cover this naming convention.
 
 ## Error type
 
@@ -40,7 +49,7 @@ Frontend write commands take a `path` argument. They **must** verify the path li
 
 ## Capabilities
 
-Capabilities are declared in `capabilities/default.json`. Current grants: `core:default`, `core:window:allow-start-dragging`, `opener:default`, `fs:default`, `fs:allow-watch`, `store:default`. Any new Tauri plugin or fs operation likely needs a capability addition here.
+Capabilities are declared in `capabilities/default.json`. The `windows` field is `["main", "workspace-*"]` so the same permission set applies to the startup window and every additional window opened via `File > New Window` or the macOS Dock reopen path. Current grants: `core:default`, `core:window:allow-start-dragging`, `opener:default`, `fs:default`, `fs:allow-watch`, `store:default`. Any new Tauri plugin or fs operation likely needs a capability addition here.
 
 ## Cargo deps
 
@@ -53,18 +62,18 @@ Unit tests live inline at the bottom of each module under `#[cfg(test)] mod test
 Covered modules:
 
 - `error.rs` — Display / Serialize / `From<io::Error>` / `CommandError::other`
-- `state.rs` — `AppState` API + cross-thread sharing via `Arc`
+- `state.rs` — `AppState` API + cross-thread sharing via `Arc` + per-window isolation, `remove_window`, `next_window_label` monotonicity / thread safety, `set_workspace` scoping invariant
 - `security.rs` — `canonical_workspace` / `ensure_in_workspace` / `check_in_workspace`, including symlink and `..` escape rejection
 - `frontmatter.rs` — `parse` / `update` / `serialize` and the private `format_yaml_float`
-- `task.rs` — `sanitize_title` and `read_task_preview`
-- `workspace.rs` — `parse_workspace_history` / `history_to_json` / `prepend_unique_capped` (workspace-history pure helpers) and `update_workspaces_map` (persisted-store mutation)
+- `task.rs` — `sanitize_title`, `read_task_preview`, and `compute_reconciled_orders` (including the multi-window invariant that internal moves with `status` and `order` both changed don't trigger external-edit repair)
+- `workspace.rs` — `parse_workspace_history` / `history_to_json` / `prepend_unique_capped` (workspace-history pure helpers), `update_workspaces_map` (persisted-store mutation), and `filter_existing_directories` (the `is_dir()` survival filter backing `list_workspace_history`)
 
 Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime), `menu::setup`, `workspace::pick_directory` (GUI), and `workspace::set/get_workspace_directory` (need `AppHandle`). The commands are thin wrappers over the tested helpers, so the practical risk of skipping them is small.
 
 ## Adding a command
 
 1. Pick the right module (`workspace.rs` / `task.rs` / `status.rs`), or create a new domain file and declare it in `lib.rs`
-2. Define `#[tauri::command] pub fn ...` returning `CmdResult<T>` (or a plain value)
+2. Define `#[tauri::command] pub fn ...` returning `CmdResult<T>` (or a plain value). **Take `window: tauri::WebviewWindow` as a parameter** if the command needs workspace state — every `state.*` call requires a `&str` label, so you'll pass `window.label()` through to keep the scope per-window. The Tauri runtime injects this argument automatically; the frontend wrapper doesn't change
 3. Register it in the `tauri::generate_handler![...]` list in `lib.rs` as `domain::name`
 4. If the command writes to the file system, call `security::ensure_in_workspace` first
 5. Add a thin wrapper in `src/api/<domain>.ts` and re-export it from `src/api/index.ts`

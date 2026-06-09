@@ -14,6 +14,7 @@ export {
 export {
   getWorkspaceDirectory,
   getWorkspaceFilters,
+  listWorkspaceHistory,
   pickDirectory,
   setWorkspaceDirectory,
   setWorkspaceFilters,
