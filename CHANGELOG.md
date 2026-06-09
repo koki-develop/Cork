@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/koki-develop/Cork/compare/v0.2.0...v0.3.0) (2026-06-09)
+
+
+### Features
+
+* Add Cmd+N shortcut to open task creation dialog ([416f3a3](https://github.com/koki-develop/Cork/commit/416f3a36125c79f86ec59b5746c0c275f02d7daa))
+* Implement workspaces history ([f8774ee](https://github.com/koki-develop/Cork/commit/f8774ee9aadee4faa1be063231f7b6dfc2b0be38))
+
+
+### Bug Fixes
+
+* Defer .cork.json creation until user changes settings ([cdb7599](https://github.com/koki-develop/Cork/commit/cdb75991144f07f28ef962a699573177c111aab8))
+
 ## [0.2.0](https://github.com/koki-develop/Cork/compare/v0.1.0...v0.2.0) (2026-06-08)
 
 
