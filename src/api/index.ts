@@ -1,4 +1,4 @@
-export { onOpenSettings } from "./menu";
+export { onOpenCreateTask, onOpenSettings } from "./menu";
 export { getStatuses, saveStatuses } from "./statuses";
 export {
   createTask,

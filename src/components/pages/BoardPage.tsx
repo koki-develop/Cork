@@ -2,7 +2,13 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { getTask, onOpenSettings, pickDirectory, setWorkspaceDirectory } from "@/api";
+import {
+  getTask,
+  onOpenCreateTask,
+  onOpenSettings,
+  pickDirectory,
+  setWorkspaceDirectory,
+} from "@/api";
 import { FilterButton, SearchBar, type SearchBarHandle } from "@/components/molecules";
 import {
   CreateTaskDialog,
@@ -96,6 +102,15 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
       unlisten.then((fn) => fn());
     };
   }, []);
+
+  const hasStatuses = statuses.length > 0;
+  useEffect(() => {
+    if (!hasStatuses) return;
+    const unlisten = onOpenCreateTask(() => openCreateDialog());
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [hasStatuses]);
 
   const anyDialogOpen =
     settingsOpen ||

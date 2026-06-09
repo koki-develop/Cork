@@ -13,3 +13,6 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 // backend's `filter_target` check actually run and reject other windows.
 export const onOpenSettings = (callback: () => void): Promise<UnlistenFn> =>
   getCurrentWebviewWindow().listen("menu:open-settings", () => callback());
+
+export const onOpenCreateTask = (callback: () => void): Promise<UnlistenFn> =>
+  getCurrentWebviewWindow().listen("menu:open-create-task", () => callback());

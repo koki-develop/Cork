@@ -19,6 +19,10 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
 
+    let new_task_item = MenuItemBuilder::with_id("new_task", "New Task")
+        .accelerator("CmdOrCtrl+N")
+        .build(app)?;
+
     let new_window_item = MenuItemBuilder::with_id("new_window", "New Window")
         .accelerator("CmdOrCtrl+Shift+N")
         .build(app)?;
@@ -37,7 +41,11 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         .quit()
         .build()?;
 
-    let file_menu = SubmenuBuilder::new(app, "File").item(&new_window_item).build()?;
+    let file_menu = SubmenuBuilder::new(app, "File")
+        .item(&new_task_item)
+        .separator()
+        .item(&new_window_item)
+        .build()?;
 
     let edit_menu = SubmenuBuilder::new(app, "Edit")
         .undo()
@@ -94,6 +102,12 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
             if let Some(window) = focused_webview_window(app) {
                 let target = EventTarget::webview_window(window.label());
                 let _ = app.emit_to(target, "menu:open-settings", ());
+            }
+        }
+        "new_task" => {
+            if let Some(window) = focused_webview_window(app) {
+                let target = EventTarget::webview_window(window.label());
+                let _ = app.emit_to(target, "menu:open-create-task", ());
             }
         }
         "new_window" => {
