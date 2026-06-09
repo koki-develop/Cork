@@ -9,6 +9,8 @@ hooks:
       from: .claude
       to: .claude
     - type: command
+      command: mise trust
+    - type: command
       command: bun install
     - type: command
       command: direnv allow
