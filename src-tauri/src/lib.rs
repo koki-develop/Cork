@@ -18,7 +18,6 @@ use tauri::Manager;
 /// `"workspace-*"` glob to cover this naming convention.
 const MAIN_WINDOW_LABEL: &str = "main";
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -77,7 +76,6 @@ pub fn run() {
         // so future Tauri releases may add variants we don't care about.
         // Silently ignoring them keeps forward compatibility.
         match event {
-            #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen {
                 has_visible_windows: false,
                 ..
@@ -92,7 +90,6 @@ pub fn run() {
                 // around.
                 workspace::handle_macos_reopen(_app_handle);
             }
-            #[cfg(target_os = "macos")]
             tauri::RunEvent::ExitRequested {
                 code: None, api, ..
             } => {

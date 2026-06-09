@@ -204,7 +204,7 @@ export function TagEditor({
       // Cmd/Ctrl+Enter is a form-submit shortcut owned by the enclosing dialog —
       // don't consume it to commit an autocomplete suggestion. Letting it bubble
       // also avoids committing into stale `tags` state before submit reads it.
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) return;
+      if (e.key === "Enter" && e.metaKey) return;
       // Tab should select the highlighted suggestion when the autocomplete is
       // open, not move focus to the next element. Shift+Tab passes through.
       if (

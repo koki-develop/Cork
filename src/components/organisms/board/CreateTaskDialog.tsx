@@ -72,7 +72,7 @@ export function CreateTaskDialog({
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+    if (e.metaKey && e.key === "Enter") {
       e.preventDefault();
       const form = e.currentTarget as HTMLFormElement;
       form.requestSubmit();

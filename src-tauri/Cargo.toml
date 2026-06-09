@@ -7,9 +7,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "cork_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
@@ -28,8 +25,6 @@ gray_matter = "0.3"
 yaml-rust2 = "0.10"
 rayon = "1.12"
 nucleo-matcher = "0.3"
-
-[target."cfg(target_os = \"macos\")".dependencies]
 objc2-app-kit = { version = "0.3.2", features = ["NSColor", "NSWindow", "objc2-core-foundation"] }
 
 [dev-dependencies]

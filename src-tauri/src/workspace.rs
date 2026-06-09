@@ -156,7 +156,6 @@ pub fn seed_window_from_history(app: &tauri::AppHandle, label: &str) {
 /// and to every subsequent `workspace-<n>` window opened via the menu or the
 /// Reopen handler. Pulled out so the two call sites can't drift apart
 /// visually.
-#[cfg(target_os = "macos")]
 fn apply_macos_window_chrome(window: &WebviewWindow) {
     use objc2_app_kit::{NSColor, NSWindow};
 
@@ -189,14 +188,12 @@ pub(crate) fn build_workspace_window(
         .title("")
         .inner_size(1280.0, 800.0);
 
-    #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .traffic_light_position(tauri::LogicalPosition::new(20.0, 28.0));
 
     let window = builder.build()?;
 
-    #[cfg(target_os = "macos")]
     apply_macos_window_chrome(&window);
 
     Ok(window)
@@ -214,7 +211,6 @@ pub(crate) fn open_new_window_impl(app: &tauri::AppHandle) -> tauri::Result<Webv
     build_workspace_window(app, &label)
 }
 
-#[cfg(target_os = "macos")]
 fn reopen_with_history_restore(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
     let state = app.state::<AppState>();
     let label = state.next_window_label();
@@ -254,7 +250,6 @@ fn reopen_with_history_restore(app: &tauri::AppHandle) -> tauri::Result<WebviewW
 ///   one on top — instead un-minimise, un-hide, and refocus each existing
 ///   window. Creating another window in this branch would be the headline
 ///   bug this whole helper exists to avoid.
-#[cfg(target_os = "macos")]
 pub(crate) fn handle_macos_reopen(app: &tauri::AppHandle) {
     let windows = app.webview_windows();
     if windows.is_empty() {

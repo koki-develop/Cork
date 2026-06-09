@@ -107,7 +107,7 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (anyDialogOpen) return;
-      if (!(e.metaKey || e.ctrlKey)) return;
+      if (!e.metaKey) return;
       if (e.shiftKey) return;
       if (e.key.toLowerCase() !== "f") return;
       e.preventDefault();
