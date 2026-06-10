@@ -103,7 +103,7 @@ where
 /// Apply title-fuzzy query + tag filters to a task list. Empty `query` /
 /// empty `filters` skip their respective passes. Sort order is preserved
 /// from the input (caller must pre-sort).
-fn apply_query_and_filters(
+pub(crate) fn apply_query_and_filters(
     tasks: Vec<Task>,
     query: Option<&str>,
     filters: &[TagFilter],

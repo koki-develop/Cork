@@ -9,7 +9,7 @@ use axum::middleware::Next;
 use rand::Rng;
 use rmcp::{
     ServerHandler,
-    handler::server::{tool::Extension, wrapper::Json},
+    handler::server::{tool::Extension, wrapper::Json, wrapper::Parameters},
     model::{ServerCapabilities, ServerInfo},
     schemars, tool, tool_handler, tool_router,
     transport::streamable_http_server::{
@@ -26,7 +26,7 @@ use tauri_plugin_store::StoreExt;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-/// `settings.json` の top-level キー — MCP 設定はこの 1 つにネストする。
+/// Top-level key in `settings.json` — all MCP settings nest under this single key.
 const STORE_KEY: &str = "mcp";
 
 /// The MCP HTTP server always binds to this port. The user cannot change it
@@ -116,8 +116,8 @@ impl Workspace {
     }
 }
 
-/// MCP 経由で返すタスクの最小表現。`Task` から `body` / `order` を意図的に
-/// 落とした LLM 向け DTO。
+/// Minimal task representation returned over MCP. Intentionally drops `body` /
+/// `order` from `Task` to produce a lightweight LLM-oriented DTO.
 #[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
 pub struct McpTask {
     pub title: String,
@@ -126,16 +126,52 @@ pub struct McpTask {
     pub tags: Vec<String>,
 }
 
-/// `list_tasks` の出力ラッパ。
+/// Output wrapper for `list_tasks`.
 ///
-/// MCP 仕様 (`tools/list` の `outputSchema`) は root が `object` であることを
-/// 要求する — `Vec<McpTask>` を素のまま `Json<...>` で返すと rmcp が起動時に
-/// 「root type 'array', expected 'object'」で panic する。Cork の v1 では
-/// 単一フィールド `tasks` を持つ object として返し、将来ページネーションや
-/// メタ情報 (`total`, `next_cursor` 等) を足せる余地も残す。
+/// The MCP spec (`tools/list` `outputSchema`) requires the root to be `object`
+/// — returning `Json<Vec<McpTask>>` directly causes rmcp to panic at startup
+/// with "root type 'array', expected 'object'". Cork v1 wraps the array in a
+/// single-field `tasks` object, leaving room for future pagination or metadata
+/// (`total`, `next_cursor`, etc.).
 #[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
 pub struct ListTasksOutput {
     pub tasks: Vec<McpTask>,
+}
+
+/// Input parameters for the MCP `list_tasks` tool.
+///
+/// All fields are optional — when absent the tool returns all tasks as before.
+#[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
+pub struct ListTasksInput {
+    pub query: Option<String>,
+    pub filters: Option<Vec<McpTagFilter>>,
+}
+
+/// Tag filter received over MCP. Same discriminated union as `task::TagFilter`,
+/// but defined separately in the MCP module so it can derive `schemars::JsonSchema`
+/// without pulling MCP concerns into the core task types.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(tag = "operator", rename_all = "snake_case")]
+pub enum McpTagFilter {
+    Contains { tags: Vec<String> },
+    NotContains { tags: Vec<String> },
+    ContainsAny { tags: Vec<String> },
+    ContainsAll { tags: Vec<String> },
+    IsEmpty,
+    IsNotEmpty,
+}
+
+impl From<McpTagFilter> for task::TagFilter {
+    fn from(f: McpTagFilter) -> Self {
+        match f {
+            McpTagFilter::Contains { tags } => task::TagFilter::Contains { tags },
+            McpTagFilter::NotContains { tags } => task::TagFilter::NotContains { tags },
+            McpTagFilter::ContainsAny { tags } => task::TagFilter::ContainsAny { tags },
+            McpTagFilter::ContainsAll { tags } => task::TagFilter::ContainsAll { tags },
+            McpTagFilter::IsEmpty => task::TagFilter::IsEmpty,
+            McpTagFilter::IsNotEmpty => task::TagFilter::IsNotEmpty,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -178,7 +214,8 @@ pub fn validate_token(s: &str) -> Result<(), TokenValidationError> {
     Ok(())
 }
 
-/// ワークスペース名からスラグを生成 (`[a-zA-Z0-9_-]` 以外を `-` 化、複数 `-` を圧縮、両端 trim)。
+/// Generate a slug from a workspace name (replace non-`[a-zA-Z0-9_-]` with `-`,
+/// collapse consecutive dashes, trim both ends).
 pub fn slug_for_workspace(path: &std::path::Path) -> String {
     let basename = path
         .file_name()
@@ -352,10 +389,11 @@ pub struct CorkMcpServer;
 impl CorkMcpServer {
     #[tool(
         name = "list_tasks",
-        description = "List Cork tasks (Markdown files with a `status` frontmatter field) in the workspace specified by the `X-Cork-Workspace` HTTP header."
+        description = "List Cork tasks (Markdown files with a `status` frontmatter field) in the workspace specified by the `X-Cork-Workspace` HTTP header. Optionally filter by text query (`query`) and/or tag filters (`filters`)."
     )]
     async fn list_tasks(
         &self,
+        Parameters(input): Parameters<ListTasksInput>,
         Extension(parts): Extension<http::request::Parts>,
     ) -> Result<Json<ListTasksOutput>, rmcp::ErrorData> {
         let workspace = parts
@@ -369,7 +407,14 @@ impl CorkMcpServer {
                 )
             })?;
         let tasks = task::read_all_tasks(workspace.as_path());
-        let out: Vec<McpTask> = tasks
+        let filters: Vec<task::TagFilter> = input
+            .filters
+            .unwrap_or_default()
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let filtered = task::apply_query_and_filters(tasks, input.query.as_deref(), &filters);
+        let out: Vec<McpTask> = filtered
             .into_iter()
             .map(|t| McpTask {
                 title: t.title,
@@ -396,8 +441,8 @@ impl ServerHandler for CorkMcpServer {
 // Middleware
 // ---------------------------------------------------------------------------
 
-/// `Authorization: Bearer <token>` を検証する axum middleware。
-/// 定数時間比較 (`subtle::ConstantTimeEq`) でタイミング攻撃を回避。
+/// Axum middleware that validates `Authorization: Bearer <token>`.
+/// Uses constant-time comparison (`subtle::ConstantTimeEq`) to avoid timing attacks.
 pub async fn auth_layer(
     State(token): State<Arc<RwLock<String>>>,
     req: Request,
@@ -921,6 +966,119 @@ mod tests {
             .and_then(|v| v.as_str())
             .map(str::to_owned);
         assert_eq!(root_type.as_deref(), Some("object"));
+    }
+
+    // -- McpTagFilter ----------------------------------------------------------
+
+    fn mcp_contains(tags: &[&str]) -> McpTagFilter {
+        McpTagFilter::Contains { tags: tags.iter().map(|s| s.to_string()).collect() }
+    }
+    fn mcp_not_contains(tags: &[&str]) -> McpTagFilter {
+        McpTagFilter::NotContains { tags: tags.iter().map(|s| s.to_string()).collect() }
+    }
+    fn mcp_contains_any(tags: &[&str]) -> McpTagFilter {
+        McpTagFilter::ContainsAny { tags: tags.iter().map(|s| s.to_string()).collect() }
+    }
+    fn mcp_contains_all(tags: &[&str]) -> McpTagFilter {
+        McpTagFilter::ContainsAll { tags: tags.iter().map(|s| s.to_string()).collect() }
+    }
+
+    #[test]
+    fn mcp_tag_filter_round_trips_all_variants() {
+        let cases: Vec<(McpTagFilter, serde_json::Value)> = vec![
+            (
+                mcp_contains(&["bug"]),
+                serde_json::json!({ "operator": "contains", "tags": ["bug"] }),
+            ),
+            (
+                mcp_not_contains(&["feature"]),
+                serde_json::json!({ "operator": "not_contains", "tags": ["feature"] }),
+            ),
+            (
+                mcp_contains_any(&["a", "b"]),
+                serde_json::json!({ "operator": "contains_any", "tags": ["a", "b"] }),
+            ),
+            (
+                mcp_contains_all(&["x", "y", "z"]),
+                serde_json::json!({ "operator": "contains_all", "tags": ["x", "y", "z"] }),
+            ),
+            (McpTagFilter::IsEmpty, serde_json::json!({ "operator": "is_empty" })),
+            (McpTagFilter::IsNotEmpty, serde_json::json!({ "operator": "is_not_empty" })),
+        ];
+        for (filter, expected) in cases {
+            let json = serde_json::to_value(&filter).unwrap();
+            assert_eq!(json, expected, "serialize: {filter:?}");
+            let deserialized: McpTagFilter = serde_json::from_value(json).unwrap();
+            assert_eq!(deserialized, filter, "round trip: {filter:?}");
+        }
+    }
+
+    #[test]
+    fn mcp_tag_filter_from_converts_all_variants() {
+        fn roundtrip(mcp: McpTagFilter) {
+            let task_filter: task::TagFilter = mcp.clone().into();
+            let mcp_back: McpTagFilter = {
+                // Re-encode through task::TagFilter → serde_value to compare
+                let tv = serde_json::to_value(&task_filter).unwrap();
+                serde_json::from_value(tv).unwrap()
+            };
+            assert_eq!(mcp_back, mcp, "conversion round-trip: {mcp:?}");
+        }
+        roundtrip(mcp_contains(&["bug"]));
+        roundtrip(mcp_not_contains(&["feature"]));
+        roundtrip(mcp_contains_any(&["a"]));
+        roundtrip(mcp_contains_all(&["x", "y"]));
+        roundtrip(McpTagFilter::IsEmpty);
+        roundtrip(McpTagFilter::IsNotEmpty);
+    }
+
+    // -- ListTasksInput --------------------------------------------------------
+
+    #[test]
+    fn list_tasks_input_deserializes_full_payload() {
+        let json = serde_json::json!({
+            "query": "search text",
+            "filters": [
+                { "operator": "contains", "tags": ["bug"] },
+                { "operator": "is_not_empty" },
+            ],
+        });
+        let input: ListTasksInput = serde_json::from_value(json).unwrap();
+        assert_eq!(input.query.as_deref(), Some("search text"));
+        assert_eq!(input.filters.as_ref().map(|v| v.len()), Some(2));
+    }
+
+    #[test]
+    fn list_tasks_input_deserializes_empty_object() {
+        let input: ListTasksInput = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(input.query.is_none());
+        assert!(input.filters.is_none());
+    }
+
+    #[test]
+    fn list_tasks_input_deserializes_partial_query_only() {
+        let input: ListTasksInput =
+            serde_json::from_value(serde_json::json!({ "query": "foo" })).unwrap();
+        assert_eq!(input.query.as_deref(), Some("foo"));
+        assert!(input.filters.is_none());
+    }
+
+    #[test]
+    fn list_tasks_input_deserializes_partial_filters_only() {
+        let input: ListTasksInput = serde_json::from_value(serde_json::json!({
+            "filters": [{ "operator": "is_empty" }],
+        }))
+        .unwrap();
+        assert!(input.query.is_none());
+        assert_eq!(input.filters.as_ref().map(|v| v.len()), Some(1));
+    }
+
+    #[test]
+    fn list_tasks_input_accepts_null_fields() {
+        let input: ListTasksInput =
+            serde_json::from_value(serde_json::json!({ "query": null, "filters": null })).unwrap();
+        assert!(input.query.is_none());
+        assert!(input.filters.is_none());
     }
 
     // -- resolve_settings ------------------------------------------------------
