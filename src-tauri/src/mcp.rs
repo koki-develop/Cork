@@ -140,9 +140,6 @@ pub struct ListTasksOutput {
     pub tasks: Vec<McpTask>,
 }
 
-/// Input parameters for the MCP `list_tasks` tool.
-///
-/// All fields are optional — when absent the tool returns all tasks as before.
 #[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
 pub struct ListTasksInput {
     /// Fuzzy-search tasks by title.
@@ -181,7 +178,6 @@ pub struct ListStatusesOutput {
     pub statuses: Vec<McpStatusEntry>,
 }
 
-/// No parameters needed.
 #[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
 pub struct ListStatusesInput {}
 
@@ -201,7 +197,6 @@ pub struct ListTagsOutput {
     pub tags: Vec<McpTagEntry>,
 }
 
-/// No parameters needed.
 #[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
 pub struct ListTagsInput {}
 
