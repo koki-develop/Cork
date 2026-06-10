@@ -200,6 +200,28 @@ pub struct ListTagsOutput {
 #[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
 pub struct ListTagsInput {}
 
+// ---------------------------------------------------------------------------
+// MCP tool: create_task types
+// ---------------------------------------------------------------------------
+
+/// Output wrapper for `create_task`.
+#[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
+pub struct CreateTaskOutput {
+    pub task: McpTask,
+}
+
+#[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
+pub struct CreateTaskInput {
+    /// Task title.
+    pub title: String,
+    /// Status column label (e.g. "Todo", "Doing", "Done"). Use `list_statuses` to discover valid status values for the workspace.
+    pub status: String,
+    /// Optional tags.
+    pub tags: Option<Vec<String>>,
+    /// Optional markdown body.
+    pub body: Option<String>,
+}
+
 impl From<McpTagFilter> for task::TagFilter {
     fn from(f: McpTagFilter) -> Self {
         match f {
@@ -522,6 +544,54 @@ impl CorkMcpServer {
             .collect();
         Ok(Json(ListTagsOutput { tags: out }))
     }
+
+    #[tool(
+        name = "create_task",
+        description = "Create a new task in the Cork workspace."
+    )]
+    async fn create_task(
+        &self,
+        Parameters(input): Parameters<CreateTaskInput>,
+        Extension(parts): Extension<http::request::Parts>,
+    ) -> Result<Json<CreateTaskOutput>, rmcp::ErrorData> {
+        let workspace = parts
+            .extensions
+            .get::<Workspace>()
+            .cloned()
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_params(
+                    "workspace not bound to this session; middleware did not run",
+                    None,
+                )
+            })?;
+
+        // Compute order: place at the top of the status column (same as GUI).
+        let existing = task::read_all_tasks(workspace.as_path());
+        let order = existing
+            .iter()
+            .filter(|t| t.status == input.status)
+            .filter_map(|t| t.order)
+            .fold(f64::INFINITY, f64::min);
+        let order = if order == f64::INFINITY {
+            0.0
+        } else {
+            order - 1.0
+        };
+
+        let body = input.body.unwrap_or_default();
+        let created =
+            task::write_task_file(workspace.as_path(), &input.title, &input.status, &body, Some(order), input.tags)
+                .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+
+        Ok(Json(CreateTaskOutput {
+            task: McpTask {
+                title: created.title,
+                file_path: created.id,
+                status: created.status,
+                tags: created.tags,
+            },
+        }))
+    }
 }
 
 #[tool_handler]
@@ -529,7 +599,7 @@ impl ServerHandler for CorkMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(
-                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks, `list_statuses` to list status columns, and `list_tags` to list all tags from the workspace.",
+                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks, `create_task` to create a new task, `list_statuses` to list status columns, and `list_tags` to list all tags from the workspace.",
             )
     }
 }
@@ -1085,6 +1155,10 @@ mod tests {
             names.iter().any(|n| n == "list_tags"),
             "list_tags must be registered; got {names:?}",
         );
+        assert!(
+            names.iter().any(|n| n == "create_task"),
+            "create_task must be registered; got {names:?}",
+        );
     }
 
     #[test]
@@ -1105,6 +1179,17 @@ mod tests {
     #[test]
     fn list_tags_output_schema_root_is_object() {
         let schema = schemars::schema_for!(ListTagsOutput);
+        let root_type = schema
+            .as_value()
+            .get("type")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        assert_eq!(root_type.as_deref(), Some("object"));
+    }
+
+    #[test]
+    fn create_task_output_schema_root_is_object() {
+        let schema = schemars::schema_for!(CreateTaskOutput);
         let root_type = schema
             .as_value()
             .get("type")
@@ -1309,6 +1394,75 @@ mod tests {
                     { "name": "bug" },
                     { "name": "feature" },
                 ]
+            })
+        );
+    }
+
+    // -- CreateTaskInput -------------------------------------------------------
+
+    #[test]
+    fn create_task_input_deserializes_full_payload() {
+        let json = serde_json::json!({
+            "title": "My New Task",
+            "status": "Doing",
+            "tags": ["bug", "feature"],
+            "body": "Some description",
+        });
+        let input: CreateTaskInput = serde_json::from_value(json).unwrap();
+        assert_eq!(input.title, "My New Task");
+        assert_eq!(input.status, "Doing");
+        assert_eq!(input.tags, Some(vec!["bug".into(), "feature".into()]));
+        assert_eq!(input.body.as_deref(), Some("Some description"));
+    }
+
+    #[test]
+    fn create_task_input_deserializes_minimal() {
+        let json = serde_json::json!({
+            "title": "Minimal Task",
+            "status": "Todo",
+        });
+        let input: CreateTaskInput = serde_json::from_value(json).unwrap();
+        assert_eq!(input.title, "Minimal Task");
+        assert_eq!(input.status, "Todo");
+        assert!(input.tags.is_none());
+        assert!(input.body.is_none());
+    }
+
+    #[test]
+    fn create_task_input_accepts_null_optionals() {
+        let json = serde_json::json!({
+            "title": "With Nulls",
+            "status": "Done",
+            "tags": null,
+            "body": null,
+        });
+        let input: CreateTaskInput = serde_json::from_value(json).unwrap();
+        assert_eq!(input.title, "With Nulls");
+        assert_eq!(input.status, "Done");
+        assert!(input.tags.is_none());
+        assert!(input.body.is_none());
+    }
+
+    #[test]
+    fn create_task_output_serializes_task() {
+        let output = CreateTaskOutput {
+            task: McpTask {
+                title: "Created Task".into(),
+                file_path: "/workspace/Created Task.md".into(),
+                status: "Todo".into(),
+                tags: vec!["tag1".into()],
+            },
+        };
+        let json = serde_json::to_value(&output).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "task": {
+                    "title": "Created Task",
+                    "file_path": "/workspace/Created Task.md",
+                    "status": "Todo",
+                    "tags": ["tag1"],
+                }
             })
         );
     }

@@ -283,6 +283,47 @@ pub fn get_task(
     })
 }
 
+/// Write a task file to disk. Pure filesystem operation — no cache or
+/// snapshot management. Returns the created `Task`.
+pub fn write_task_file(
+    dir: &Path,
+    title: &str,
+    status: &str,
+    body: &str,
+    order: Option<f64>,
+    tags: Option<Vec<String>>,
+) -> CmdResult<Task> {
+    let title = sanitize_title(title)?;
+
+    let file_path = dir.join(format!("{}.md", title));
+    if file_path.exists() {
+        return Err(CommandError::DuplicateTask);
+    }
+
+    let mut fm_value = serde_json::json!({ "status": status });
+    if let Some(obj) = fm_value.as_object_mut() {
+        if let Some(o) = order {
+            obj.insert("order".to_string(), serde_json::json!(o));
+        }
+        if let Some(t) = tags.as_ref().filter(|t| !t.is_empty()) {
+            obj.insert("tags".to_string(), serde_json::json!(t));
+        }
+    }
+    let yaml = frontmatter::serialize(&fm_value);
+    let content = frontmatter::ensure_trailing_newline(format!("---\n{}---\n\n{}", yaml, body));
+    fs::write(&file_path, content)?;
+
+    let id = file_path.to_string_lossy().to_string();
+    Ok(Task {
+        id,
+        title,
+        status: status.to_string(),
+        body: body.to_string(),
+        order,
+        tags: tags.unwrap_or_default(),
+    })
+}
+
 #[tauri::command]
 pub fn create_task(
     window: tauri::WebviewWindow,
@@ -297,39 +338,12 @@ pub fn create_task(
     let dir = state.require_workspace(label)?;
     let dir_canonical = security::canonical_workspace(&dir)?;
 
-    let title = sanitize_title(&title)?;
-
-    let file_path = dir_canonical.join(format!("{}.md", title));
-    if file_path.exists() {
-        return Err(CommandError::DuplicateTask);
-    }
-
     let body = body.unwrap_or_default();
-    let mut fm_value = serde_json::json!({ "status": status });
-    if let Some(obj) = fm_value.as_object_mut() {
-        if let Some(o) = order {
-            obj.insert("order".to_string(), serde_json::json!(o));
-        }
-        if let Some(t) = tags.as_ref().filter(|t| !t.is_empty()) {
-            obj.insert("tags".to_string(), serde_json::json!(t));
-        }
-    }
-    let yaml = frontmatter::serialize(&fm_value);
-    let content = frontmatter::ensure_trailing_newline(format!("---\n{}---\n\n{}", yaml, body));
-    fs::write(&file_path, content)?;
+    let task = write_task_file(&dir_canonical, &title, &status, &body, order, tags.clone())?;
     state.invalidate_cache(label);
+    state.upsert_last_reported(label, task.id.clone(), task.status.clone(), task.order);
 
-    let id = file_path.to_string_lossy().to_string();
-    state.upsert_last_reported(label, id.clone(), status.clone(), order);
-
-    Ok(Task {
-        id,
-        title,
-        status,
-        body,
-        order,
-        tags: tags.unwrap_or_default(),
-    })
+    Ok(task)
 }
 
 #[tauri::command]
