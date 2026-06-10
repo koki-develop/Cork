@@ -1,5 +1,6 @@
 use crate::error::{CmdResult, CommandError};
 use crate::state::AppState;
+use crate::status;
 use crate::task;
 use crate::workspace::SETTINGS_FILE;
 use axum::body::Body;
@@ -163,6 +164,26 @@ pub enum McpTagFilter {
     IsEmpty,
     IsNotEmpty,
 }
+
+// ---------------------------------------------------------------------------
+// MCP tool: list_statuses types
+// ---------------------------------------------------------------------------
+
+/// A status entry returned over MCP.
+#[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
+pub struct McpStatusEntry {
+    pub label: String,
+}
+
+/// Output wrapper for `list_statuses`.
+#[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
+pub struct ListStatusesOutput {
+    pub statuses: Vec<McpStatusEntry>,
+}
+
+/// Input parameters for the MCP `list_statuses` tool — no parameters needed currently.
+#[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
+pub struct ListStatusesInput {}
 
 impl From<McpTagFilter> for task::TagFilter {
     fn from(f: McpTagFilter) -> Self {
@@ -430,6 +451,34 @@ impl CorkMcpServer {
             .collect();
         Ok(Json(ListTasksOutput { tasks: out }))
     }
+
+    #[tool(
+        name = "list_statuses",
+        description = "List all status columns defined in the Cork workspace."
+    )]
+    async fn list_statuses(
+        &self,
+        Parameters(_input): Parameters<ListStatusesInput>,
+        Extension(parts): Extension<http::request::Parts>,
+    ) -> Result<Json<ListStatusesOutput>, rmcp::ErrorData> {
+        let workspace = parts
+            .extensions
+            .get::<Workspace>()
+            .cloned()
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_params(
+                    "workspace not bound to this session; middleware did not run",
+                    None,
+                )
+            })?;
+        let statuses = status::read_statuses_from_workspace(workspace.as_path())
+            .unwrap_or_default();
+        let out: Vec<McpStatusEntry> = statuses
+            .into_iter()
+            .map(|s| McpStatusEntry { label: s.label })
+            .collect();
+        Ok(Json(ListStatusesOutput { statuses: out }))
+    }
 }
 
 #[tool_handler]
@@ -437,7 +486,7 @@ impl ServerHandler for CorkMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(
-                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks from the workspace specified in the `X-Cork-Workspace` HTTP header.",
+                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks and `list_statuses` to list status columns from the workspace specified in the `X-Cork-Workspace` HTTP header.",
             )
     }
 }

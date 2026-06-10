@@ -105,7 +105,7 @@ fn cork_config_path(dir: &Path) -> PathBuf {
     dir.join(CORK_CONFIG_FILE)
 }
 
-fn read_statuses_from_workspace(dir: &Path) -> Option<Vec<StatusEntry>> {
+pub(crate) fn read_statuses_from_workspace(dir: &Path) -> Option<Vec<StatusEntry>> {
     let path = cork_config_path(dir);
     let content = match fs::read_to_string(&path) {
         Ok(c) => c,
