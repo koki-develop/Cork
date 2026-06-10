@@ -181,9 +181,29 @@ pub struct ListStatusesOutput {
     pub statuses: Vec<McpStatusEntry>,
 }
 
-/// Input parameters for the MCP `list_statuses` tool — no parameters needed currently.
+/// No parameters needed.
 #[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
 pub struct ListStatusesInput {}
+
+// ---------------------------------------------------------------------------
+// MCP tool: list_tags types
+// ---------------------------------------------------------------------------
+
+/// A single tag entry returned over MCP.
+#[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
+pub struct McpTagEntry {
+    pub name: String,
+}
+
+/// Output wrapper for `list_tags`.
+#[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
+pub struct ListTagsOutput {
+    pub tags: Vec<McpTagEntry>,
+}
+
+/// No parameters needed.
+#[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
+pub struct ListTagsInput {}
 
 impl From<McpTagFilter> for task::TagFilter {
     fn from(f: McpTagFilter) -> Self {
@@ -479,6 +499,34 @@ impl CorkMcpServer {
             .collect();
         Ok(Json(ListStatusesOutput { statuses: out }))
     }
+
+    #[tool(
+        name = "list_tags",
+        description = "List all tags used across tasks in the Cork workspace."
+    )]
+    async fn list_tags(
+        &self,
+        Parameters(_input): Parameters<ListTagsInput>,
+        Extension(parts): Extension<http::request::Parts>,
+    ) -> Result<Json<ListTagsOutput>, rmcp::ErrorData> {
+        let workspace = parts
+            .extensions
+            .get::<Workspace>()
+            .cloned()
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_params(
+                    "workspace not bound to this session; middleware did not run",
+                    None,
+                )
+            })?;
+        let tasks = task::read_all_tasks(workspace.as_path());
+        let tags = task::collect_unique_tags_sorted(&tasks);
+        let out: Vec<McpTagEntry> = tags
+            .into_iter()
+            .map(|t| McpTagEntry { name: t })
+            .collect();
+        Ok(Json(ListTagsOutput { tags: out }))
+    }
 }
 
 #[tool_handler]
@@ -486,7 +534,7 @@ impl ServerHandler for CorkMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(
-                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks and `list_statuses` to list status columns from the workspace.",
+                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks, `list_statuses` to list status columns, and `list_tags` to list all tags from the workspace.",
             )
     }
 }
@@ -1038,6 +1086,10 @@ mod tests {
             names.iter().any(|n| n == "list_tasks"),
             "list_tasks must be registered; got {names:?}",
         );
+        assert!(
+            names.iter().any(|n| n == "list_tags"),
+            "list_tags must be registered; got {names:?}",
+        );
     }
 
     #[test]
@@ -1047,6 +1099,17 @@ mod tests {
         // sneak in past `tool_router_registers_without_panicking_on_output_schema`
         // if rmcp's internal assertion ever changes.
         let schema = schemars::schema_for!(ListTasksOutput);
+        let root_type = schema
+            .as_value()
+            .get("type")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        assert_eq!(root_type.as_deref(), Some("object"));
+    }
+
+    #[test]
+    fn list_tags_output_schema_root_is_object() {
+        let schema = schemars::schema_for!(ListTagsOutput);
         let root_type = schema
             .as_value()
             .get("type")
@@ -1224,6 +1287,35 @@ mod tests {
             .collect();
         assert_eq!(filtered.len(), 2);
         assert!(filtered.iter().all(|t| t.status == "Todo"));
+    }
+
+    // -- ListTagsInput ---------------------------------------------------------
+
+    #[test]
+    fn list_tags_input_deserializes_empty_object() {
+        let input: ListTagsInput =
+            serde_json::from_value(serde_json::json!({})).unwrap();
+        let _ = input;
+    }
+
+    #[test]
+    fn list_tags_output_serializes_tags_array() {
+        let output = ListTagsOutput {
+            tags: vec![
+                McpTagEntry { name: "bug".to_string() },
+                McpTagEntry { name: "feature".to_string() },
+            ],
+        };
+        let json = serde_json::to_value(&output).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "tags": [
+                    { "name": "bug" },
+                    { "name": "feature" },
+                ]
+            })
+        );
     }
 
     // -- resolve_settings ------------------------------------------------------

@@ -143,7 +143,7 @@ pub(crate) fn apply_query_and_filters(
 /// Collect unique tags from a task slice, sorted case-insensitively while
 /// preserving each tag's original case. Dedup is case-sensitive — `Bug`
 /// and `bug` are kept as separate entries.
-fn collect_unique_tags_sorted(tasks: &[Task]) -> Vec<String> {
+pub(crate) fn collect_unique_tags_sorted(tasks: &[Task]) -> Vec<String> {
     let mut set: HashSet<String> = HashSet::new();
     for task in tasks {
         for tag in &task.tags {
