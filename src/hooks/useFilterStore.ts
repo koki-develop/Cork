@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { getWorkspaceFilters, setWorkspaceFilters } from "@/api";
@@ -7,26 +7,13 @@ import type { StoredFilter, TagFilter } from "@/types";
 const toStored = (f: TagFilter): StoredFilter =>
   "tags" in f ? { operator: f.operator, tags: f.tags } : { operator: f.operator };
 
-const SAVE_DEBOUNCE_MS = 500;
-
 export function useFilterStore(workspaceDir: string | null): {
   filters: TagFilter[];
   setFilters: (next: TagFilter[]) => void;
 } {
   const [filters, setFiltersState] = useState<TagFilter[]>([]);
-  const saveTimerRef = useRef<number | null>(null);
-  const workspaceDirRef = useRef(workspaceDir);
-  workspaceDirRef.current = workspaceDir;
-
-  const cancelPendingSave = useCallback(() => {
-    if (saveTimerRef.current !== null) {
-      globalThis.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-  }, []);
 
   useEffect(() => {
-    cancelPendingSave();
     if (workspaceDir === null) {
       setFiltersState([]);
       return;
@@ -53,29 +40,18 @@ export function useFilterStore(workspaceDir: string | null): {
     return () => {
       cancelled = true;
     };
-  }, [workspaceDir, cancelPendingSave]);
+  }, [workspaceDir]);
 
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current !== null) {
-        globalThis.clearTimeout(saveTimerRef.current);
-      }
-    };
-  }, []);
-
-  const setFilters = useCallback((next: TagFilter[]) => {
-    setFiltersState(next);
-    if (workspaceDirRef.current === null) return;
-    if (saveTimerRef.current !== null) {
-      globalThis.clearTimeout(saveTimerRef.current);
-    }
-    saveTimerRef.current = globalThis.setTimeout(() => {
-      saveTimerRef.current = null;
+  const setFilters = useCallback(
+    (next: TagFilter[]) => {
+      setFiltersState(next);
+      if (workspaceDir === null) return;
       setWorkspaceFilters(next.map(toStored)).catch((err) => {
         toast.error(`Failed to save filters: ${err}`);
       });
-    }, SAVE_DEBOUNCE_MS) as unknown as number;
-  }, []);
+    },
+    [workspaceDir],
+  );
 
   return { filters, setFilters };
 }

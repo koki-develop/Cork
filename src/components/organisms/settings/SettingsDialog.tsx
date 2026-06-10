@@ -6,6 +6,7 @@ import { DialogFooter, DialogHeader } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import type { EditingEntry } from "@/types";
 
+import { McpServerSection, type McpServerSectionProps } from "./McpServerSection";
 import { StatusList } from "./StatusList";
 import { WorkspaceDirectoryField } from "./WorkspaceDirectoryField";
 
@@ -24,6 +25,7 @@ export type SettingsDialogProps = {
   onDragStart: (event: DragStartEvent) => void;
   onDragOver: (event: DragOverEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
+  mcp: McpServerSectionProps;
 };
 
 export function SettingsDialog({
@@ -41,6 +43,7 @@ export function SettingsDialog({
   onDragStart,
   onDragOver,
   onDragEnd,
+  mcp,
 }: SettingsDialogProps) {
   const [removingIndex, setRemovingIndex] = useState<number | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
@@ -87,6 +90,8 @@ export function SettingsDialog({
           onDragOver={onDragOver}
           onDragEnd={onDragEnd}
         />
+
+        <McpServerSection {...mcp} />
       </Modal>
 
       {removingIndex !== null && (

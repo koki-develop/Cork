@@ -22,6 +22,7 @@ import { SettingsDialog } from "@/components/organisms/settings";
 import { AppHeader, TagFilterPopover } from "@/components/organisms/shell";
 import { BoardLayout } from "@/components/templates";
 import { useBoardDragState } from "@/hooks/useBoardDragState";
+import { useMcpSettings } from "@/hooks/useMcpSettings";
 import { useStatusEdit } from "@/hooks/useStatusEdit";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { UNKNOWN_STATUS } from "@/lib/board";
@@ -54,6 +55,8 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => setSettingsOpen(true);
+
+  const mcp = useMcpSettings(settingsOpen);
 
   const [filterOpen, setFilterOpen] = useState(false);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
@@ -316,6 +319,14 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
         onDragStart={handleStatusDragStart}
         onDragOver={handleStatusDragOver}
         onDragEnd={handleStatusDragEnd}
+        mcp={{
+          settings: mcp.settings,
+          status: mcp.status,
+          sampleConfig: mcp.sampleConfig,
+          onUpdateEnabled: mcp.updateEnabled,
+          onUpdateToken: mcp.updateToken,
+          onGenerateToken: mcp.regenerateToken,
+        }}
       />
     </>
   );

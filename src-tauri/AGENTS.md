@@ -7,23 +7,25 @@
 ```
 src-tauri/src/
 ├── main.rs            entry point (cork_lib::run())
-├── lib.rs             mod declarations + run() + Reopen handler + main window seed
-├── state.rs           AppState (per-window workspace / cache / snapshot maps)
+├── lib.rs             mod declarations + run() + Reopen handler + main window seed + MCP setup/stop
+├── state.rs           AppState (per-window workspace / cache / snapshot maps + process-global MCP runtime)
 ├── error.rs           CommandError + CmdResult<T>
 ├── security.rs        workspace-scope path checks
 ├── frontmatter.rs     YAML frontmatter parse / update / serialize
 ├── menu.rs            macOS menu (Cork / File > New Window / Edit / Window) + focused-window settings emit
 ├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters, list_workspace_history) + workspace history + open_new_window_impl + build_workspace_window + seed_window_from_history + handle_macos_reopen
 ├── task.rs            Task type + task commands (list/get/create/update/delete/renumber, ...)
-└── status.rs          StatusEntry type + status commands + .cork.json read/write
+├── status.rs          StatusEntry type + status commands + .cork.json read/write
+└── mcp.rs             Embedded MCP server (Streamable HTTP transport, Bearer auth + workspace header middleware, `list_tasks` tool, settings persistence, lifecycle start/stop)
 ```
 
 ## State
 
-`AppState` (defined in `state.rs`) holds **per-window** state so two windows can keep independent workspaces, caches, and reconciliation snapshots:
+`AppState` (defined in `state.rs`) holds **per-window** state so two windows can keep independent workspaces, caches, and reconciliation snapshots, plus **one process-global slot** for the MCP server runtime:
 
 - `windows: Mutex<HashMap<String, WindowState>>` — window label → `WindowState { workspace, tasks_cache, last_reported }`. Bundling all three fields under one lock is what makes `set_workspace`'s cascade ("replace workspace, drop cache, clear snapshot") atomic — a concurrent reader on the same window can never observe a half-applied transition.
 - `next_window_id: AtomicU64` — monotonic counter feeding `next_window_label`
+- `mcp_runtime: Mutex<McpRuntime>` — process-global, not per-window. The MCP server is a single TCP listener bound for the whole Cork process; the `McpRuntime` enum (`Stopped` / `Running(McpHandle)` / `Failed { error }`) makes "we have a live handle" and "we know why bind failed" mutually exclusive, so the runtime can never drift into a "handle missing but error unset" state.
 
 All public methods take a `label: &str` so commands stay scoped to the calling window. Always go through the API rather than locking directly:
 
@@ -32,6 +34,14 @@ All public methods take a `label: &str` so commands stay scoped to the calling w
 - `state.set_workspace(label, dir)` — replaces the workspace for one window and clears **only that window's** cache + last_reported snapshot
 - `state.remove_window(label)` — drops every entry tied to a closed window; called from the `WindowEvent::Destroyed` hook in `lib.rs`
 - `state.next_window_label() -> String` — mints `workspace-<n>` labels for new windows (Reopen / File > New Window). Strictly monotonic for the process lifetime — closed window numbers are never reused
+
+MCP-runtime accessors (single global slot, no `label` argument):
+
+- `state.set_mcp_runtime(runtime)` — replace the runtime slot wholesale (used at setup, on Toggle ON/OFF, and on bind result)
+- `state.take_mcp_handle() -> Option<McpHandle>` — atomically take the handle out of `Running` and leave `Stopped` in its place; `Failed` / `Stopped` are preserved so a Failed error is never lost while probing
+- `state.mcp_status() -> McpStatus` — read-only projection used by `get_server_status` / `update_settings` return values
+- `state.with_mcp_handle(f)` — borrow the live handle for in-place mutation (token hot-swap during a token-only settings change); no-op for non-`Running` runtimes
+- `state.is_mcp_running() -> bool` — lightweight predicate for the `update_settings` diff branch
 
 The label `"main"` is reserved for the first window created in `lib.rs::setup`. Every other window gets a fresh `workspace-<n>` label from `next_window_label`. The `capabilities/default.json` allowlist matches both `"main"` and `"workspace-*"` to cover this naming convention.
 
@@ -53,7 +63,11 @@ Capabilities are declared in `capabilities/default.json`. The `windows` field is
 
 ## Cargo deps
 
-`tauri-plugin-fs = { version = "2", features = ["watch"] }` — the `"watch"` feature is required by the frontend `useWorkspace` hook. Other plugins are stock. `tempfile` is a dev-dependency used by unit tests that touch the filesystem.
+`tauri-plugin-fs = { version = "2", features = ["watch"] }` — the `"watch"` feature is required by the frontend `useWorkspace` hook. Other plugins are stock.
+
+MCP-related deps live under the same `[dependencies]` block: `rmcp` (server + `transport-streamable-http-server` + `macros` + `schemars` features — gives us `#[tool_router]` / `#[tool_handler]` macros and the Streamable HTTP transport), `axum` (rmcp's transport mounts a service onto an axum `Router`, and our middleware layers are axum `from_fn` / `from_fn_with_state`), `tokio` with `sync` + `time` + `rt` + `fs` features (`fs` is for the async `canonicalize` / `metadata` in `workspace_layer`; blocking versions would pin a runtime worker on disk I/O in the request hot path), `tokio-util` for `CancellationToken`, `rand` (CSRNG-backed `OsRng` for token minting), `subtle` (constant-time string compare in `auth_layer`), `schemars` (JSON Schema generation for the tool's `outputSchema`), `http` (raw `Request<Parts>` extraction in the `list_tasks` handler).
+
+Dev-dependencies: `tempfile` (filesystem-touching unit tests), `tower` with `util` feature (for `ServiceExt::oneshot` — drives a built axum `Router` through one request inside the middleware tests).
 
 ## Tests
 
@@ -62,13 +76,14 @@ Unit tests live inline at the bottom of each module under `#[cfg(test)] mod test
 Covered modules:
 
 - `error.rs` — Display / Serialize / `From<io::Error>` / `CommandError::other`
-- `state.rs` — `AppState` API + cross-thread sharing via `Arc` + per-window isolation, `remove_window`, `next_window_label` monotonicity / thread safety, `set_workspace` scoping invariant
+- `state.rs` — `AppState` API + cross-thread sharing via `Arc` + per-window isolation, `remove_window`, `next_window_label` monotonicity / thread safety, `set_workspace` scoping invariant, MCP runtime transitions (`Stopped` / `Failed` / `is_mcp_running` predicate, `with_mcp_handle` non-`Running` no-op)
 - `security.rs` — `canonical_workspace` / `ensure_in_workspace` / `check_in_workspace`, including symlink and `..` escape rejection
 - `frontmatter.rs` — `parse` / `update` / `serialize` and the private `format_yaml_float`
 - `task.rs` — `sanitize_title`, `read_task_preview`, and `compute_reconciled_orders` (including the multi-window invariant that internal moves with `status` and `order` both changed don't trigger external-edit repair)
 - `workspace.rs` — `parse_workspace_history` / `history_to_json` / `prepend_unique_capped` (workspace-history pure helpers), `update_workspaces_map` (persisted-store mutation), and `filter_existing_directories` (the `is_dir()` survival filter backing `list_workspace_history`)
+- `mcp.rs` — token minting / validation / `McpSettings` round-trip / store-key wire-shape pinning / `resolve_settings` (cold-start + corrupt-token rotation, preserving `enabled`), `slug_for_workspace`, `build_sample_config` (single / multi / duplicate-slug disambiguation / stable FNV-1a), `McpRuntime` / `McpStatus` / `McpStartError` (Display + tagged-enum wire format), `is_token_only_change` branches, `auth_layer` (matching Bearer / mismatch / missing / lowercase `bearer` NG / extra-whitespace NG / `WWW-Authenticate` header presence), `workspace_layer` (valid dir / missing header / empty value / non-existent path / file-not-dir), tool-router registration end-to-end (`CorkMcpServer::tool_router()` doesn't panic on the MCP `outputSchema` root-must-be-object validation; `ListTasksOutput` schema root is `object`)
 
-Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime), `menu::setup`, `workspace::pick_directory` (GUI), and `workspace::set/get_workspace_directory` (need `AppHandle`). The commands are thin wrappers over the tested helpers, so the practical risk of skipping them is small.
+Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime), `menu::setup`, `workspace::pick_directory` (GUI), and `workspace::set/get_workspace_directory` (need `AppHandle`). The `mcp` commands (`get_settings` / `update_settings` / `generate_token` / `get_sample_config` / `get_server_status`) likewise wrap tested helpers — `load_settings` / `save_settings` (Tauri-runtime-bound) and `start` / `stop` (Tokio-runtime-bound) are exercised manually via the dev build's `bun run tauri dev` flow (see `openspec/changes/mcp-server/tasks.md` section 13). The commands are thin wrappers over the tested helpers, so the practical risk of skipping them is small.
 
 ## Adding a command
 

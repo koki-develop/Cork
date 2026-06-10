@@ -1,3 +1,4 @@
+export { CodeBlock, type CodeBlockProps } from "./CodeBlock";
 export { ContextMenu, type ContextMenuProps } from "./ContextMenu";
 export { DialogFooter, type DialogFooterProps } from "./DialogFooter";
 export { DialogHeader, type DialogHeaderProps } from "./DialogHeader";
@@ -12,6 +13,11 @@ export { PathDisplay, type PathDisplayProps } from "./PathDisplay";
 export { RecentWorkspacesList, type RecentWorkspacesListProps } from "./RecentWorkspacesList";
 export { SearchBar, type SearchBarHandle, type SearchBarProps } from "./SearchBar";
 export { Select, type SelectOption, type SelectProps } from "./Select";
+export {
+  StatusIndicator,
+  type StatusIndicatorKind,
+  type StatusIndicatorProps,
+} from "./StatusIndicator";
 export { TagEditor, type TagEditorHandle, type TagEditorProps } from "./TagEditor";
 export { TagList, type TagListProps } from "./TagList";
 export {

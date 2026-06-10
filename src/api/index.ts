@@ -1,3 +1,11 @@
+export {
+  generateMcpToken,
+  getMcpSampleConfig,
+  getMcpServerStatus,
+  getMcpSettings,
+  onMcpSettingsChange,
+  updateMcpSettings,
+} from "./mcp";
 export { onOpenCreateTask, onOpenSettings } from "./menu";
 export { getStatuses, saveStatuses } from "./statuses";
 export {

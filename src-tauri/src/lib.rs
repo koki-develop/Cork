@@ -1,5 +1,6 @@
 mod error;
 mod frontmatter;
+mod mcp;
 mod menu;
 mod security;
 mod state;
@@ -42,6 +43,11 @@ pub fn run() {
             task::reconcile_external_status_changes,
             status::get_statuses,
             status::save_statuses,
+            mcp::get_settings,
+            mcp::update_settings,
+            mcp::generate_token,
+            mcp::get_sample_config,
+            mcp::get_server_status,
         ])
         .on_window_event(|window, event| {
             // Drop per-window AppState entries when the window is gone for
@@ -66,12 +72,34 @@ pub fn run() {
             workspace::build_workspace_window(app.handle(), MAIN_WINDOW_LABEL)?;
 
             menu::setup(app)?;
+
+            // Start the MCP server if persisted settings say so. A bind
+            // failure here drops the runtime into `Failed` and lets setup
+            // still succeed — the Kanban UI should never be blocked by MCP.
+            //
+            // `mcp::start` is `async` so its "must be called inside a Tokio
+            // runtime context" contract is type-encoded — its body reaches
+            // `Handle::current()` via `tokio::spawn` and
+            // `TcpListener::from_std`. The `setup` hook itself runs outside
+            // that context, so we drive `start` via Tauri's runtime
+            // `block_on`.
+            let mcp_settings = mcp::load_settings(app.handle());
+            if mcp_settings.enabled {
+                let state = app.state::<state::AppState>();
+                match tauri::async_runtime::block_on(mcp::start(&mcp_settings)) {
+                    Ok(handle) => state.set_mcp_runtime(mcp::McpRuntime::Running(handle)),
+                    Err(e) => state.set_mcp_runtime(mcp::McpRuntime::Failed {
+                        error: e.to_string(),
+                    }),
+                }
+            }
+
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
 
-    app.run(|_app_handle, event| {
+    app.run(|app_handle, event| {
         // The wildcard arm is mandatory: `RunEvent` is `#[non_exhaustive]`,
         // so future Tauri releases may add variants we don't care about.
         // Silently ignoring them keeps forward compatibility.
@@ -88,7 +116,7 @@ pub fn run() {
                 // fresh restored window only when truly no windows exist,
                 // otherwise un-hide / un-minimise the ones that are still
                 // around.
-                workspace::handle_macos_reopen(_app_handle);
+                workspace::handle_macos_reopen(app_handle);
             }
             tauri::RunEvent::ExitRequested {
                 code: None, api, ..
@@ -112,6 +140,14 @@ pub fn run() {
                 // through this handler — verified by manual testing, but
                 // worth re-checking on Tauri upgrades.
                 api.prevent_exit();
+            }
+            tauri::RunEvent::Exit => {
+                // Signal graceful shutdown on the running MCP server so the
+                // axum task drains in-flight requests; `mcp::stop` bounds the
+                // wait with a 1-second join timeout.
+                if let Some(handle) = app_handle.state::<state::AppState>().take_mcp_handle() {
+                    tauri::async_runtime::block_on(mcp::stop(handle));
+                }
             }
             _ => {}
         }

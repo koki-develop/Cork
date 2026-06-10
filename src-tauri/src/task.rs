@@ -208,7 +208,7 @@ pub fn list_all_tags(
     collect_unique_tags_sorted(&cached)
 }
 
-fn read_all_tasks(dir: &Path) -> Vec<Task> {
+pub(crate) fn read_all_tasks(dir: &Path) -> Vec<Task> {
     // Canonicalize so the resulting task ids match what mutation commands
     // produce (those go through `security::ensure_in_workspace`, which
     // returns canonical paths). Without this, on filesystems where the

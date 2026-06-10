@@ -26,7 +26,21 @@ yaml-rust2 = "0.10"
 rayon = "1.12"
 nucleo-matcher = "0.3"
 objc2-app-kit = { version = "0.3.2", features = ["NSColor", "NSWindow", "objc2-core-foundation"] }
+rmcp = { version = "1.7", features = [
+  "server",
+  "transport-streamable-http-server",
+  "macros",
+  "schemars",
+] }
+rand = "0.9"
+tokio = { version = "1", features = ["sync", "time", "rt", "fs"] }
+tokio-util = "0.7"
+axum = "0.8"
+http = "1"
+subtle = "2"
+schemars = "1"
 
 [dev-dependencies]
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
 

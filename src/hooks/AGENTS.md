@@ -13,10 +13,11 @@ Hooks must not import from `@/components` (enforced by `.oxlintrc.json`). Tauri 
 - `useWorkspace.ts` — Composite hook called by `BoardPage`. Aggregates `useWorkspaceStatuses`, `useWorkspaceTasks`, `useFilterStore`, and `useWorkspaceWatcher` into the board's data API.
 - `useWorkspaceStatuses.ts` — Status list state. Seeds the `Todo / Doing / Done` default when the backend has no `.cork.json` yet.
 - `useWorkspaceTasks.ts` — Task list state. Owns the optimistic create / move / update / delete flow and the `requestIdRef` race-guard against overlapping `listTasks` responses.
-- `useFilterStore.ts` — Tag-filter state with debounced persistence (`SAVE_DEBOUNCE_MS`).
+- `useFilterStore.ts` — Tag-filter state. Persists every change immediately (no debounce — Cork is a local-only app and the persistence cost is negligible).
 - `useWorkspaceWatcher.ts` — Wraps `@tauri-apps/plugin-fs` `watch()`. Routes `.cork.json` changes vs `.md` changes to different callbacks.
 - `useBoardDragState.ts` — dnd-kit handlers for kanban DnD. Computes the drop slot via `computeDropOrder` and handles column-vs-card targets separately (empty-area drops use `columnDropIndex`, not dnd-kit's `move()`, because the lane height pushes the lane center far below the cards).
 - `useStatusEdit.ts` — Status edit dialog state. Owns the editing entries, duplicate-label validation, rename-map building, and the `flush` / `reset` discipline used by `SettingsDialog` close.
+- `useMcpSettings.ts` — Process-global MCP server settings + live status. Event-driven: subscribes to `onMcpSettingsChange` (Tauri `store://change` broadcast filtered to the `mcp` key) for the hook's lifetime, so any window's write to `settings.json` immediately refreshes this window's UI. Re-fetches on dialog open to catch AppState-only changes that don't emit a store event (e.g. another window opening a workspace, which affects the sample mcp.json). All mutations (`updateEnabled` / `updateToken` / `regenerateToken`) persist immediately — no debounce. A `loaded` flag gates mutations until the initial fetch resolves so the placeholder token can't slip into a backend save.
 
 ## UI-infra hooks (`hooks/ui/`)
 

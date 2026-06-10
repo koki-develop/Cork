@@ -15,4 +15,5 @@ External UI libraries (`clsx`, `lucide-react`, ...) and other atoms only. No mol
 - `Text.tsx` — Body / muted / label text variants.
 - `Badge.tsx` — Numeric / status pill.
 - `TagChip.tsx` — Tag pill with `default` / `dismissible` / `draft` variants.
+- `Toggle.tsx` — iOS-style on/off switch. `role="switch"` + `aria-checked`; respects the global `prefers-reduced-motion` rule via the `transition-*` utilities (the duration is squashed by `style.css`'s media query, so no per-component handling needed).
 - `ErrorBanner.tsx` — Inline form error block.

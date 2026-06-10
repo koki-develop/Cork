@@ -1,4 +1,5 @@
 use crate::error::{CmdResult, CommandError};
+use crate::mcp::{McpHandle, McpRuntime, McpStatus};
 use crate::task::Task;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -36,6 +37,9 @@ struct WindowState {
 pub struct AppState {
     windows: Mutex<HashMap<String, WindowState>>,
     next_window_id: AtomicU64,
+    /// MCP サーバの稼働状態。プロセス全体に 1 つ (window 単位ではない)。
+    /// 詳細は `crate::mcp::McpRuntime` 参照。
+    mcp_runtime: Mutex<McpRuntime>,
 }
 
 impl AppState {
@@ -43,6 +47,7 @@ impl AppState {
         Self {
             windows: Mutex::new(HashMap::new()),
             next_window_id: AtomicU64::new(0),
+            mcp_runtime: Mutex::new(McpRuntime::Stopped),
         }
     }
 
@@ -195,6 +200,52 @@ impl AppState {
     pub fn next_window_label(&self) -> String {
         let n = self.next_window_id.fetch_add(1, Ordering::Relaxed) + 1;
         format!("workspace-{n}")
+    }
+
+    // -- MCP runtime ----------------------------------------------------------
+
+    pub fn set_mcp_runtime(&self, runtime: McpRuntime) {
+        *self.mcp_runtime.lock().unwrap() = runtime;
+    }
+
+    /// Atomically take the handle out of a `Running` runtime and reset to
+    /// `Stopped`, so stop+restart is one operation. Non-`Running` variants
+    /// (`Stopped`, `Failed`) are preserved so a Failed-state error doesn't
+    /// disappear when a caller probes for a handle.
+    pub fn take_mcp_handle(&self) -> Option<McpHandle> {
+        let mut guard = self.mcp_runtime.lock().unwrap();
+        let taken = std::mem::replace(&mut *guard, McpRuntime::Stopped);
+        match taken {
+            McpRuntime::Running(handle) => Some(handle),
+            other => {
+                *guard = other;
+                None
+            }
+        }
+    }
+
+    pub fn mcp_status(&self) -> McpStatus {
+        self.mcp_runtime.lock().unwrap().to_status()
+    }
+
+    /// Lightweight predicate for the `update_settings` diff branch — answers
+    /// "is the server live right now?" without taking the handle (which
+    /// `with_mcp_handle(|_| ()).is_some()` would also do, but reads
+    /// awkwardly at the callsite).
+    pub fn is_mcp_running(&self) -> bool {
+        matches!(*self.mcp_runtime.lock().unwrap(), McpRuntime::Running(_))
+    }
+
+    /// Borrow the live handle for in-place mutation (token hot-swap) without
+    /// stopping the server. Returns `None` and skips the closure for any
+    /// non-`Running` runtime.
+    pub fn with_mcp_handle<R>(&self, f: impl FnOnce(&McpHandle) -> R) -> Option<R> {
+        let guard = self.mcp_runtime.lock().unwrap();
+        if let McpRuntime::Running(h) = &*guard {
+            Some(f(h))
+        } else {
+            None
+        }
     }
 }
 
@@ -544,5 +595,89 @@ mod tests {
             state.require_workspace("never-existed"),
             Err(CommandError::NoWorkspace)
         ));
+    }
+
+    // -- MCP runtime ----------------------------------------------------------
+
+    #[test]
+    fn mcp_runtime_starts_stopped() {
+        let state = AppState::new();
+        assert_eq!(state.mcp_status(), McpStatus::Stopped);
+    }
+
+    #[test]
+    fn mcp_runtime_take_handle_returns_none_when_stopped() {
+        let state = AppState::new();
+        assert!(state.take_mcp_handle().is_none());
+    }
+
+    #[test]
+    fn mcp_runtime_failed_state_surfaces_in_status() {
+        let state = AppState::new();
+        state.set_mcp_runtime(McpRuntime::Failed {
+            error: "Port 8569 in use".to_string(),
+        });
+        assert_eq!(
+            state.mcp_status(),
+            McpStatus::Failed { error: "Port 8569 in use".to_string() }
+        );
+        assert!(state.take_mcp_handle().is_none(), "Failed state must not yield a handle");
+        // After a failed take_mcp_handle, the state must still report Failed
+        // — taking only consumes Running.
+        assert_eq!(
+            state.mcp_status(),
+            McpStatus::Failed { error: "Port 8569 in use".to_string() }
+        );
+    }
+
+    #[test]
+    fn mcp_runtime_with_mcp_handle_returns_none_when_not_running() {
+        let state = AppState::new();
+        let called = std::cell::Cell::new(false);
+        let result = state.with_mcp_handle(|_h| {
+            called.set(true);
+        });
+        assert!(result.is_none());
+        assert!(!called.get(), "callback must not run when not Running");
+    }
+
+    #[test]
+    fn is_mcp_running_matches_runtime_variant() {
+        // The `update_settings` diff branch swings on this predicate (token
+        // hot-swap vs. full restart), so the Stopped / Failed / Running
+        // transitions need explicit coverage even though the body is a
+        // one-line `matches!`.
+        use crate::mcp::McpHandle;
+        use std::sync::{Arc, RwLock};
+        use tokio_util::sync::CancellationToken;
+
+        let state = AppState::new();
+        assert!(!state.is_mcp_running(), "Stopped → false");
+
+        state.set_mcp_runtime(McpRuntime::Failed {
+            error: "Port 8569 in use".to_string(),
+        });
+        assert!(!state.is_mcp_running(), "Failed → false");
+
+        // Build a real McpHandle in a current-thread runtime so the Running
+        // arm is exercised end-to-end (same shape as
+        // `mcp_runtime_status_running` in mcp.rs).
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let handle = rt.block_on(async {
+            let cancel = CancellationToken::new();
+            let cancel_clone = cancel.clone();
+            let join = tokio::spawn(async move { cancel_clone.cancelled().await });
+            McpHandle {
+                cancel,
+                join,
+                token: Arc::new(RwLock::new("tok123456789012".to_string())),
+                port: 9001,
+            }
+        });
+        state.set_mcp_runtime(McpRuntime::Running(handle));
+        assert!(state.is_mcp_running(), "Running → true");
     }
 }

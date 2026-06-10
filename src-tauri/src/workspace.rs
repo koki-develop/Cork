@@ -6,7 +6,7 @@ use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_fs::FsExt;
 use tauri_plugin_store::StoreExt;
 
-const SETTINGS_FILE: &str = "settings.json";
+pub(crate) const SETTINGS_FILE: &str = "settings.json";
 
 /// Persisted as a JSON array of path strings, most recent first.
 const WORKSPACE_HISTORY_KEY: &str = "workspace_history";
