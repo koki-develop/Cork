@@ -145,7 +145,9 @@ pub struct ListTasksOutput {
 /// All fields are optional — when absent the tool returns all tasks as before.
 #[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
 pub struct ListTasksInput {
+    /// Fuzzy-search tasks by title.
     pub query: Option<String>,
+    /// Filter by tag conditions. Operators: `contains`, `not_contains`, `contains_any`, `contains_all`, `is_empty`, `is_not_empty`.
     pub filters: Option<Vec<McpTagFilter>>,
     /// Filter by exact status match (e.g. "Todo", "Doing", "Done").
     pub status: Option<String>,
@@ -414,7 +416,7 @@ pub struct CorkMcpServer;
 impl CorkMcpServer {
     #[tool(
         name = "list_tasks",
-        description = "List Cork tasks in the workspace. Optionally filter by text query (`query`), tag filters (`filters`), and/or exact status match (`status`)."
+        description = "List Cork tasks in the workspace."
     )]
     async fn list_tasks(
         &self,
