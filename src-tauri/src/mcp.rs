@@ -153,9 +153,7 @@ pub struct ListTasksInput {
     pub status: Option<String>,
 }
 
-/// Tag filter received over MCP. Same discriminated union as `task::TagFilter`,
-/// but defined separately in the MCP module so it can derive `schemars::JsonSchema`
-/// without pulling MCP concerns into the core task types.
+/// A single tag filter condition. Combine multiple filters to narrow results.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "operator", rename_all = "snake_case")]
 pub enum McpTagFilter {
