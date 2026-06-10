@@ -414,7 +414,7 @@ pub struct CorkMcpServer;
 impl CorkMcpServer {
     #[tool(
         name = "list_tasks",
-        description = "List Cork tasks in the workspace specified by the `X-Cork-Workspace` HTTP header. Optionally filter by text query (`query`), tag filters (`filters`), and/or exact status match (`status`)."
+        description = "List Cork tasks in the workspace. Optionally filter by text query (`query`), tag filters (`filters`), and/or exact status match (`status`)."
     )]
     async fn list_tasks(
         &self,
@@ -486,7 +486,7 @@ impl ServerHandler for CorkMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(
-                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks and `list_statuses` to list status columns from the workspace specified in the `X-Cork-Workspace` HTTP header.",
+                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks and `list_statuses` to list status columns from the workspace.",
             )
     }
 }
