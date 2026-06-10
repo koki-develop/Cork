@@ -8,13 +8,13 @@ use axum::http::{HeaderValue, Response, StatusCode};
 use axum::middleware::Next;
 use rand::Rng;
 use rmcp::{
-    ServerHandler,
     handler::server::{tool::Extension, wrapper::Json, wrapper::Parameters},
     model::{ServerCapabilities, ServerInfo},
     schemars, tool, tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
     },
+    ServerHandler,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -35,8 +35,7 @@ const STORE_KEY: &str = "mcp";
 const DEFAULT_PORT: u16 = 8569;
 const MIN_TOKEN_LEN: usize = 12;
 const GENERATED_TOKEN_LEN: usize = 32;
-const BASE62_ALPHABET: &[u8] =
-    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const BASE62_ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -94,7 +93,9 @@ impl McpRuntime {
         match self {
             Self::Stopped => McpStatus::Stopped,
             Self::Running(h) => McpStatus::Running { port: h.port },
-            Self::Failed { error } => McpStatus::Failed { error: error.clone() },
+            Self::Failed { error } => McpStatus::Failed {
+                error: error.clone(),
+            },
         }
     }
 }
@@ -145,6 +146,8 @@ pub struct ListTasksOutput {
 pub struct ListTasksInput {
     pub query: Option<String>,
     pub filters: Option<Vec<McpTagFilter>>,
+    /// Filter by exact status match (e.g. "Todo", "Doing", "Done").
+    pub status: Option<String>,
 }
 
 /// Tag filter received over MCP. Same discriminated union as `task::TagFilter`,
@@ -274,7 +277,10 @@ pub fn build_sample_config(open_workspaces: &[PathBuf], port: u16, token: &str) 
             format!("cork-{slug}")
         };
         let mut headers = serde_json::Map::new();
-        headers.insert("Authorization".to_string(), serde_json::json!(format!("Bearer {token}")));
+        headers.insert(
+            "Authorization".to_string(),
+            serde_json::json!(format!("Bearer {token}")),
+        );
         headers.insert(
             "X-Cork-Workspace".to_string(),
             serde_json::json!(ws.to_string_lossy().to_string()),
@@ -316,9 +322,7 @@ pub fn load_settings(app: &tauri::AppHandle) -> McpSettings {
         .as_ref()
         .is_some_and(|s| validate_token(&s.token).is_err());
     if had_invalid_token {
-        eprintln!(
-            "persisted MCP token failed `validate_token`; rotating to a fresh CSRNG token",
-        );
+        eprintln!("persisted MCP token failed `validate_token`; rotating to a fresh CSRNG token",);
     }
 
     let (settings, needs_write) = resolve_settings(parsed);
@@ -389,7 +393,7 @@ pub struct CorkMcpServer;
 impl CorkMcpServer {
     #[tool(
         name = "list_tasks",
-        description = "List Cork tasks (Markdown files with a `status` frontmatter field) in the workspace specified by the `X-Cork-Workspace` HTTP header. Optionally filter by text query (`query`) and/or tag filters (`filters`)."
+        description = "List Cork tasks in the workspace specified by the `X-Cork-Workspace` HTTP header. Optionally filter by text query (`query`), tag filters (`filters`), and/or exact status match (`status`)."
     )]
     async fn list_tasks(
         &self,
@@ -416,6 +420,7 @@ impl CorkMcpServer {
         let filtered = task::apply_query_and_filters(tasks, input.query.as_deref(), &filters);
         let out: Vec<McpTask> = filtered
             .into_iter()
+            .filter(|t| input.status.as_ref().is_none_or(|s| t.status == *s))
             .map(|t| McpTask {
                 title: t.title,
                 file_path: t.id,
@@ -474,13 +479,18 @@ pub async fn auth_layer(
 fn unauthorized() -> Response<Body> {
     let mut resp = Response::new(Body::from("unauthorized"));
     *resp.status_mut() = StatusCode::UNAUTHORIZED;
-    resp.headers_mut()
-        .insert(axum::http::header::WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
+    resp.headers_mut().insert(
+        axum::http::header::WWW_AUTHENTICATE,
+        HeaderValue::from_static("Bearer"),
+    );
     resp
 }
 
 pub async fn workspace_layer(mut req: Request, next: Next) -> Response<Body> {
-    let raw = req.headers().get("X-Cork-Workspace").and_then(|v| v.to_str().ok());
+    let raw = req
+        .headers()
+        .get("X-Cork-Workspace")
+        .and_then(|v| v.to_str().ok());
     let raw = match raw {
         Some(s) if !s.is_empty() => s.to_string(),
         Some(_) => return bad_request("X-Cork-Workspace header is empty"),
@@ -537,11 +547,7 @@ pub async fn start(settings: &McpSettings) -> Result<McpHandle, McpStartError> {
         .with_stateful_mode(true)
         .with_cancellation_token(cancel.clone());
     let mcp_service: StreamableHttpService<CorkMcpServer, LocalSessionManager> =
-        StreamableHttpService::new(
-            || Ok(CorkMcpServer),
-            Default::default(),
-            config,
-        );
+        StreamableHttpService::new(|| Ok(CorkMcpServer), Default::default(), config);
 
     let router = axum::Router::new()
         .nest_service("/mcp", mcp_service)
@@ -551,8 +557,8 @@ pub async fn start(settings: &McpSettings) -> Result<McpHandle, McpStartError> {
             auth_layer,
         ));
 
-    let listener = std::net::TcpListener::bind(format!("127.0.0.1:{port}"))
-        .map_err(|e| match e.kind() {
+    let listener =
+        std::net::TcpListener::bind(format!("127.0.0.1:{port}")).map_err(|e| match e.kind() {
             std::io::ErrorKind::AddrInUse => McpStartError::PortInUse { port },
             _ => McpStartError::Other(e.to_string()),
         })?;
@@ -645,10 +651,7 @@ pub fn generate_token() -> String {
 }
 
 #[tauri::command]
-pub fn get_sample_config(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, AppState>,
-) -> String {
+pub fn get_sample_config(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> String {
     let settings = load_settings(&app);
 
     let mut paths: BTreeSet<PathBuf> = BTreeSet::new();
@@ -693,7 +696,10 @@ mod tests {
 
     #[test]
     fn validate_token_rejects_below_min_len() {
-        assert_eq!(validate_token(&"x".repeat(MIN_TOKEN_LEN - 1)), Err(TokenValidationError::TooShort));
+        assert_eq!(
+            validate_token(&"x".repeat(MIN_TOKEN_LEN - 1)),
+            Err(TokenValidationError::TooShort)
+        );
     }
 
     #[test]
@@ -723,12 +729,18 @@ mod tests {
 
     #[test]
     fn slug_basic_ascii() {
-        assert_eq!(slug_for_workspace(std::path::Path::new("/Users/koki/personal")), "personal");
+        assert_eq!(
+            slug_for_workspace(std::path::Path::new("/Users/koki/personal")),
+            "personal"
+        );
     }
 
     #[test]
     fn slug_replaces_space_with_dash() {
-        assert_eq!(slug_for_workspace(std::path::Path::new("/Users/koki/my work")), "my-work");
+        assert_eq!(
+            slug_for_workspace(std::path::Path::new("/Users/koki/my work")),
+            "my-work"
+        );
     }
 
     #[test]
@@ -741,17 +753,26 @@ mod tests {
 
     #[test]
     fn slug_collapses_repeated_dashes() {
-        assert_eq!(slug_for_workspace(std::path::Path::new("/Users/koki/a  b")), "a-b");
+        assert_eq!(
+            slug_for_workspace(std::path::Path::new("/Users/koki/a  b")),
+            "a-b"
+        );
     }
 
     #[test]
     fn slug_trims_edge_dashes() {
-        assert_eq!(slug_for_workspace(std::path::Path::new("/Users/koki/-foo-")), "foo");
+        assert_eq!(
+            slug_for_workspace(std::path::Path::new("/Users/koki/-foo-")),
+            "foo"
+        );
     }
 
     #[test]
     fn slug_keeps_underscore_and_dash() {
-        assert_eq!(slug_for_workspace(std::path::Path::new("/Users/koki/a_b-c")), "a_b-c");
+        assert_eq!(
+            slug_for_workspace(std::path::Path::new("/Users/koki/a_b-c")),
+            "a_b-c"
+        );
     }
 
     #[test]
@@ -802,7 +823,11 @@ mod tests {
         );
         let v: serde_json::Value = serde_json::from_str(&s).unwrap();
         let servers = v["mcpServers"].as_object().unwrap();
-        assert_eq!(servers.len(), 2, "two workspaces with the same basename must produce two entries");
+        assert_eq!(
+            servers.len(),
+            2,
+            "two workspaces with the same basename must produce two entries"
+        );
         // The canonical key wins; the second goes through stable_short_hash.
         assert!(servers.contains_key("cork-notes"));
         let suffixed_key = servers
@@ -839,17 +864,24 @@ mod tests {
 
     #[test]
     fn mcp_runtime_status_failed() {
-        let r = McpRuntime::Failed { error: "Port 8569 in use".to_string() };
+        let r = McpRuntime::Failed {
+            error: "Port 8569 in use".to_string(),
+        };
         assert_eq!(
             r.to_status(),
-            McpStatus::Failed { error: "Port 8569 in use".to_string() },
+            McpStatus::Failed {
+                error: "Port 8569 in use".to_string()
+            },
         );
     }
 
     #[test]
     fn mcp_runtime_status_running() {
         // Build a real McpHandle so the Running arm is exercised end-to-end.
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         let handle = rt.block_on(async {
             let cancel = CancellationToken::new();
             let cancel_clone = cancel.clone();
@@ -869,7 +901,10 @@ mod tests {
 
     #[test]
     fn mcp_start_error_display() {
-        assert_eq!(McpStartError::PortInUse { port: 8569 }.to_string(), "Port 8569 in use");
+        assert_eq!(
+            McpStartError::PortInUse { port: 8569 }.to_string(),
+            "Port 8569 in use"
+        );
         assert_eq!(McpStartError::Other("boom".to_string()).to_string(), "boom");
     }
 
@@ -900,7 +935,10 @@ mod tests {
     // -- is_token_only_change --------------------------------------------------
 
     fn ms(enabled: bool, token: &str) -> McpSettings {
-        McpSettings { enabled, token: token.to_string() }
+        McpSettings {
+            enabled,
+            token: token.to_string(),
+        }
     }
 
     #[test]
@@ -971,16 +1009,24 @@ mod tests {
     // -- McpTagFilter ----------------------------------------------------------
 
     fn mcp_contains(tags: &[&str]) -> McpTagFilter {
-        McpTagFilter::Contains { tags: tags.iter().map(|s| s.to_string()).collect() }
+        McpTagFilter::Contains {
+            tags: tags.iter().map(|s| s.to_string()).collect(),
+        }
     }
     fn mcp_not_contains(tags: &[&str]) -> McpTagFilter {
-        McpTagFilter::NotContains { tags: tags.iter().map(|s| s.to_string()).collect() }
+        McpTagFilter::NotContains {
+            tags: tags.iter().map(|s| s.to_string()).collect(),
+        }
     }
     fn mcp_contains_any(tags: &[&str]) -> McpTagFilter {
-        McpTagFilter::ContainsAny { tags: tags.iter().map(|s| s.to_string()).collect() }
+        McpTagFilter::ContainsAny {
+            tags: tags.iter().map(|s| s.to_string()).collect(),
+        }
     }
     fn mcp_contains_all(tags: &[&str]) -> McpTagFilter {
-        McpTagFilter::ContainsAll { tags: tags.iter().map(|s| s.to_string()).collect() }
+        McpTagFilter::ContainsAll {
+            tags: tags.iter().map(|s| s.to_string()).collect(),
+        }
     }
 
     #[test]
@@ -1002,8 +1048,14 @@ mod tests {
                 mcp_contains_all(&["x", "y", "z"]),
                 serde_json::json!({ "operator": "contains_all", "tags": ["x", "y", "z"] }),
             ),
-            (McpTagFilter::IsEmpty, serde_json::json!({ "operator": "is_empty" })),
-            (McpTagFilter::IsNotEmpty, serde_json::json!({ "operator": "is_not_empty" })),
+            (
+                McpTagFilter::IsEmpty,
+                serde_json::json!({ "operator": "is_empty" }),
+            ),
+            (
+                McpTagFilter::IsNotEmpty,
+                serde_json::json!({ "operator": "is_not_empty" }),
+            ),
         ];
         for (filter, expected) in cases {
             let json = serde_json::to_value(&filter).unwrap();
@@ -1042,10 +1094,12 @@ mod tests {
                 { "operator": "contains", "tags": ["bug"] },
                 { "operator": "is_not_empty" },
             ],
+            "status": "Doing",
         });
         let input: ListTasksInput = serde_json::from_value(json).unwrap();
         assert_eq!(input.query.as_deref(), Some("search text"));
         assert_eq!(input.filters.as_ref().map(|v| v.len()), Some(2));
+        assert_eq!(input.status.as_deref(), Some("Doing"));
     }
 
     #[test]
@@ -1053,6 +1107,7 @@ mod tests {
         let input: ListTasksInput = serde_json::from_value(serde_json::json!({})).unwrap();
         assert!(input.query.is_none());
         assert!(input.filters.is_none());
+        assert!(input.status.is_none());
     }
 
     #[test]
@@ -1061,6 +1116,7 @@ mod tests {
             serde_json::from_value(serde_json::json!({ "query": "foo" })).unwrap();
         assert_eq!(input.query.as_deref(), Some("foo"));
         assert!(input.filters.is_none());
+        assert!(input.status.is_none());
     }
 
     #[test]
@@ -1071,14 +1127,54 @@ mod tests {
         .unwrap();
         assert!(input.query.is_none());
         assert_eq!(input.filters.as_ref().map(|v| v.len()), Some(1));
+        assert!(input.status.is_none());
     }
 
     #[test]
     fn list_tasks_input_accepts_null_fields() {
-        let input: ListTasksInput =
-            serde_json::from_value(serde_json::json!({ "query": null, "filters": null })).unwrap();
+        let input: ListTasksInput = serde_json::from_value(serde_json::json!({
+            "query": null, "filters": null, "status": null
+        }))
+        .unwrap();
         assert!(input.query.is_none());
         assert!(input.filters.is_none());
+        assert!(input.status.is_none());
+    }
+
+    #[test]
+    fn list_tasks_input_deserializes_with_status_only() {
+        let input: ListTasksInput =
+            serde_json::from_value(serde_json::json!({ "status": "Done" })).unwrap();
+        assert!(input.query.is_none());
+        assert!(input.filters.is_none());
+        assert_eq!(input.status.as_deref(), Some("Done"));
+    }
+
+    #[test]
+    fn list_tasks_status_filtering() {
+        fn mcp_task(title: &str, status: &str) -> McpTask {
+            McpTask {
+                title: title.into(),
+                file_path: format!("{}.md", title),
+                status: status.into(),
+                tags: vec![],
+            }
+        }
+
+        let tasks = vec![
+            mcp_task("Task A", "Todo"),
+            mcp_task("Task B", "Doing"),
+            mcp_task("Task C", "Done"),
+            mcp_task("Task D", "Todo"),
+        ];
+
+        let status = Some("Todo".to_string());
+        let filtered: Vec<McpTask> = tasks
+            .into_iter()
+            .filter(|t| status.as_ref().is_none_or(|s| t.status == *s))
+            .collect();
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.iter().all(|t| t.status == "Todo"));
     }
 
     // -- resolve_settings ------------------------------------------------------
@@ -1094,7 +1190,10 @@ mod tests {
 
     #[test]
     fn resolve_settings_returns_as_is_when_token_valid() {
-        let input = McpSettings { enabled: true, token: "x".repeat(MIN_TOKEN_LEN) };
+        let input = McpSettings {
+            enabled: true,
+            token: "x".repeat(MIN_TOKEN_LEN),
+        };
         let (s, needs_write) = resolve_settings(Some(input.clone()));
         assert!(!needs_write, "valid persisted value → no rewrite");
         assert_eq!(s, input);
@@ -1102,17 +1201,26 @@ mod tests {
 
     #[test]
     fn resolve_settings_rotates_short_token_preserving_enabled_true() {
-        let input = McpSettings { enabled: true, token: "short".to_string() };
+        let input = McpSettings {
+            enabled: true,
+            token: "short".to_string(),
+        };
         let (s, needs_write) = resolve_settings(Some(input));
         assert!(needs_write, "invalid token → must persist the rotation");
-        assert!(s.enabled, "user's `enabled=true` choice must survive token rotation");
+        assert!(
+            s.enabled,
+            "user's `enabled=true` choice must survive token rotation"
+        );
         assert_eq!(s.token.len(), GENERATED_TOKEN_LEN);
         assert!(validate_token(&s.token).is_ok());
     }
 
     #[test]
     fn resolve_settings_rotates_short_token_with_enabled_false() {
-        let input = McpSettings { enabled: false, token: "".to_string() };
+        let input = McpSettings {
+            enabled: false,
+            token: "".to_string(),
+        };
         let (s, needs_write) = resolve_settings(Some(input));
         assert!(needs_write);
         assert!(!s.enabled);
@@ -1163,7 +1271,10 @@ mod tests {
             }),
         );
 
-        let settings = McpSettings { enabled: true, token: "x".repeat(MIN_TOKEN_LEN) };
+        let settings = McpSettings {
+            enabled: true,
+            token: "x".repeat(MIN_TOKEN_LEN),
+        };
         store.insert(
             STORE_KEY.to_string(),
             serde_json::to_value(&settings).unwrap(),
@@ -1203,9 +1314,7 @@ mod tests {
     }
 
     fn auth_request(authz: Option<&str>) -> axum::http::Request<Body> {
-        let mut b = axum::http::Request::builder()
-            .method("GET")
-            .uri("/probe");
+        let mut b = axum::http::Request::builder().method("GET").uri("/probe");
         if let Some(h) = authz {
             b = b.header("Authorization", h);
         }
@@ -1312,9 +1421,7 @@ mod tests {
     }
 
     fn workspace_request(header: Option<&str>) -> axum::http::Request<Body> {
-        let mut b = axum::http::Request::builder()
-            .method("GET")
-            .uri("/probe");
+        let mut b = axum::http::Request::builder().method("GET").uri("/probe");
         if let Some(h) = header {
             b = b.header("X-Cork-Workspace", h);
         }
