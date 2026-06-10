@@ -52,6 +52,10 @@ export function Button({
       type={type}
       className={clsx(
         "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg transition-colors duration-200",
+        // Global `*:focus-visible` uses `outline-offset: 0`, which makes the ring
+        // hug the edge — on filled (primary) buttons it reads as a thin line stuck
+        // to the button rather than a separate ring. Push it outward, Button-only.
+        "focus-visible:outline-offset-2",
         "disabled:pointer-events-none disabled:opacity-40",
         variantStyles[variant][color],
         sizeStyles[size],
