@@ -353,6 +353,7 @@ pub fn build_sample_config(open_workspaces: &[PathBuf], port: u16, token: &str) 
             serde_json::json!(ws.to_string_lossy().to_string()),
         );
         let entry = serde_json::json!({
+            "type": "http",
             "url": format!("http://127.0.0.1:{port}/mcp"),
             "headers": headers,
         });
@@ -983,6 +984,7 @@ mod tests {
         );
         let v: serde_json::Value = serde_json::from_str(&s).unwrap();
         let entry = &v["mcpServers"]["cork-notes"];
+        assert_eq!(entry["type"], "http");
         assert_eq!(entry["url"], "http://127.0.0.1:8569/mcp");
         assert_eq!(entry["headers"]["Authorization"], "Bearer tok123456789012");
         assert_eq!(entry["headers"]["X-Cork-Workspace"], "/Users/alice/notes");
