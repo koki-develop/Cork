@@ -38,6 +38,11 @@ const MIN_TOKEN_LEN: usize = 12;
 const GENERATED_TOKEN_LEN: usize = 32;
 const BASE62_ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
+/// `list_tasks` pagination bounds: default page size when `limit` is omitted,
+/// and the hard ceiling a caller can request (larger values are clamped).
+const DEFAULT_LIST_TASKS_LIMIT: usize = 50;
+const MAX_LIST_TASKS_LIMIT: usize = 200;
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -130,14 +135,14 @@ pub struct McpTask {
 
 /// Output wrapper for `list_tasks`.
 ///
-/// The MCP spec (`tools/list` `outputSchema`) requires the root to be `object`
-/// — returning `Json<Vec<McpTask>>` directly causes rmcp to panic at startup
-/// with "root type 'array', expected 'object'". Cork v1 wraps the array in a
-/// single-field `tasks` object, leaving room for future pagination or metadata
-/// (`total`, `next_cursor`, etc.).
+/// The MCP spec requires the `outputSchema` root to be `object`, so the page
+/// lives under `tasks`. `has_more` tells the caller whether to fetch the next
+/// page (re-call with `offset` advanced by `limit`).
 #[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
 pub struct ListTasksOutput {
     pub tasks: Vec<McpTask>,
+    /// Whether more tasks remain beyond this page.
+    pub has_more: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
@@ -148,6 +153,10 @@ pub struct ListTasksInput {
     pub filters: Option<Vec<McpTagFilter>>,
     /// Filter by exact status match (e.g. "Todo", "Doing", "Done").
     pub status: Option<String>,
+    /// Maximum number of tasks to return. Defaults to 50, capped at 200.
+    pub limit: Option<u32>,
+    /// Number of matching tasks to skip. Defaults to 0. To page, advance by `limit` while `has_more` is true.
+    pub offset: Option<u32>,
 }
 
 /// A single tag filter condition. Combine multiple filters to narrow results.
@@ -361,6 +370,27 @@ fn is_token_only_change(was_running: bool, next: &McpSettings) -> bool {
     was_running && next.enabled
 }
 
+/// Resolve the caller's `limit` into an effective page size: `None` falls back
+/// to the default, any explicit value is clamped to `1..=MAX_LIST_TASKS_LIMIT`.
+fn resolve_limit(requested: Option<u32>) -> usize {
+    match requested {
+        None => DEFAULT_LIST_TASKS_LIMIT,
+        Some(n) => (n as usize).clamp(1, MAX_LIST_TASKS_LIMIT),
+    }
+}
+
+/// Slice a filtered task list into one page. `limit` is assumed pre-clamped
+/// via `resolve_limit`; an `offset` past the end yields an empty page.
+fn paginate(tasks: Vec<McpTask>, offset: usize, limit: usize) -> ListTasksOutput {
+    let total = tasks.len();
+    let page: Vec<McpTask> = tasks.into_iter().skip(offset).take(limit).collect();
+    let has_more = offset.saturating_add(page.len()) < total;
+    ListTasksOutput {
+        tasks: page,
+        has_more,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Settings store
 // ---------------------------------------------------------------------------
@@ -476,7 +506,7 @@ impl CorkMcpServer {
             .map(Into::into)
             .collect();
         let filtered = task::apply_query_and_filters(tasks, input.query.as_deref(), &filters);
-        let out: Vec<McpTask> = filtered
+        let matched: Vec<McpTask> = filtered
             .into_iter()
             .filter(|t| input.status.as_ref().is_none_or(|s| t.status == *s))
             .map(|t| McpTask {
@@ -486,7 +516,9 @@ impl CorkMcpServer {
                 tags: t.tags,
             })
             .collect();
-        Ok(Json(ListTasksOutput { tasks: out }))
+        let limit = resolve_limit(input.limit);
+        let offset = input.offset.unwrap_or(0) as usize;
+        Ok(Json(paginate(matched, offset, limit)))
     }
 
     #[tool(
@@ -1367,6 +1399,68 @@ mod tests {
             .collect();
         assert_eq!(filtered.len(), 2);
         assert!(filtered.iter().all(|t| t.status == "Todo"));
+    }
+
+    // -- list_tasks pagination -------------------------------------------------
+
+    fn tasks_n(n: usize) -> Vec<McpTask> {
+        (0..n)
+            .map(|i| McpTask {
+                title: format!("task-{i:03}"),
+                file_path: format!("task-{i:03}.md"),
+                status: "Todo".to_string(),
+                tags: vec![],
+            })
+            .collect()
+    }
+
+    #[test]
+    fn resolve_limit_defaults_and_clamps() {
+        assert_eq!(resolve_limit(None), DEFAULT_LIST_TASKS_LIMIT);
+        assert_eq!(resolve_limit(Some(0)), 1);
+        assert_eq!(resolve_limit(Some(37)), 37);
+        assert_eq!(resolve_limit(Some(100_000)), MAX_LIST_TASKS_LIMIT);
+    }
+
+    #[test]
+    fn paginate_first_page_has_more() {
+        let out = paginate(tasks_n(100), 0, 50);
+        assert_eq!(out.tasks.len(), 50);
+        assert_eq!(out.tasks[0].title, "task-000");
+        assert!(out.has_more);
+    }
+
+    #[test]
+    fn paginate_exact_boundary_has_no_more() {
+        let out = paginate(tasks_n(100), 50, 50);
+        assert_eq!(out.tasks.len(), 50);
+        assert_eq!(out.tasks[0].title, "task-050");
+        assert!(!out.has_more);
+    }
+
+    #[test]
+    fn paginate_offset_past_end_is_empty() {
+        let out = paginate(tasks_n(10), 500, 50);
+        assert!(out.tasks.is_empty());
+        assert!(!out.has_more);
+    }
+
+    #[test]
+    fn paginate_limit_exceeds_total_returns_all() {
+        let out = paginate(tasks_n(10), 0, 50);
+        assert_eq!(out.tasks.len(), 10);
+        assert!(!out.has_more);
+    }
+
+    #[test]
+    fn list_tasks_input_deserializes_pagination_fields() {
+        let input: ListTasksInput =
+            serde_json::from_value(serde_json::json!({ "limit": 25, "offset": 50 })).unwrap();
+        assert_eq!(input.limit, Some(25));
+        assert_eq!(input.offset, Some(50));
+        let empty: ListTasksInput = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(empty.limit.is_none());
+        assert!(empty.offset.is_none());
     }
 
     // -- ListTagsInput ---------------------------------------------------------
