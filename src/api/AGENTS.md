@@ -8,7 +8,7 @@ Thin wrappers around `invoke()` / `listen()`. The **only** place in `src/` allow
 - `statuses.ts` — Status list: `getStatuses`, `saveStatuses` (the optional `renameMap` argument drives the backend's task-frontmatter migration on label rename).
 - `workspace.ts` — Workspace dir + persisted filters: `pickDirectory`, `getWorkspaceDirectory`, `setWorkspaceDirectory`, `listWorkspaceHistory` (recent workspaces filtered to still-existing directories, backs the WelcomePage picker), `getWorkspaceFilters`, `setWorkspaceFilters`.
 - `mcp.ts` — Embedded MCP server (process-global, not per-window): `getMcpSettings`, `updateMcpSettings`, `generateMcpToken`, `getMcpSampleConfig`, `getMcpServerStatus`, and `onMcpSettingsChange` (subscription wrapper around the `tauri-plugin-store` `store://change` event filtered to the `mcp` key — replaces frontend polling for cross-window sync). Settings persist under the top-level `mcp` key of `settings.json`.
-- `menu.ts` — Native menu events: `onOpenSettings` (subscription to `menu:open-settings`).
+- `menu.ts` — Native menu events: `onOpenSettings` (subscription to `menu:open-settings`) and `onOpenCreateTask` (subscription to `menu:open-create-task`).
 - `index.ts` — Public barrel.
 
 ## Rules

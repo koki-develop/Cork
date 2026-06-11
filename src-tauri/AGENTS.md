@@ -12,7 +12,7 @@ src-tauri/src/
 ├── error.rs           CommandError + CmdResult<T>
 ├── security.rs        workspace-scope path checks
 ├── frontmatter.rs     YAML frontmatter parse / update / serialize
-├── menu.rs            macOS menu (Cork / File > New Window / Edit / Window) + focused-window settings emit
+├── menu.rs            macOS menu (Cork / File > New Task + New Window / Edit / Window) + focused-window settings/create-task emit
 ├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters, list_workspace_history) + workspace history + open_new_window_impl + build_workspace_window + seed_window_from_history + handle_macos_reopen
 ├── task.rs            Task type + task commands (list/get/create/update/delete/renumber, ...)
 ├── status.rs          StatusEntry type + status commands + .cork.json read/write
@@ -83,7 +83,7 @@ Covered modules:
 - `workspace.rs` — `parse_workspace_history` / `history_to_json` / `prepend_unique_capped` (workspace-history pure helpers), `update_workspaces_map` (persisted-store mutation), and `filter_existing_directories` (the `is_dir()` survival filter backing `list_workspace_history`)
 - `mcp.rs` — token minting / validation / `McpSettings` round-trip / store-key wire-shape pinning / `resolve_settings` (cold-start + corrupt-token rotation, preserving `enabled`), `slug_for_workspace`, `build_sample_config` (single / multi / duplicate-slug disambiguation / stable FNV-1a), `McpRuntime` / `McpStatus` / `McpStartError` (Display + tagged-enum wire format), `is_token_only_change` branches, `auth_layer` (matching Bearer / mismatch / missing / lowercase `bearer` NG / extra-whitespace NG / `WWW-Authenticate` header presence), `workspace_layer` (valid dir / missing header / empty value / non-existent path / file-not-dir), tool-router registration end-to-end (`CorkMcpServer::tool_router()` doesn't panic on the MCP `outputSchema` root-must-be-object validation; `ListTasksOutput` schema root is `object`), `list_tasks` pagination (`resolve_limit` default/clamp, `paginate` page boundaries / offset-past-end / `has_more`)
 
-Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime), `menu::setup`, `workspace::pick_directory` (GUI), and `workspace::set/get_workspace_directory` (need `AppHandle`). The `mcp` commands (`get_settings` / `update_settings` / `generate_token` / `get_sample_config` / `get_server_status`) likewise wrap tested helpers — `load_settings` / `save_settings` (Tauri-runtime-bound) and `start` / `stop` (Tokio-runtime-bound) are exercised manually via the dev build's `bun run tauri dev` flow (see `openspec/changes/mcp-server/tasks.md` section 13). The commands are thin wrappers over the tested helpers, so the practical risk of skipping them is small.
+Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime), `menu::setup`, `workspace::pick_directory` (GUI), and `workspace::set/get_workspace_directory` (need `AppHandle`). The `mcp` commands (`get_settings` / `update_settings` / `generate_token` / `get_sample_config` / `get_server_status`) likewise wrap tested helpers — `load_settings` / `save_settings` (Tauri-runtime-bound) and `start` / `stop` (Tokio-runtime-bound) are exercised manually via the dev build's `bun run tauri dev` flow (see `openspec/changes/archive/2026-06-10-mcp-server/tasks.md` section 13). The commands are thin wrappers over the tested helpers, so the practical risk of skipping them is small.
 
 ## Adding a command
 
