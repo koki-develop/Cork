@@ -1,16 +1,12 @@
-import { $isCodeNode } from "@lexical/code";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { clsx } from "clsx";
 import {
   $getSelection,
   $isRangeSelection,
-  $isTextNode,
   BLUR_COMMAND,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
-  type LexicalNode,
   mergeRegister,
-  type RangeSelection,
   SELECTION_CHANGE_COMMAND,
   type TextFormatType,
 } from "lexical";
@@ -18,6 +14,8 @@ import { Bold, Code, Italic, Strikethrough } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+import { $getSelectedFormattableTextNodes } from "./codeBlock";
 
 // The four inline formats the toolbar toggles, in display order. Each maps to a
 // Lexical `TextFormatType` that `FORMAT_TEXT_COMMAND` flips and the default
@@ -111,16 +109,26 @@ export function FloatingFormatToolbarPlugin(): ReactNode {
         selection.getTextContent().trim() === "" ||
         nativeSelection == null ||
         rootElement == null ||
-        !rootElement.contains(nativeSelection.anchorNode) ||
-        !$hasFormattableText(selection)
+        !rootElement.contains(nativeSelection.anchorNode)
       ) {
         return null;
       }
+      const formattable = $getSelectedFormattableTextNodes(selection);
+      if (formattable.length === 0) return null;
       const anchor = selectionRect(nativeSelection);
       if (anchor == null) return null;
+      // A button reads "active" when EVERY formattable node carries the format —
+      // deliberately ignoring any code-block text in the selection, which can't
+      // hold a format. Without this the built-in `selection.hasFormat` (which is
+      // just the anchor node's format) would mislight whenever the rest of the
+      // selection differs from the anchor. This reads from the same trimmed node
+      // set the format command toggles, so the pressed state always matches what
+      // a click will do.
       return {
         anchor,
-        active: FORMATS.map((f) => f.type).filter((type) => selection.hasFormat(type)),
+        active: FORMATS.map((f) => f.type).filter((type) =>
+          formattable.every((node) => node.hasFormat(type)),
+        ),
         instant,
       };
     });
@@ -272,22 +280,6 @@ function placeToolbar(
   const above = anchor.top - size.height - GAP;
   const y = above < EDGE_PADDING ? anchor.bottom + GAP : above;
   return { x, y };
-}
-
-// True when the selection contains at least one text node that is NOT inside a
-// fenced code block — the formattable content the toolbar can actually act on.
-// (Inline-code text carries a `code` format flag but is a plain TextNode, not a
-// CodeNode, so it still counts as formattable.)
-function $hasFormattableText(selection: RangeSelection): boolean {
-  return selection.getNodes().some((node) => $isTextNode(node) && !$isInsideCodeBlock(node));
-}
-
-// Walks up from a node to decide whether it sits within a fenced code block.
-function $isInsideCodeBlock(node: LexicalNode): boolean {
-  for (let n: LexicalNode | null = node; n != null; n = n.getParent()) {
-    if ($isCodeNode(n)) return true;
-  }
-  return false;
 }
 
 // Viewport-space anchor for placing the toolbar over the active DOM range.

@@ -21,6 +21,7 @@ import { useCallback } from "react";
 
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
+import { FormatFormattableTextPlugin } from "./FormatFormattableTextPlugin";
 import { LinkOpenPlugin } from "./LinkOpenPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 
@@ -129,6 +130,11 @@ export function MarkdownEditor({
             Shift+Enter and the boundary arrow keys; click-to-open for links. */}
         <ListTabIndentationPlugin />
         <CodeBlockEscapePlugin />
+        {/* Owns ranged FORMAT_TEXT_COMMAND: keeps inline formatting off
+            code-block text (which the Markdown serializer would silently drop)
+            and makes a mixed selection always enable rather than toggle off the
+            first node. See the plugin header for the full rationale. */}
+        <FormatFormattableTextPlugin />
         <LinkOpenPlugin onOpenLink={onOpenLink} />
         {/* Selection-triggered floating toolbar: toggles bold / italic /
             strikethrough / inline-code for the highlighted text. */}
