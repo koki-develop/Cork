@@ -11,6 +11,15 @@ export type ModalProps = {
   onClose: () => void;
   children: ReactNode;
   closeAriaLabel?: string;
+  /**
+   * Max-width utility for the panel (e.g. `max-w-4xl`). Kept as its own slot —
+   * rather than folded into `containerClassName` — because the base panel no
+   * longer hardcodes a width, so this is the single source of width and never
+   * collides with another `max-w-*` in the cascade. The `max-w-${string}`
+   * type pins this to the width family so a stray non-width class can't slip in.
+   */
+  maxWidthClassName?: `max-w-${string}`;
+  /** Extra classes appended to the panel (non-width concerns). */
   containerClassName?: string;
 };
 
@@ -19,6 +28,7 @@ export function Modal({
   onClose,
   children,
   closeAriaLabel = "Close",
+  maxWidthClassName = "max-w-md",
   containerClassName,
 }: ModalProps) {
   return (
@@ -27,6 +37,7 @@ export function Modal({
         <ModalContainer
           onClose={onClose}
           closeAriaLabel={closeAriaLabel}
+          maxWidthClassName={maxWidthClassName}
           containerClassName={containerClassName}
         >
           {children}
@@ -40,6 +51,7 @@ type ModalContainerProps = {
   onClose: () => void;
   children: ReactNode;
   closeAriaLabel: string;
+  maxWidthClassName: `max-w-${string}`;
   containerClassName?: string;
 };
 
@@ -47,6 +59,7 @@ function ModalContainer({
   onClose,
   children,
   closeAriaLabel,
+  maxWidthClassName,
   containerClassName,
 }: ModalContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -110,7 +123,8 @@ function ModalContainer({
       />
       <m.div
         className={clsx(
-          "border-cork-border/60 bg-cork-surface/95 relative mx-4 max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border p-6 shadow-2xl backdrop-blur-xl",
+          "border-cork-border/60 bg-cork-surface/95 relative mx-4 max-h-[85vh] w-full overflow-y-auto rounded-2xl border p-6 shadow-2xl backdrop-blur-xl",
+          maxWidthClassName,
           containerClassName,
         )}
         initial={{ opacity: 0, scale: 0.96, y: 8 }}

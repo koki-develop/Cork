@@ -2,7 +2,7 @@ import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { AutoresizeInput } from "@/components/atoms";
+import { AutoresizeInput, Textarea } from "@/components/atoms";
 import { DropdownMenu, FormField, IconButton, Select, TagEditor } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import type { StatusEntry, Task, TaskUpdates } from "@/types";
@@ -67,7 +67,7 @@ export function TaskDetailDialog({
         isOpen={isOpen}
         onClose={handleClose}
         closeAriaLabel="Close"
-        containerClassName="max-w-2xl"
+        maxWidthClassName="max-w-4xl"
       >
         <div className="flex items-center justify-end gap-1">
           <DropdownMenu
@@ -97,44 +97,47 @@ export function TaskDetailDialog({
           />
         </div>
 
-        <div className="flex flex-col gap-4">
-          <FormField label="Title" error={error?.message ?? null}>
-            <AutoresizeInput
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleTitleBlur}
-            />
-          </FormField>
+        <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+          <div className="flex min-w-0 flex-col gap-4 md:flex-1">
+            <FormField label="Title" error={error?.message ?? null}>
+              <AutoresizeInput
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={handleTitleBlur}
+              />
+            </FormField>
 
-          <FormField label="Status">
-            <Select
-              value={status}
-              onChange={handleStatusChange}
-              options={statuses.map((s) => ({ label: s.label, value: s.label }))}
-            />
-          </FormField>
+            <FormField label="Body" className="md:flex-1">
+              <Textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onBlur={handleBodyBlur}
+                placeholder="Body"
+                aria-label="Body"
+                className="min-h-[16rem] flex-1"
+              />
+            </FormField>
+          </div>
 
-          <FormField label="Tags">
-            <TagEditor
-              ref={tagEditorRef}
-              tags={tags}
-              onChange={handleTagsChange}
-              suggestions={availableTags}
-              ariaLabel="Tags"
-            />
-          </FormField>
+          <div className="flex flex-col gap-4 md:w-60 md:shrink-0">
+            <FormField label="Status">
+              <Select
+                value={status}
+                onChange={handleStatusChange}
+                options={statuses.map((s) => ({ label: s.label, value: s.label }))}
+              />
+            </FormField>
 
-          <FormField label="Body">
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              onBlur={handleBodyBlur}
-              placeholder="Body"
-              aria-label="Body"
-              rows={12}
-              className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm"
-            />
-          </FormField>
+            <FormField label="Tags">
+              <TagEditor
+                ref={tagEditorRef}
+                tags={tags}
+                onChange={handleTagsChange}
+                suggestions={availableTags}
+                ariaLabel="Tags"
+              />
+            </FormField>
+          </div>
         </div>
       </Modal>
 

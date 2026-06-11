@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import type { ReactNode } from "react";
 
 import { ErrorBanner, Text } from "@/components/atoms";
@@ -6,11 +7,13 @@ export type FormFieldProps = {
   label: string;
   children: ReactNode;
   error?: string | null;
+  /** Extra classes on the field wrapper — e.g. `flex-1` so a control fills its column. */
+  className?: string;
 };
 
-export function FormField({ label, children, error }: FormFieldProps) {
+export function FormField({ label, children, error, className }: FormFieldProps) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={clsx("flex flex-col gap-1.5", className)}>
       <Text variant="label" size="xs">
         {label}
       </Text>

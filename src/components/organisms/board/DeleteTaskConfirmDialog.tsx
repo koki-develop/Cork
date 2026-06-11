@@ -38,7 +38,7 @@ export function DeleteTaskConfirmDialog({
       isOpen={isOpen}
       onClose={handleCancel}
       closeAriaLabel="Cancel delete"
-      containerClassName="max-w-sm"
+      maxWidthClassName="max-w-sm"
     >
       <div className="flex flex-col gap-4">
         <Heading level={2} variant="page">

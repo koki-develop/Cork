@@ -6,4 +6,5 @@ export { Heading, type HeadingProps } from "./Heading";
 export { Input, type InputProps } from "./Input";
 export { TagChip, type TagChipProps, type TagChipVariant } from "./TagChip";
 export { Text, type TextProps } from "./Text";
+export { Textarea, type TextareaProps } from "./Textarea";
 export { Toggle, type ToggleProps } from "./Toggle";

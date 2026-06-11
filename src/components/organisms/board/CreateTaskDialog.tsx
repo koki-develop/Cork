@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useState } from "react";
 
-import { AutoresizeInput, Heading, Text } from "@/components/atoms";
+import { AutoresizeInput, Heading, Text, Textarea } from "@/components/atoms";
 import { DialogFooter, DialogHeader, FormField, Select, TagEditor } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import { useDialogError } from "@/hooks/ui/useDialogError";
@@ -85,47 +85,53 @@ export function CreateTaskDialog({
         isOpen={isOpen}
         onClose={confirmingClose ? handleCancelDiscard : handleClose}
         closeAriaLabel="Cancel"
+        maxWidthClassName="max-w-4xl"
       >
         <DialogHeader title="New Task" onClose={handleClose} closeAriaLabel="Cancel" />
 
-        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-4">
-          <FormField label="Title" error={error}>
-            <AutoresizeInput
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Task title"
-              data-autofocus
-            />
-          </FormField>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+            <div className="flex min-w-0 flex-col gap-4 md:flex-1">
+              <FormField label="Title" error={error}>
+                <AutoresizeInput
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Task title"
+                  data-autofocus
+                />
+              </FormField>
 
-          <FormField label="Status">
-            <Select
-              value={status}
-              onChange={setStatus}
-              options={statuses.map((s) => ({ label: s.label, value: s.label }))}
-            />
-          </FormField>
+              <FormField label="Body" className="md:flex-1">
+                <Textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Body (optional)"
+                  aria-label="Body"
+                  className="min-h-[16rem] flex-1"
+                />
+              </FormField>
+            </div>
 
-          <FormField label="Tags">
-            <TagEditor
-              ref={tagEditor.ref}
-              tags={tags}
-              onChange={setTags}
-              suggestions={availableTags}
-              ariaLabel="Tags"
-            />
-          </FormField>
+            <div className="flex flex-col gap-4 md:w-60 md:shrink-0">
+              <FormField label="Status">
+                <Select
+                  value={status}
+                  onChange={setStatus}
+                  options={statuses.map((s) => ({ label: s.label, value: s.label }))}
+                />
+              </FormField>
 
-          <FormField label="Body">
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Body (optional)"
-              aria-label="Body"
-              rows={5}
-              className="border-cork-border/40 bg-cork-elevated/60 text-cork-text placeholder:text-cork-muted/50 min-w-0 flex-1 resize-none rounded-lg border px-3 py-1.5 text-sm"
-            />
-          </FormField>
+              <FormField label="Tags">
+                <TagEditor
+                  ref={tagEditor.ref}
+                  tags={tags}
+                  onChange={setTags}
+                  suggestions={availableTags}
+                  ariaLabel="Tags"
+                />
+              </FormField>
+            </div>
+          </div>
 
           <DialogFooter
             onCancel={handleClose}
