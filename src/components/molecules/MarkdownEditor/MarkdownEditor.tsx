@@ -10,6 +10,7 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
@@ -17,6 +18,10 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { clsx } from "clsx";
 import type { EditorState, EditorThemeClasses } from "lexical";
 import { useCallback } from "react";
+
+import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
+import { LinkOpenPlugin } from "./LinkOpenPlugin";
+import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 
 // Maps Lexical node types to Cork's Tailwind tokens so Markdown renders WYSIWYG
 // with the app's typography. Headings/inline-code override the editor box's
@@ -31,7 +36,8 @@ const theme: EditorThemeClasses = {
     h5: "mt-2 mb-1 text-sm font-medium first:mt-0",
     h6: "mt-2 mb-1 text-xs font-medium text-cork-muted first:mt-0",
   },
-  link: "text-cork-accent underline underline-offset-2 hover:text-cork-accent-hover",
+  // `cursor-pointer` signals that a click follows the link (LinkOpenPlugin).
+  link: "cursor-pointer text-cork-accent underline underline-offset-2 hover:text-cork-accent-hover",
   list: {
     listitem: "mb-1",
     nested: { listitem: "list-none" },
@@ -56,6 +62,8 @@ export type MarkdownEditorProps = {
   initialValue: string;
   /** Fires on real edits with the content serialized back to a Markdown string. */
   onChange: (markdown: string) => void;
+  /** Opens a clicked link's URL (wired to the system browser via @/api). */
+  onOpenLink: (url: string) => void;
   onBlur?: () => void;
   placeholder?: string;
   ariaLabel?: string;
@@ -65,6 +73,7 @@ export type MarkdownEditorProps = {
 export function MarkdownEditor({
   initialValue,
   onChange,
+  onOpenLink,
   onBlur,
   placeholder,
   ariaLabel,
@@ -112,6 +121,14 @@ export function MarkdownEditor({
         />
         <HistoryPlugin />
         <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+        {/* Registers the empty-list-item Enter handler so lists can be exited,
+            plus the list insert/remove commands. */}
+        <ListPlugin />
+        {/* Tab/Shift+Tab indent within lists; code-block escape via
+            Shift+Enter and the boundary arrow keys; click-to-open for links. */}
+        <ListTabIndentationPlugin />
+        <CodeBlockEscapePlugin />
+        <LinkOpenPlugin onOpenLink={onOpenLink} />
         {/* ignoreSelectionChange: only real content edits emit — a bare
             focus/cursor move must NOT serialize, or a no-edit open/close of a
             non-canonical body would auto-save a normalized rewrite. */}

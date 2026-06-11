@@ -7,6 +7,7 @@ export {
   updateMcpSettings,
 } from "./mcp";
 export { onOpenCreateTask, onOpenSettings } from "./menu";
+export { openUrl } from "./opener";
 export { getStatuses, saveStatuses } from "./statuses";
 export {
   createTask,

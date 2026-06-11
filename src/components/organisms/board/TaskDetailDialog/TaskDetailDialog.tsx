@@ -25,6 +25,7 @@ export type TaskDetailDialogProps = {
   availableTags?: string[];
   onSaveTask: (taskId: string, updates: TaskUpdates) => Promise<void>;
   onDeleteTask: () => Promise<void>;
+  onOpenLink: (url: string) => void;
 };
 
 export function TaskDetailDialog({
@@ -35,6 +36,7 @@ export function TaskDetailDialog({
   availableTags,
   onSaveTask,
   onDeleteTask,
+  onOpenLink,
 }: TaskDetailDialogProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -117,6 +119,7 @@ export function TaskDetailDialog({
               <MarkdownEditor
                 initialValue={task.body}
                 onChange={setBody}
+                onOpenLink={onOpenLink}
                 onBlur={handleBodyBlur}
                 placeholder="Body"
                 ariaLabel="Body"

@@ -9,6 +9,7 @@ Thin wrappers around `invoke()` / `listen()`. The **only** place in `src/` allow
 - `workspace.ts` — Workspace dir + persisted filters: `pickDirectory`, `getWorkspaceDirectory`, `setWorkspaceDirectory`, `listWorkspaceHistory` (recent workspaces filtered to still-existing directories, backs the WelcomePage picker), `getWorkspaceFilters`, `setWorkspaceFilters`.
 - `mcp.ts` — Embedded MCP server (process-global, not per-window): `getMcpSettings`, `updateMcpSettings`, `generateMcpToken`, `getMcpSampleConfig`, `getMcpServerStatus`, and `onMcpSettingsChange` (subscription wrapper around the `tauri-plugin-store` `store://change` event filtered to the `mcp` key — replaces frontend polling for cross-window sync). Settings persist under the top-level `mcp` key of `settings.json`.
 - `menu.ts` — Native menu events: `onOpenSettings` (subscription to `menu:open-settings`) and `onOpenCreateTask` (subscription to `menu:open-create-task`).
+- `opener.ts` — `openUrl` (thin wrapper over `@tauri-apps/plugin-opener`'s `openUrl`) — opens a URL in the system's default browser. Backs the Markdown editor's click-to-open links (`opener:default` capability already grants `open_url`).
 - `index.ts` — Public barrel.
 
 ## Rules

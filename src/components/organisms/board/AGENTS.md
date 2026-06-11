@@ -15,7 +15,7 @@ Kanban surface — column, card, and the create / detail / delete dialogs. Must 
 
 Both `CreateTaskDialog` and `TaskDetailDialog` share a 2-column layout (`max-w-4xl` modal): the left column holds Title + a tall Body that fills the column height, the right column (`md:w-60`) holds the Status select + Tag editor. Columns stack vertically below the `md` breakpoint.
 
-The Body field is the `MarkdownEditor` molecule (Lexical WYSIWYG). It's uncontrolled — seeded once from `initialValue` (`""` for create, `task.body` for detail) and reporting edits as a Markdown string via `onChange`. Because init never emits `onChange`, `body` stays equal to the raw stored Markdown until the user actually edits, so TaskDetailDialog's blur-driven auto-save still skips a no-op open/close (no normalization churn).
+The Body field is the `MarkdownEditor` molecule (Lexical WYSIWYG). It's uncontrolled — seeded once from `initialValue` (`""` for create, `task.body` for detail) and reporting edits as a Markdown string via `onChange`. Because init never emits `onChange`, `body` stays equal to the raw stored Markdown until the user actually edits, so TaskDetailDialog's blur-driven auto-save still skips a no-op open/close (no normalization churn). Both dialogs also forward an `onOpenLink` prop (origin: `BoardPage`'s `openUrl` wrapper) down to the editor so clicked links open in the system browser — the molecule can't touch Tauri itself.
 
 ## Conventions
 

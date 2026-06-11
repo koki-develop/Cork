@@ -6,6 +6,7 @@ import {
   getTask,
   onOpenCreateTask,
   onOpenSettings,
+  openUrl,
   pickDirectory,
   setWorkspaceDirectory,
 } from "@/api";
@@ -182,6 +183,10 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
     closeDetailDialog();
   };
 
+  const handleOpenLink = useCallback((url: string) => {
+    openUrl(url).catch((err) => toast.error(`Failed to open link: ${err}`));
+  }, []);
+
   const handleSettingsClose = async () => {
     // Mirrors the task detail dialog's close discipline. The flush always
     // re-runs validation + save with the latest edits, so the user can fix
@@ -275,6 +280,7 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
         preselectedStatus={preselectedStatus}
         availableTags={availableTags}
         onCreateTask={handleCreateTask}
+        onOpenLink={handleOpenLink}
       />
       {lastDetailDialogTask && (
         <TaskDetailDialog
@@ -286,6 +292,7 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
           availableTags={availableTags}
           onSaveTask={handleSaveTask}
           onDeleteTask={() => handleDeleteTask(lastDetailDialogTask.id)}
+          onOpenLink={handleOpenLink}
         />
       )}
       <TaskContextMenu

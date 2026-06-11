@@ -22,6 +22,7 @@ export type CreateTaskDialogProps = {
   preselectedStatus?: string;
   availableTags?: string[];
   onCreateTask: (title: string, status: string, body: string, tags: string[]) => Promise<void>;
+  onOpenLink: (url: string) => void;
 };
 
 export function CreateTaskDialog({
@@ -31,6 +32,7 @@ export function CreateTaskDialog({
   preselectedStatus,
   availableTags,
   onCreateTask,
+  onOpenLink,
 }: CreateTaskDialogProps) {
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState(preselectedStatus ?? statuses[0]?.label ?? "");
@@ -112,6 +114,7 @@ export function CreateTaskDialog({
                 <MarkdownEditor
                   initialValue=""
                   onChange={setBody}
+                  onOpenLink={onOpenLink}
                   placeholder="Body (optional)"
                   ariaLabel="Body"
                   className="min-h-[16rem] flex-1"
