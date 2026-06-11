@@ -1,4 +1,5 @@
 use crate::error::{CmdResult, CommandError};
+use crate::security;
 use crate::state::AppState;
 use crate::status;
 use crate::task;
@@ -229,6 +230,22 @@ pub struct CreateTaskInput {
     pub tags: Option<Vec<String>>,
     /// Optional markdown body.
     pub body: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// MCP tool: delete_task types
+// ---------------------------------------------------------------------------
+
+/// Output wrapper for `delete_task`.
+#[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
+pub struct DeleteTaskOutput {
+    pub task: McpTask,
+}
+
+#[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
+pub struct DeleteTaskInput {
+    /// Exact title of the task to delete. Use `list_tasks` to discover valid titles.
+    pub title: String,
 }
 
 impl From<McpTagFilter> for task::TagFilter {
@@ -625,6 +642,61 @@ impl CorkMcpServer {
             },
         }))
     }
+
+    #[tool(
+        name = "delete_task",
+        description = "Delete a task from the Cork workspace by its exact title."
+    )]
+    async fn delete_task(
+        &self,
+        Parameters(input): Parameters<DeleteTaskInput>,
+        Extension(parts): Extension<http::request::Parts>,
+    ) -> Result<Json<DeleteTaskOutput>, rmcp::ErrorData> {
+        let workspace = parts
+            .extensions
+            .get::<Workspace>()
+            .cloned()
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_params(
+                    "workspace not bound to this session; middleware did not run",
+                    None,
+                )
+            })?;
+
+        let tasks = task::read_all_tasks(workspace.as_path());
+        let matched: Vec<&task::Task> = tasks.iter().filter(|t| t.title == input.title).collect();
+
+        if matched.is_empty() {
+            return Err(rmcp::ErrorData::invalid_params(
+                format!("task not found with title: {}", input.title),
+                None,
+            ));
+        }
+        if matched.len() > 1 {
+            return Err(rmcp::ErrorData::invalid_params(
+                format!("multiple tasks found with title: {}", input.title),
+                None,
+            ));
+        }
+
+        let t = matched[0];
+        let file_path = std::path::Path::new(&t.id);
+        let canonical = security::ensure_in_workspace(workspace.as_path(), file_path)
+            .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+        std::fs::remove_file(&canonical).map_err(|e| {
+            let msg = format!("failed to delete task file: {}", e);
+            rmcp::ErrorData::internal_error(msg, None)
+        })?;
+
+        Ok(Json(DeleteTaskOutput {
+            task: McpTask {
+                title: t.title.clone(),
+                file_path: t.id.clone(),
+                status: t.status.clone(),
+                tags: t.tags.clone(),
+            },
+        }))
+    }
 }
 
 #[tool_handler]
@@ -632,7 +704,7 @@ impl ServerHandler for CorkMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(
-                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks, `create_task` to create a new task, `list_statuses` to list status columns, and `list_tags` to list all tags from the workspace.",
+                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks, `create_task` to create a new task, `delete_task` to delete a task by title, `list_statuses` to list status columns, and `list_tags` to list all tags from the workspace.",
             )
     }
 }
@@ -1193,6 +1265,10 @@ mod tests {
             names.iter().any(|n| n == "create_task"),
             "create_task must be registered; got {names:?}",
         );
+        assert!(
+            names.iter().any(|n| n == "delete_task"),
+            "delete_task must be registered; got {names:?}",
+        );
     }
 
     #[test]
@@ -1230,6 +1306,31 @@ mod tests {
             .and_then(|v| v.as_str())
             .map(str::to_owned);
         assert_eq!(root_type.as_deref(), Some("object"));
+    }
+
+    #[test]
+    fn delete_task_output_schema_root_is_object() {
+        let schema = schemars::schema_for!(DeleteTaskOutput);
+        let root_type = schema
+            .as_value()
+            .get("type")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        assert_eq!(root_type.as_deref(), Some("object"));
+    }
+
+    #[test]
+    fn delete_task_input_deserializes_title() {
+        let json = serde_json::json!({ "title": "My Task" });
+        let input: DeleteTaskInput = serde_json::from_value(json).unwrap();
+        assert_eq!(input.title, "My Task");
+    }
+
+    #[test]
+    fn delete_task_input_deserializes_title_with_special_chars() {
+        let json = serde_json::json!({ "title": "bug: critical [wip]" });
+        let input: DeleteTaskInput = serde_json::from_value(json).unwrap();
+        assert_eq!(input.title, "bug: critical [wip]");
     }
 
     // -- McpTagFilter ----------------------------------------------------------

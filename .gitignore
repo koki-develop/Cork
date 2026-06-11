@@ -26,3 +26,4 @@ dist-ssr
 /.opencode/skills/ui-ux-pro-max/
 /tasks/
 .claude/
+.mcp.json
