@@ -20,6 +20,7 @@ import type { EditorState, EditorThemeClasses } from "lexical";
 import { useCallback } from "react";
 
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
+import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
 import { LinkOpenPlugin } from "./LinkOpenPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 
@@ -129,6 +130,9 @@ export function MarkdownEditor({
         <ListTabIndentationPlugin />
         <CodeBlockEscapePlugin />
         <LinkOpenPlugin onOpenLink={onOpenLink} />
+        {/* Selection-triggered floating toolbar: toggles bold / italic /
+            strikethrough / inline-code for the highlighted text. */}
+        <FloatingFormatToolbarPlugin />
         {/* ignoreSelectionChange: only real content edits emit — a bare
             focus/cursor move must NOT serialize, or a no-edit open/close of a
             non-canonical body would auto-save a normalized rewrite. */}
