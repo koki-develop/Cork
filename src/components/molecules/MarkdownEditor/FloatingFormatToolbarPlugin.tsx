@@ -4,11 +4,13 @@ import { clsx } from "clsx";
 import {
   $getSelection,
   $isRangeSelection,
+  $isTextNode,
   BLUR_COMMAND,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
   type LexicalNode,
   mergeRegister,
+  type RangeSelection,
   SELECTION_CHANGE_COMMAND,
   type TextFormatType,
 } from "lexical";
@@ -98,10 +100,11 @@ export function FloatingFormatToolbarPlugin(): ReactNode {
       // Show only for a real, non-empty text range that lives inside this
       // editor. A collapsed caret, a whitespace-only range, or a selection the
       // browser left grayed in another element must not surface the toolbar.
-      // A selection touching a fenced code block is also skipped: inline
-      // formats there are no-ops (the block serializes its text literally to
-      // Markdown), so offering them would be misleading. Both endpoints are
-      // checked so a selection straddling the block boundary is caught too.
+      // The toolbar is also hidden when the selection holds NO formattable
+      // text — i.e. it sits entirely within fenced code block(s), where inline
+      // formats are no-ops (the block serializes its text literally). As long
+      // as one formattable (non-code) character is selected the toolbar shows,
+      // and toggling formats that part while leaving the code untouched.
       if (
         !$isRangeSelection(selection) ||
         selection.isCollapsed() ||
@@ -109,8 +112,7 @@ export function FloatingFormatToolbarPlugin(): ReactNode {
         nativeSelection == null ||
         rootElement == null ||
         !rootElement.contains(nativeSelection.anchorNode) ||
-        $isInsideCodeBlock(selection.anchor.getNode()) ||
-        $isInsideCodeBlock(selection.focus.getNode())
+        !$hasFormattableText(selection)
       ) {
         return null;
       }
@@ -270,6 +272,14 @@ function placeToolbar(
   const above = anchor.top - size.height - GAP;
   const y = above < EDGE_PADDING ? anchor.bottom + GAP : above;
   return { x, y };
+}
+
+// True when the selection contains at least one text node that is NOT inside a
+// fenced code block — the formattable content the toolbar can actually act on.
+// (Inline-code text carries a `code` format flag but is a plain TextNode, not a
+// CodeNode, so it still counts as formattable.)
+function $hasFormattableText(selection: RangeSelection): boolean {
+  return selection.getNodes().some((node) => $isTextNode(node) && !$isInsideCodeBlock(node));
 }
 
 // Walks up from a node to decide whether it sits within a fenced code block.
