@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.0](https://github.com/koki-develop/Cork/compare/v0.3.0...v0.4.0) (2026-06-11)
+
+
+### Features
+
+* Add MCP server with list_tasks tool ([503fb49](https://github.com/koki-develop/Cork/commit/503fb49eccb0541bdaf0897e78b6e6dcf8763cd2))
+* **mcp:** add create_task tool ([a6c378d](https://github.com/koki-develop/Cork/commit/a6c378dc87e9ad491929aafa1b0c46b9ac3999e2))
+* **mcp:** add limit and offset pagination to list_tasks tool ([d90b813](https://github.com/koki-develop/Cork/commit/d90b813a5b10507cdc923b375cd0571e2cfe326a))
+* **mcp:** add list_statuses tool ([b068c7c](https://github.com/koki-develop/Cork/commit/b068c7cfe39a6b2bba8c593d2d3bb0dfd2c67b08))
+* **mcp:** add list_tags tool ([f9b8572](https://github.com/koki-develop/Cork/commit/f9b8572cbc22af4cff38441200348502a4d194ff))
+* **mcp:** add query and filters arguments to list_tasks tool ([f55cdf3](https://github.com/koki-develop/Cork/commit/f55cdf3db40bdc053228f323bfa774020dc5a06a))
+* **mcp:** add status filter to list_tasks tool ([9003ad1](https://github.com/koki-develop/Cork/commit/9003ad17bbcf70b47c8e60f3a72c9696e41b70a7))
+
+
+### Bug Fixes
+
+* **mcp:** add type field to mcp.json sample config ([4026f2f](https://github.com/koki-develop/Cork/commit/4026f2f1ddf3dd4f026aba73930e1d82c3c154aa))
+* **mcp:** preserve field order in mcp.json sample config ([008279d](https://github.com/koki-develop/Cork/commit/008279d4bdaea167abbed9de5a897ff542344b3e))
+* **ui:** separate Button focus ring from edge with outline-offset ([46151ae](https://github.com/koki-develop/Cork/commit/46151ae8fc3bae07d4d921db61d762c95131ff77))
+
 ## [0.3.0](https://github.com/koki-develop/Cork/compare/v0.2.0...v0.3.0) (2026-06-09)
 
 
