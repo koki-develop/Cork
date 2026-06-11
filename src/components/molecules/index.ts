@@ -8,6 +8,7 @@ export { FilterButton, type FilterButtonProps } from "./FilterButton";
 export { FilterRow, type FilterRowProps } from "./FilterRow";
 export { FormField, type FormFieldProps } from "./FormField";
 export { IconButton, type IconButtonProps } from "./IconButton";
+export { MarkdownEditor, type MarkdownEditorProps } from "./MarkdownEditor";
 export { MenuList, type MenuListProps } from "./MenuList";
 export { PathDisplay, type PathDisplayProps } from "./PathDisplay";
 export { RecentWorkspacesList, type RecentWorkspacesListProps } from "./RecentWorkspacesList";

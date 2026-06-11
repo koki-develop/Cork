@@ -11,7 +11,6 @@ External UI libraries (`clsx`, `lucide-react`, ...) and other atoms only. No mol
 - `Button.tsx` — Variants: `primary` / `secondary` / `ghost` / `dashed` × colors `default` / `danger` × sizes `sm` / `md` / `lg`. Defaults to `variant="ghost" size="md"`.
 - `Input.tsx` — Single-line text input with consistent border / focus styling.
 - `AutoresizeInput.tsx` — `<textarea>` that grows with content. Used by the task title field so wrapping doesn't horizontally scroll.
-- `Textarea.tsx` — Plain multi-line `<textarea>` with the shared border / focus styling. Used by the task body field; pass `className` (e.g. `flex-1`) to make it fill its column.
 - `Heading.tsx` — Semantic + sized heading.
 - `Text.tsx` — Body / muted / label text variants.
 - `Badge.tsx` — Numeric / status pill.

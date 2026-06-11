@@ -1,8 +1,15 @@
 import { Plus } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useState } from "react";
 
-import { AutoresizeInput, Heading, Text, Textarea } from "@/components/atoms";
-import { DialogFooter, DialogHeader, FormField, Select, TagEditor } from "@/components/molecules";
+import { AutoresizeInput, Heading, Text } from "@/components/atoms";
+import {
+  DialogFooter,
+  DialogHeader,
+  FormField,
+  MarkdownEditor,
+  Select,
+  TagEditor,
+} from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import { useDialogError } from "@/hooks/ui/useDialogError";
 import { useTagEditorController } from "@/hooks/ui/useTagEditorController";
@@ -102,11 +109,11 @@ export function CreateTaskDialog({
               </FormField>
 
               <FormField label="Body" className="md:flex-1">
-                <Textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
+                <MarkdownEditor
+                  initialValue=""
+                  onChange={setBody}
                   placeholder="Body (optional)"
-                  aria-label="Body"
+                  ariaLabel="Body"
                   className="min-h-[16rem] flex-1"
                 />
               </FormField>

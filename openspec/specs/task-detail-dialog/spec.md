@@ -14,7 +14,7 @@ The system SHALL open a modal dialog showing task details in editable form field
 - **WHEN** the task detail dialog is open
 - **THEN** the title SHALL be shown in an `<Input>` component
 - **THEN** the status SHALL be shown in a `<Select>` component with all available status options
-- **THEN** the body SHALL be shown in a `<textarea>` with at least 5 rows
+- **THEN** the body SHALL be shown in a WYSIWYG `MarkdownEditor` that renders the task's Markdown body and fills the body column height
 - **THEN** all fields SHALL be editable immediately — no view/edit mode distinction
 
 #### Scenario: Dialog closes on Escape key
@@ -49,15 +49,22 @@ Changes to any field SHALL be persisted automatically when the field loses focus
 
 #### Scenario: Body change saves on blur
 
-- **WHEN** the user modifies the body text
-- **AND** the textarea loses focus
-- **THEN** the system SHALL call the `update_task` Tauri command with the new body
+- **WHEN** the user modifies the body in the `MarkdownEditor`
+- **AND** the editor loses focus
+- **THEN** the system SHALL call the `update_task` Tauri command with the new body serialized as a Markdown string
 
 #### Scenario: No save on blur if value unchanged
 
 - **WHEN** a field loses focus
 - **AND** its value is unchanged from the original
 - **THEN** the system SHALL NOT call the Tauri command
+
+#### Scenario: No save when the body is opened and closed without editing
+
+- **WHEN** the task detail dialog is opened for a task whose stored Markdown body is not in the editor's canonical serialized form
+- **AND** the user does not edit the body
+- **AND** the editor loses focus or the dialog closes
+- **THEN** the system SHALL NOT call the `update_task` Tauri command for the body
 
 #### Scenario: Dirty save on modal close
 

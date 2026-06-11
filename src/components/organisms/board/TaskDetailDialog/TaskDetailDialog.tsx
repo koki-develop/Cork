@@ -2,8 +2,15 @@ import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { AutoresizeInput, Textarea } from "@/components/atoms";
-import { DropdownMenu, FormField, IconButton, Select, TagEditor } from "@/components/molecules";
+import { AutoresizeInput } from "@/components/atoms";
+import {
+  DropdownMenu,
+  FormField,
+  IconButton,
+  MarkdownEditor,
+  Select,
+  TagEditor,
+} from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
 import type { StatusEntry, Task, TaskUpdates } from "@/types";
 
@@ -35,7 +42,6 @@ export function TaskDetailDialog({
     title,
     setTitle,
     status,
-    body,
     setBody,
     tags,
     error,
@@ -108,12 +114,12 @@ export function TaskDetailDialog({
             </FormField>
 
             <FormField label="Body" className="md:flex-1">
-              <Textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
+              <MarkdownEditor
+                initialValue={task.body}
+                onChange={setBody}
                 onBlur={handleBodyBlur}
                 placeholder="Body"
-                aria-label="Body"
+                ariaLabel="Body"
                 className="min-h-[16rem] flex-1"
               />
             </FormField>
