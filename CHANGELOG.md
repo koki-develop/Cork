@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/koki-develop/Cork/compare/v0.7.0...v0.8.0) (2026-06-12)
+
+
+### Features
+
+* **ui:** autosave task body while typing instead of only on blur ([0226c6b](https://github.com/koki-develop/Cork/commit/0226c6b745c8611da829af8c3fa1c929a395c02d))
+
+
+### Bug Fixes
+
+* **ui:** restructure task dialogs with CSS Grid and single TagEditor instance ([cae15ee](https://github.com/koki-develop/Cork/commit/cae15ee7279d4e242d1134fd0697efff74a3bd84))
+
 ## [0.7.0](https://github.com/koki-develop/Cork/compare/v0.6.0...v0.7.0) (2026-06-12)
 
 
