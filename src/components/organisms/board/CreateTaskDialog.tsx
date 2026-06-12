@@ -1,12 +1,12 @@
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useState } from "react";
 
 import { AutoresizeInput, ErrorBanner, Heading, Text } from "@/components/atoms";
 import {
   DateField,
   DialogFooter,
-  DialogHeader,
   FormField,
+  IconButton,
   MarkdownEditor,
   Select,
   TagEditor,
@@ -109,8 +109,6 @@ export function CreateTaskDialog({
         // sort after p-6 in Tailwind's output so they override only those sides.
         containerClassName="pl-4 pb-4"
       >
-        <DialogHeader title="New Task" onClose={handleClose} closeAriaLabel="Cancel" />
-
         <form onSubmit={handleSubmit} onKeyDown={handleKeyDown}>
           <div className="flex flex-col gap-4 md:flex-row md:gap-6">
             <div className="flex min-w-0 flex-col md:flex-1">
@@ -141,6 +139,19 @@ export function CreateTaskDialog({
             </div>
 
             <div className="flex flex-col gap-4 md:w-60 md:shrink-0">
+              {/* The close button sits at the top of the sidebar, landing in the
+                  dialog's top-right corner above Status and Tags. */}
+              <div className="flex justify-end">
+                <IconButton
+                  icon={<X className="size-4" />}
+                  aria-label="Cancel"
+                  onClick={handleClose}
+                  // Keep focus on the active field so its blur-driven save handler
+                  // doesn't race the close click.
+                  onMouseDown={(e) => e.preventDefault()}
+                />
+              </div>
+
               <FormField label="Status">
                 <Select
                   value={status}
