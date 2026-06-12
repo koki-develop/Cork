@@ -282,11 +282,7 @@ pub(crate) fn read_all_tasks(dir: &Path) -> Vec<Task> {
         .par_iter()
         .filter_map(|file_path| {
             let content = read_task_preview(file_path)?;
-            let title = file_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
+            let title = decode_stem_to_title(file_stem_str(file_path));
             let (fm, body) = frontmatter::parse::<TaskFrontmatter>(&content);
             let f = fm?;
             let status = f.status.filter(|s| !s.is_empty())?;
@@ -316,11 +312,7 @@ pub fn get_task(
     let path = security::ensure_in_workspace(&dir, Path::new(&path))?;
 
     let content = fs::read_to_string(&path)?;
-    let title = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
+    let title = decode_stem_to_title(file_stem_str(&path));
     let (fm, body) = frontmatter::parse::<TaskFrontmatter>(&content);
     let f = fm.ok_or(CommandError::MissingFrontmatter)?;
     let status = f.status.unwrap_or_default();
@@ -382,10 +374,10 @@ pub fn write_task_file(
     tags: Option<Vec<String>>,
     date: Option<String>,
 ) -> CmdResult<Task> {
-    let title = sanitize_title(title)?;
+    let stem = encode_title_to_stem(title)?;
     let date = normalize_date_arg(date)?;
 
-    let file_path = dir.join(format!("{}.md", title));
+    let file_path = dir.join(format!("{}.md", stem));
     if file_path.exists() {
         return Err(CommandError::DuplicateTask);
     }
@@ -409,7 +401,7 @@ pub fn write_task_file(
     let id = file_path.to_string_lossy().to_string();
     Ok(Task {
         id,
-        title,
+        title: decode_stem_to_title(&stem),
         status: status.to_string(),
         body: body.to_string(),
         order,
@@ -479,19 +471,21 @@ pub fn update_task(
         .map(|f| f.tags.clone())
         .unwrap_or_default();
     let current_date = fm.as_ref().and_then(|f| f.date.clone());
-    let current_title = path_canonical
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
+    let current_stem = file_stem_str(&path_canonical).to_string();
 
-    let (new_title, title_changed) = match title {
+    // Change detection and the new filename both work in *stem space* (the
+    // on-disk form, with `/` already encoded to the sentinel) so the comparison
+    // is apples-to-apples; the user-facing title is decoded only at the return.
+    // Note the asymmetry with the read paths above (`read_all_tasks` / `get_task`),
+    // which wrap `file_stem_str` in `decode_stem_to_title` — here the raw stem is
+    // intentionally kept undecoded so it compares like-for-like against `encoded`.
+    let (new_stem, title_changed) = match title {
         Some(t) => {
-            let sanitized = sanitize_title(&t)?;
-            let changed = sanitized != current_title;
-            (sanitized, changed)
+            let encoded = encode_title_to_stem(&t)?;
+            let changed = encoded != current_stem;
+            (encoded, changed)
         }
-        None => (current_title, false),
+        None => (current_stem, false),
     };
 
     // Lift the three semantic states of `tags` into an enum so the
@@ -560,7 +554,7 @@ pub fn update_task(
 
     let old_id = path_canonical.to_string_lossy().to_string();
     let target_path = if title_changed {
-        let new_path = dir_canonical.join(format!("{}.md", new_title));
+        let new_path = dir_canonical.join(format!("{}.md", new_stem));
         rename_and_write_task(&path_canonical, &new_path, &new_content)?;
         // Title change = file rename = id change. Drop the old key so the
         // snapshot doesn't carry a phantom entry for a path no longer on
@@ -579,7 +573,7 @@ pub fn update_task(
 
     Ok(Task {
         id,
-        title: new_title,
+        title: decode_stem_to_title(&new_stem),
         status: new_status,
         body: new_body,
         order: current_order,
@@ -845,17 +839,49 @@ fn rename_and_write_task(src: &Path, dst: &Path, content: &str) -> CmdResult<()>
     Ok(())
 }
 
-fn sanitize_title(title: &str) -> CmdResult<String> {
-    let sanitized: String = title
+/// On-disk stand-in for `/` in a task title. A POSIX filename can never contain
+/// `/` — it is the path separator — yet titles routinely want one ("Frontend/Backend",
+/// "2026/Q2"). Cork keeps the filename as the single source of truth for the title
+/// (there is no separate `title:` frontmatter), so we swap `/` for U+2215 DIVISION
+/// SLASH on disk and swap it back for display. U+2215 is chosen because it is a
+/// near-perfect visual match for `/`, is a legal filename character on every major
+/// OS, and is effectively never typed by hand — safe to reserve as our sentinel.
+/// `encode_title_to_stem` / `decode_stem_to_title` are the *only* place this swap
+/// happens; every filename⟷title conversion must run through them.
+const TITLE_SLASH_SENTINEL: char = '\u{2215}';
+
+/// Convert a user-facing title into the file stem stored on disk: replace `/` with
+/// the sentinel, drop null bytes, and trim surrounding whitespace. Rejects a title
+/// that is empty after normalization. The sentinel is reserved — a title that
+/// already contains a literal U+2215 is left as-is and therefore round-trips back
+/// to `/` via `decode_stem_to_title`, never persisting a distinct U+2215.
+fn encode_title_to_stem(title: &str) -> CmdResult<String> {
+    let encoded: String = title
         .chars()
-        .map(|c| if c == '/' { '-' } else { c })
         .filter(|&c| c != '\0')
+        .map(|c| if c == '/' { TITLE_SLASH_SENTINEL } else { c })
         .collect();
-    let trimmed = sanitized.trim().to_string();
+    let trimmed = encoded.trim().to_string();
     if trimmed.is_empty() {
         return Err(CommandError::EmptyTitle);
     }
     Ok(trimmed)
+}
+
+/// Inverse of `encode_title_to_stem` for the slash swap: restore `/` from the
+/// sentinel in an on-disk file stem. The other normalization steps
+/// (null-stripping, trimming) are intentionally not reversed — they are lossy by
+/// design and the stem is already clean.
+fn decode_stem_to_title(stem: &str) -> String {
+    stem.replace(TITLE_SLASH_SENTINEL, "/")
+}
+
+/// The file stem as a `&str`, falling back to `""` for a path with no stem or a
+/// non-UTF-8 stem. This is the on-disk (encoded) form; run it through
+/// `decode_stem_to_title` to get the user-facing title. Centralizes the
+/// `file_stem` → `to_str` → fallback chain shared by the read paths.
+fn file_stem_str(path: &Path) -> &str {
+    path.file_stem().and_then(|s| s.to_str()).unwrap_or("")
 }
 
 /// Reads only frontmatter + up to 100 bytes of body from a file.
@@ -903,59 +929,90 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    // --- sanitize_title ------------------------------------------------------
+    // --- encode_title_to_stem / decode_stem_to_title -------------------------
 
     #[test]
-    fn sanitize_title_replaces_path_separators() {
-        assert_eq!(sanitize_title("foo/bar").unwrap(), "foo-bar");
-        assert_eq!(sanitize_title("a/b/c").unwrap(), "a-b-c");
+    fn encode_title_to_stem_swaps_slashes_for_sentinel() {
+        assert_eq!(encode_title_to_stem("foo/bar").unwrap(), "foo\u{2215}bar");
+        assert_eq!(
+            encode_title_to_stem("a/b/c").unwrap(),
+            "a\u{2215}b\u{2215}c"
+        );
     }
 
     #[test]
-    fn sanitize_title_filters_null_bytes() {
-        assert_eq!(sanitize_title("hello\0world").unwrap(), "helloworld");
+    fn encode_title_to_stem_filters_null_bytes() {
+        assert_eq!(encode_title_to_stem("hello\0world").unwrap(), "helloworld");
     }
 
     #[test]
-    fn sanitize_title_trims_surrounding_whitespace() {
-        assert_eq!(sanitize_title("  hi  ").unwrap(), "hi");
-        assert_eq!(sanitize_title("\t\nhi\n\t").unwrap(), "hi");
+    fn encode_title_to_stem_trims_surrounding_whitespace() {
+        assert_eq!(encode_title_to_stem("  hi  ").unwrap(), "hi");
+        assert_eq!(encode_title_to_stem("\t\nhi\n\t").unwrap(), "hi");
     }
 
     #[test]
-    fn sanitize_title_preserves_unicode() {
-        assert_eq!(sanitize_title("日本語タイトル").unwrap(), "日本語タイトル");
-        assert_eq!(sanitize_title("emoji-🎉").unwrap(), "emoji-🎉");
+    fn encode_title_to_stem_preserves_unicode() {
+        assert_eq!(
+            encode_title_to_stem("日本語タイトル").unwrap(),
+            "日本語タイトル"
+        );
+        assert_eq!(encode_title_to_stem("emoji-🎉").unwrap(), "emoji-🎉");
     }
 
     #[test]
-    fn sanitize_title_rejects_empty_string() {
+    fn encode_title_to_stem_rejects_empty_string() {
         assert!(matches!(
-            sanitize_title("").unwrap_err(),
+            encode_title_to_stem("").unwrap_err(),
             CommandError::EmptyTitle
         ));
     }
 
     #[test]
-    fn sanitize_title_rejects_whitespace_only() {
+    fn encode_title_to_stem_rejects_whitespace_only() {
         assert!(matches!(
-            sanitize_title("   ").unwrap_err(),
+            encode_title_to_stem("   ").unwrap_err(),
             CommandError::EmptyTitle
         ));
     }
 
     #[test]
-    fn sanitize_title_rejects_only_null_bytes() {
+    fn encode_title_to_stem_rejects_only_null_bytes() {
         assert!(matches!(
-            sanitize_title("\0\0\0").unwrap_err(),
+            encode_title_to_stem("\0\0\0").unwrap_err(),
             CommandError::EmptyTitle
         ));
     }
 
     #[test]
-    fn sanitize_title_composes_replacements_with_trim() {
-        // Slash replacement happens before trim.
-        assert_eq!(sanitize_title(" foo/bar ").unwrap(), "foo-bar");
+    fn encode_title_to_stem_composes_replacements_with_trim() {
+        // Slash replacement happens before trim; the sentinel is not whitespace
+        // so the surrounding spaces still get trimmed away.
+        assert_eq!(encode_title_to_stem(" foo/bar ").unwrap(), "foo\u{2215}bar");
+    }
+
+    #[test]
+    fn decode_stem_to_title_restores_slashes() {
+        assert_eq!(decode_stem_to_title("foo\u{2215}bar"), "foo/bar");
+        assert_eq!(decode_stem_to_title("plain"), "plain");
+    }
+
+    #[test]
+    fn title_round_trips_through_stem() {
+        for title in ["foo/bar", "a/b/c", "日本語/タイトル", "2026/Q2", "plain"] {
+            let stem = encode_title_to_stem(title).unwrap();
+            assert!(!stem.contains('/'), "stem must be filename-safe: {stem:?}");
+            assert_eq!(decode_stem_to_title(&stem), title);
+        }
+    }
+
+    #[test]
+    fn literal_sentinel_in_title_is_reserved_for_slash() {
+        // A title that already contains a literal U+2215 is treated as if it
+        // were `/`: the encode leaves it untouched and the decode maps it to
+        // `/`, so a distinct U+2215 is never persisted (see TITLE_SLASH_SENTINEL).
+        let stem = encode_title_to_stem("a\u{2215}b").unwrap();
+        assert_eq!(decode_stem_to_title(&stem), "a/b");
     }
 
     // --- rename_and_write_task -----------------------------------------------
