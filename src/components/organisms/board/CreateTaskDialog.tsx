@@ -127,7 +127,7 @@ export function CreateTaskDialog({
                 onOpenLink={onOpenLink}
                 placeholder="Add a description…"
                 ariaLabel="Body"
-                className="mt-4 min-h-[16rem] flex-1"
+                className="mt-4 min-h-[20rem] flex-1"
               />
             </div>
 
