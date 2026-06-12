@@ -84,22 +84,35 @@ export function TaskDetailDialog({
         // sort after p-6 in Tailwind's output so they override only those sides.
         containerClassName="pl-4 pb-4"
       >
-        {/* A single 2-column row: the editable Title + Body fill the left
-            column, the action chrome + Status + Tags fill the right sidebar.
-            Mirroring CreateTaskDialog's layout, the sidebar is top-aligned and
-            independent of the Title's height — a Title that wraps to several
-            lines only pushes the Body down, so Status and Tags stay pinned to
-            the top instead of drifting down with it. The columns share the same
-            md:flex-1 / md:w-60 widths, so the Title's right edge lines up with
-            the Body's while the overflow/close chrome sits in the top-right
-            corner. */}
-        <div className="flex flex-col gap-4 md:flex-row md:gap-6">
-          <div className="flex min-w-0 flex-col md:flex-1">
-            {/* The underline sits on the input, but its left inset comes from this
-                pl-3 wrapper rather than the input's own padding — so the border
-                starts at the first character instead of poking out into the
-                padding. The input keeps pr-3 for its right inset. */}
-            <div className="pl-3">
+        <div className="relative">
+          <div className="absolute top-0 right-0 z-10 flex gap-1 md:hidden">
+            <DropdownMenu
+              trigger={<MoreHorizontal className="size-4" />}
+              triggerAriaLabel="Task actions"
+              items={[
+                {
+                  label: "Copy path",
+                  icon: <Copy className="size-3.5" />,
+                  onClick: handleCopyPath,
+                },
+                {
+                  label: "Delete",
+                  icon: <Trash2 className="size-3.5" />,
+                  color: "danger",
+                  onClick: () => setDeleteConfirmOpen(true),
+                },
+              ]}
+            />
+            <IconButton
+              icon={<X className="size-4" />}
+              aria-label="Close"
+              onClick={handleClose}
+              onMouseDown={(e) => e.preventDefault()}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_15rem] md:gap-6">
+            <div className="pr-14 pl-3 md:pr-0">
               <AutoresizeInput
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -111,6 +124,56 @@ export function TaskDetailDialog({
               {error?.message && <ErrorBanner className="mt-1.5">{error.message}</ErrorBanner>}
             </div>
 
+            <div className="flex flex-col gap-4 md:col-start-2 md:row-start-1 md:row-end-3">
+              <div className="hidden md:flex md:justify-end md:gap-1">
+                <DropdownMenu
+                  trigger={<MoreHorizontal className="size-4" />}
+                  triggerAriaLabel="Task actions"
+                  items={[
+                    {
+                      label: "Copy path",
+                      icon: <Copy className="size-3.5" />,
+                      onClick: handleCopyPath,
+                    },
+                    {
+                      label: "Delete",
+                      icon: <Trash2 className="size-3.5" />,
+                      color: "danger",
+                      onClick: () => setDeleteConfirmOpen(true),
+                    },
+                  ]}
+                />
+                <IconButton
+                  icon={<X className="size-4" />}
+                  aria-label="Close"
+                  onClick={handleClose}
+                  onMouseDown={(e) => e.preventDefault()}
+                />
+              </div>
+
+              <FormField label="Status">
+                <Select
+                  value={status}
+                  onChange={handleStatusChange}
+                  options={statuses.map((s) => ({ label: s.label, value: s.label }))}
+                />
+              </FormField>
+
+              <FormField label="Date">
+                <DateField value={date} onChange={handleDateChange} ariaLabel="Date" />
+              </FormField>
+
+              <FormField label="Tags">
+                <TagEditor
+                  ref={tagEditorRef}
+                  tags={tags}
+                  onChange={handleTagsChange}
+                  suggestions={availableTags}
+                  ariaLabel="Tags"
+                />
+              </FormField>
+            </div>
+
             <MarkdownEditor
               initialValue={task.body}
               onChange={handleBodyChange}
@@ -118,62 +181,8 @@ export function TaskDetailDialog({
               onBlur={handleBodyBlur}
               placeholder="Add a description…"
               ariaLabel="Body"
-              className="mt-4 min-h-[20rem] flex-1"
+              className="min-h-[20rem] md:col-start-1 md:row-start-2"
             />
-          </div>
-
-          <div className="flex flex-col gap-4 md:w-60 md:shrink-0">
-            {/* The overflow-menu + close chrome leads the sidebar, landing in
-                the dialog's top-right corner above Status and Tags. */}
-            <div className="flex justify-end gap-1">
-              <DropdownMenu
-                trigger={<MoreHorizontal className="size-4" />}
-                triggerAriaLabel="Task actions"
-                items={[
-                  {
-                    label: "Copy path",
-                    icon: <Copy className="size-3.5" />,
-                    onClick: handleCopyPath,
-                  },
-                  {
-                    label: "Delete",
-                    icon: <Trash2 className="size-3.5" />,
-                    color: "danger",
-                    onClick: () => setDeleteConfirmOpen(true),
-                  },
-                ]}
-              />
-              <IconButton
-                icon={<X className="size-4" />}
-                aria-label="Close"
-                onClick={handleClose}
-                // Keep focus on the active field so its blur-driven save handler
-                // doesn't race handleClose.
-                onMouseDown={(e) => e.preventDefault()}
-              />
-            </div>
-
-            <FormField label="Status">
-              <Select
-                value={status}
-                onChange={handleStatusChange}
-                options={statuses.map((s) => ({ label: s.label, value: s.label }))}
-              />
-            </FormField>
-
-            <FormField label="Date">
-              <DateField value={date} onChange={handleDateChange} ariaLabel="Date" />
-            </FormField>
-
-            <FormField label="Tags">
-              <TagEditor
-                ref={tagEditorRef}
-                tags={tags}
-                onChange={handleTagsChange}
-                suggestions={availableTags}
-                ariaLabel="Tags"
-              />
-            </FormField>
           </div>
         </div>
       </Modal>

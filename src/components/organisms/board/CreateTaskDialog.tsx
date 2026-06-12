@@ -110,13 +110,18 @@ export function CreateTaskDialog({
         containerClassName="pl-4 pb-4"
       >
         <form onSubmit={handleSubmit} onKeyDown={handleKeyDown}>
-          <div className="flex flex-col gap-4 md:flex-row md:gap-6">
-            <div className="flex min-w-0 flex-col md:flex-1">
-              {/* The underline sits on the input, but its left inset comes from
-                  this pl-3 wrapper rather than the input's own padding — so the
-                  border starts at the first character instead of poking out into
-                  the padding. The input keeps pr-3 for its right inset. */}
-              <div className="pl-3">
+          <div className="relative">
+            <div className="absolute top-0 right-0 z-10 md:hidden">
+              <IconButton
+                icon={<X className="size-4" />}
+                aria-label="Cancel"
+                onClick={handleClose}
+                onMouseDown={(e) => e.preventDefault()}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_15rem] md:gap-6">
+              <div className="pr-12 pl-3 md:pr-0">
                 <AutoresizeInput
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -128,68 +133,69 @@ export function CreateTaskDialog({
                 {error && <ErrorBanner className="mt-1.5">{error}</ErrorBanner>}
               </div>
 
+              <div className="flex flex-col gap-4 md:col-start-2 md:row-start-1 md:row-end-3">
+                <div className="hidden md:flex md:justify-end">
+                  <IconButton
+                    icon={<X className="size-4" />}
+                    aria-label="Cancel"
+                    onClick={handleClose}
+                    onMouseDown={(e) => e.preventDefault()}
+                  />
+                </div>
+
+                <FormField label="Status">
+                  <Select
+                    value={status}
+                    onChange={setStatus}
+                    options={statuses.map((s) => ({ label: s.label, value: s.label }))}
+                  />
+                </FormField>
+
+                <FormField label="Date">
+                  <DateField value={date} onChange={setDate} ariaLabel="Date" />
+                </FormField>
+
+                <FormField label="Tags">
+                  <TagEditor
+                    ref={tagEditor.ref}
+                    tags={tags}
+                    onChange={setTags}
+                    suggestions={availableTags}
+                    ariaLabel="Tags"
+                  />
+                </FormField>
+
+                <div className="hidden md:mt-auto md:block">
+                  <DialogFooter
+                    onCancel={handleClose}
+                    action={{
+                      label: "Create",
+                      icon: <Plus className="size-3.5" />,
+                      type: "submit",
+                    }}
+                  />
+                </div>
+              </div>
+
               <MarkdownEditor
                 initialValue=""
                 onChange={setBody}
                 onOpenLink={onOpenLink}
                 placeholder="Add a description…"
                 ariaLabel="Body"
-                className="mt-4 min-h-[20rem] flex-1"
+                className="min-h-[20rem] md:col-start-1 md:row-start-2"
               />
             </div>
 
-            <div className="flex flex-col gap-4 md:w-60 md:shrink-0">
-              {/* The close button sits at the top of the sidebar, landing in the
-                  dialog's top-right corner above Status and Tags. */}
-              <div className="flex justify-end">
-                <IconButton
-                  icon={<X className="size-4" />}
-                  aria-label="Cancel"
-                  onClick={handleClose}
-                  // Keep focus on the active field so its blur-driven save handler
-                  // doesn't race the close click.
-                  onMouseDown={(e) => e.preventDefault()}
-                />
-              </div>
-
-              <FormField label="Status">
-                <Select
-                  value={status}
-                  onChange={setStatus}
-                  options={statuses.map((s) => ({ label: s.label, value: s.label }))}
-                />
-              </FormField>
-
-              <FormField label="Date">
-                <DateField value={date} onChange={setDate} ariaLabel="Date" />
-              </FormField>
-
-              <FormField label="Tags">
-                <TagEditor
-                  ref={tagEditor.ref}
-                  tags={tags}
-                  onChange={setTags}
-                  suggestions={availableTags}
-                  ariaLabel="Tags"
-                />
-              </FormField>
-
-              {/* The action row lives at the bottom of the sidebar (md:mt-auto
-                  pins it there) rather than as a full-width row beneath the
-                  columns. Right-aligned, it lands in the same bottom-right
-                  corner a full-width footer would — but because it no longer
-                  forms a row under the Body, the Body fills straight down to
-                  the actions instead of leaving an empty band beneath it. */}
-              <div className="md:mt-auto">
-                <DialogFooter
-                  onCancel={handleClose}
-                  action={{
-                    label: "Create",
-                    icon: <Plus className="size-3.5" />,
-                    type: "submit",
-                  }}
-                />
-              </div>
+            <div className="mt-4 md:hidden">
+              <DialogFooter
+                onCancel={handleClose}
+                action={{
+                  label: "Create",
+                  icon: <Plus className="size-3.5" />,
+                  type: "submit",
+                }}
+              />
             </div>
           </div>
         </form>
