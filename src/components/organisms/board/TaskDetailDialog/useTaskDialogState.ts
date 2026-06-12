@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { useDebouncedCallback } from "@/hooks/ui/useDebouncedCallback";
 import { useFieldError } from "@/hooks/ui/useFieldError";
 import { useTagEditorController } from "@/hooks/ui/useTagEditorController";
 import {
@@ -12,6 +13,14 @@ import {
 import type { Task, TaskUpdates } from "@/types";
 
 type FieldKey = keyof TaskUpdates;
+
+/**
+ * Quiet window before the body autosaves while typing. Long enough that a
+ * normal typing cadence doesn't fire a write per keystroke, short enough that
+ * an edit is on disk almost as soon as the user pauses — so an abrupt quit
+ * (Cmd+Q without blurring) loses at most this much, instead of the whole edit.
+ */
+const BODY_SAVE_DEBOUNCE_MS = 500;
 
 function withFieldReverted(
   snapshot: TaskFormSnapshot,
@@ -43,7 +52,8 @@ type TrySaveResult = { ok: true } | { ok: false; message: string };
  *
  * - the editable form state (title / status / body / tags) and its baseline,
  * - the single tagged error that backs the inline banner + close fallback,
- * - per-field auto-save (blur for title/body, change for status/tags),
+ * - per-field auto-save (blur for title; debounced-while-typing for body;
+ *   change for status/tags),
  * - a 2-step close: 1st attempt persists pending edits and surfaces any
  *   error inline; 2nd attempt retries with the latest values, then if it
  *   still fails it discards the offending field, salvages anything else
@@ -96,15 +106,27 @@ export function useTaskDialogState({
     }
   }, []);
 
+  // Serializes saves so writes land in the order they were issued. The body
+  // debounce and the blur flush can both fire a save within one in-flight
+  // window; without a queue they'd race in `onSaveTask` and could land out of
+  // order, letting an older body silently overwrite a newer one.
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+
   const trySave = useCallback(
-    async (updates: TaskUpdates): Promise<TrySaveResult> => {
-      try {
-        await onSaveTask(task.id, updates);
-        originalRef.current = withTaskUpdates(originalRef.current, updates);
-        return { ok: true };
-      } catch (e) {
-        return { ok: false, message: String(e) };
-      }
+    (updates: TaskUpdates): Promise<TrySaveResult> => {
+      const result = saveChainRef.current.then(async (): Promise<TrySaveResult> => {
+        try {
+          await onSaveTask(task.id, updates);
+          originalRef.current = withTaskUpdates(originalRef.current, updates);
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, message: String(e) };
+        }
+      });
+      // The chain stays rejection-free (failures resolve to `{ ok: false }`),
+      // so one failed save can't wedge every later one.
+      saveChainRef.current = result.then(() => undefined);
+      return result;
     },
     [onSaveTask, task.id],
   );
@@ -143,11 +165,28 @@ export function useTaskDialogState({
     [autoSave],
   );
 
-  const handleBodyBlur = useCallback(() => {
-    if (body !== originalRef.current.body) {
-      void autoSave("body", { body });
+  // Body autosaves while the user types (debounced) rather than only on blur,
+  // so an unblurred quit doesn't drop the edit. The latest text is passed as an
+  // arg so the trailing call never reads a stale `body` closure.
+  const debouncedSaveBody = useDebouncedCallback((next: string) => {
+    if (next !== originalRef.current.body) {
+      void autoSave("body", { body: next });
     }
-  }, [autoSave, body]);
+  }, BODY_SAVE_DEBOUNCE_MS);
+
+  const handleBodyChange = useCallback(
+    (next: string) => {
+      setBody(next);
+      debouncedSaveBody(next);
+    },
+    [debouncedSaveBody],
+  );
+
+  // Blur flushes the pending debounce so leaving the field persists at once
+  // instead of waiting out the quiet window.
+  const handleBodyBlur = useCallback(() => {
+    debouncedSaveBody.flush();
+  }, [debouncedSaveBody]);
 
   const handleTagsChange = useCallback(
     (next: string[]) => {
@@ -179,6 +218,10 @@ export function useTaskDialogState({
 
   const handleClose = useCallback(async () => {
     if (isLocked) return;
+
+    // Close takes over body persistence: its dirty diff already covers the
+    // latest body, so drop any in-flight debounce to avoid a redundant write.
+    debouncedSaveBody.cancel();
 
     // Fold any unsubmitted tag text into the closing snapshot — chip
     // add/remove already auto-saves through handleTagsChange, so this only
@@ -257,6 +300,7 @@ export function useTaskDialogState({
     onCommitClose,
     setError,
     revertField,
+    debouncedSaveBody,
   ]);
 
   return {
@@ -264,7 +308,6 @@ export function useTaskDialogState({
     setTitle,
     status,
     body,
-    setBody,
     tags,
     date,
     handleDateChange,
@@ -272,6 +315,7 @@ export function useTaskDialogState({
     tagEditorRef: tagEditor.ref,
     handleTitleBlur,
     handleStatusChange,
+    handleBodyChange,
     handleBodyBlur,
     handleTagsChange,
     handleClose,

@@ -45,7 +45,6 @@ export function TaskDetailDialog({
     title,
     setTitle,
     status,
-    setBody,
     tags,
     date,
     handleDateChange,
@@ -53,6 +52,7 @@ export function TaskDetailDialog({
     tagEditorRef,
     handleTitleBlur,
     handleStatusChange,
+    handleBodyChange,
     handleBodyBlur,
     handleTagsChange,
     handleClose,
@@ -113,7 +113,7 @@ export function TaskDetailDialog({
 
             <MarkdownEditor
               initialValue={task.body}
-              onChange={setBody}
+              onChange={handleBodyChange}
               onOpenLink={onOpenLink}
               onBlur={handleBodyBlur}
               placeholder="Add a description…"
