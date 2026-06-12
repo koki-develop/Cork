@@ -19,11 +19,10 @@ use rmcp::{
     ServerHandler,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use subtle::ConstantTimeEq;
-use tauri::Manager;
+
 use tauri_plugin_store::StoreExt;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -939,16 +938,17 @@ pub fn generate_token() -> String {
 }
 
 #[tauri::command]
-pub fn get_sample_config(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> String {
+pub fn get_sample_config(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> String {
     let settings = load_settings(&app);
 
-    let mut paths: BTreeSet<PathBuf> = BTreeSet::new();
-    for (label, _w) in app.webview_windows() {
-        if let Some(dir) = state.workspace(&label) {
-            paths.insert(dir);
-        }
-    }
-    let list: Vec<PathBuf> = paths.into_iter().collect();
+    let list: Vec<PathBuf> = state
+        .workspace(window.label())
+        .into_iter()
+        .collect();
     build_sample_config(&list, DEFAULT_PORT, &settings.token)
 }
 
@@ -964,7 +964,7 @@ pub fn get_server_status(state: tauri::State<'_, AppState>) -> McpStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
+    use std::collections::{BTreeSet, HashSet};
 
     #[test]
     fn mint_token_yields_expected_length_and_charset() {
@@ -1755,7 +1755,7 @@ mod tests {
         // This test pins that wire shape so a future field addition can't
         // silently leak extra keys into the top-level namespace of
         // `settings.json`.
-        use std::collections::BTreeSet;
+
         let value = serde_json::to_value(&McpSettings {
             enabled: true,
             token: "x".repeat(MIN_TOKEN_LEN),
