@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0](https://github.com/koki-develop/Cork/compare/v0.5.1...v0.6.0) (2026-06-12)
+
+
+### Features
+
+* **ui:** add clear-formatting button to floating toolbar ([900dab0](https://github.com/koki-develop/Cork/commit/900dab0eca4e30561c37d389765d5c74cb24b39f))
+* **ui:** auto-link bare URLs in task body editor ([b38f2dd](https://github.com/koki-develop/Cork/commit/b38f2dd7fc5bba989b403a824359c737179606ab))
+* **ui:** distinguish code blocks and tame highlights in task body editor ([bb44a8a](https://github.com/koki-develop/Cork/commit/bb44a8afde9a72d2dfbb664150d0aefa4c57b684))
+* **ui:** make task body editor links editable via hover panel ([78f9ec7](https://github.com/koki-develop/Cork/commit/78f9ec7d0862bb17d893c8b180e4af389da7d771))
+
+
+### Bug Fixes
+
+* clarify in MCP instructions that tasks are updated by editing files directly ([aa64d7b](https://github.com/koki-develop/Cork/commit/aa64d7be97c53448f3afdf393993054883f1a209))
+* scope sample mcp.json to current window only ([37b85b6](https://github.com/koki-develop/Cork/commit/37b85b6a4ecaa92c38b1fa3412140316c63f7114))
+* **ui:** make modal panel fully opaque and drop its backdrop blur ([e971c54](https://github.com/koki-develop/Cork/commit/e971c540ef9cd6462c872ade164cd04679656d04))
+* **ui:** remove redundant "New Task" heading from create dialog ([cda1411](https://github.com/koki-develop/Cork/commit/cda1411c74c3278b8834e30c85bee735e232471d))
+
 ## [0.5.1](https://github.com/koki-develop/Cork/compare/v0.5.0...v0.5.1) (2026-06-12)
 
 
