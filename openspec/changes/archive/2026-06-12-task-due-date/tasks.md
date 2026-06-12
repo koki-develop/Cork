@@ -56,4 +56,4 @@
 ## 9. 検証
 
 - [x] 9.1 `bunx tsc --noEmit` / `bun run lint` / `bun run fmt:check` が通ることを確認
-- [ ] 9.2 `bun run tauri dev` で手動スモーク: 作成ダイアログでのカレンダー選択・直接入力・クリア、詳細ダイアログでの auto-save、カードの各カテゴリ表示（today/tomorrow/soon/overdue/far/なし）、frontmatter のラウンドトリップ
+- [x] 9.2 `bun run tauri dev` で手動スモーク: 作成ダイアログでのカレンダー選択・直接入力・クリア、詳細ダイアログでの auto-save、カードの各カテゴリ表示（today/tomorrow/soon/overdue/far/なし）、frontmatter のラウンドトリップ
