@@ -2,7 +2,7 @@ import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { AutoresizeInput } from "@/components/atoms";
+import { AutoresizeInput, ErrorBanner } from "@/components/atoms";
 import {
   DropdownMenu,
   FormField,
@@ -106,26 +106,26 @@ export function TaskDetailDialog({
         </div>
 
         <div className="flex flex-col gap-4 md:flex-row md:gap-6">
-          <div className="flex min-w-0 flex-col gap-4 md:flex-1">
-            <FormField label="Title" error={error?.message ?? null}>
-              <AutoresizeInput
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={handleTitleBlur}
-              />
-            </FormField>
+          <div className="flex min-w-0 flex-col md:flex-1">
+            <AutoresizeInput
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              placeholder="Task title"
+              aria-label="Title"
+              className="text-cork-text placeholder:text-cork-muted/40 border-cork-border/40 border-b px-3 pb-3 text-2xl font-bold tracking-tight placeholder:font-normal focus-visible:outline-none"
+            />
+            {error?.message && <ErrorBanner className="mt-1.5">{error.message}</ErrorBanner>}
 
-            <FormField label="Body" className="md:flex-1">
-              <MarkdownEditor
-                initialValue={task.body}
-                onChange={setBody}
-                onOpenLink={onOpenLink}
-                onBlur={handleBodyBlur}
-                placeholder="Body"
-                ariaLabel="Body"
-                className="min-h-[16rem] flex-1"
-              />
-            </FormField>
+            <MarkdownEditor
+              initialValue={task.body}
+              onChange={setBody}
+              onOpenLink={onOpenLink}
+              onBlur={handleBodyBlur}
+              placeholder="Add a description…"
+              ariaLabel="Body"
+              className="mt-4 min-h-[16rem] flex-1"
+            />
           </div>
 
           <div className="flex flex-col gap-4 md:w-60 md:shrink-0">

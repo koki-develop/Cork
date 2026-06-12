@@ -109,12 +109,15 @@ export function MarkdownEditor({
             <ContentEditable
               ariaLabel={ariaLabel}
               onBlur={onBlur}
-              className="border-cork-border/40 bg-cork-elevated/60 text-cork-text min-h-0 flex-1 overflow-y-auto rounded-lg border px-3 py-1.5 text-sm break-words whitespace-pre-wrap"
+              // Borderless writing surface: flat at rest, with a faint fill
+              // fading in on hover for affordance. The caret signals focus (no
+              // outline ring).
+              className="text-cork-text hover:bg-cork-elevated/30 min-h-0 flex-1 overflow-y-auto rounded-lg px-3 py-2 text-sm break-words whitespace-pre-wrap transition-colors focus-visible:outline-none"
             />
           }
           placeholder={
             placeholder == null ? null : (
-              <div className="text-cork-muted/50 pointer-events-none absolute top-1.5 left-3 select-none">
+              <div className="text-cork-muted/40 pointer-events-none absolute top-2 left-3 text-sm select-none">
                 {placeholder}
               </div>
             )

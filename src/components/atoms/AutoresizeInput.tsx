@@ -56,11 +56,11 @@ export function AutoresizeInput({
       value={value}
       onChange={handleChange}
       onKeyDown={handleKeyDown}
-      className={clsx(
-        "border-cork-border/40 bg-cork-elevated/60 text-cork-text block w-full resize-none overflow-hidden rounded-lg border px-3 py-1.5 text-sm",
-        "placeholder:text-cork-muted/50",
-        className,
-      )}
+      // Structural-only: this primitive owns the auto-grow behaviour, not a
+      // visual treatment. Callers supply appearance (border, background, font)
+      // via `className` so the same primitive can be a boxed field or a
+      // borderless document title.
+      className={clsx("block w-full resize-none overflow-hidden", className)}
       {...props}
     />
   );

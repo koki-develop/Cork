@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useState } from "react";
 
-import { AutoresizeInput, Heading, Text } from "@/components/atoms";
+import { AutoresizeInput, ErrorBanner, Heading, Text } from "@/components/atoms";
 import {
   DialogFooter,
   DialogHeader,
@@ -100,26 +100,25 @@ export function CreateTaskDialog({
 
         <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-6">
           <div className="flex flex-col gap-4 md:flex-row md:gap-6">
-            <div className="flex min-w-0 flex-col gap-4 md:flex-1">
-              <FormField label="Title" error={error}>
-                <AutoresizeInput
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Task title"
-                  data-autofocus
-                />
-              </FormField>
+            <div className="flex min-w-0 flex-col md:flex-1">
+              <AutoresizeInput
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Task title"
+                aria-label="Title"
+                data-autofocus
+                className="text-cork-text placeholder:text-cork-muted/40 border-cork-border/40 border-b px-3 pb-3 text-2xl font-bold tracking-tight placeholder:font-normal focus-visible:outline-none"
+              />
+              {error && <ErrorBanner className="mt-1.5">{error}</ErrorBanner>}
 
-              <FormField label="Body" className="md:flex-1">
-                <MarkdownEditor
-                  initialValue=""
-                  onChange={setBody}
-                  onOpenLink={onOpenLink}
-                  placeholder="Body (optional)"
-                  ariaLabel="Body"
-                  className="min-h-[16rem] flex-1"
-                />
-              </FormField>
+              <MarkdownEditor
+                initialValue=""
+                onChange={setBody}
+                onOpenLink={onOpenLink}
+                placeholder="Add a description…"
+                ariaLabel="Body"
+                className="mt-4 min-h-[16rem] flex-1"
+              />
             </div>
 
             <div className="flex flex-col gap-4 md:w-60 md:shrink-0">
