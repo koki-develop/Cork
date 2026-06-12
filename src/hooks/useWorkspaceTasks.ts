@@ -64,13 +64,13 @@ export function useWorkspaceTasks({ dir, query, filters }: Params) {
   }, [dir, loadAvailableTags]);
 
   const createTask = useCallback(
-    async (title: string, status: string, body?: string, tags?: string[]) => {
+    async (title: string, status: string, body?: string, tags?: string[], date?: string) => {
       const orders = tasks
         .filter((t) => t.status === status)
         .map((t) => t.order)
         .filter((o): o is number => o !== null);
       const order = orders.length === 0 ? 0 : Math.min(...orders) - 1;
-      const task = await createTaskApi(title, status, body, order, tags);
+      const task = await createTaskApi(title, status, body, order, tags, date);
       setTasks((prev) => [...prev, task]);
       await loadTasks();
       await loadAvailableTags();
@@ -119,6 +119,8 @@ export function useWorkspaceTasks({ dir, query, filters }: Params) {
                 ...(updates.body !== undefined ? { body: updates.body } : {}),
                 ...(updatesWithOrder.order !== undefined ? { order: updatesWithOrder.order } : {}),
                 ...(updates.tags !== undefined ? { tags: updates.tags } : {}),
+                // Wire sentinel "" (clear) maps back to the domain's null.
+                ...(updates.date !== undefined ? { date: updates.date || null } : {}),
               }
             : t,
         ),

@@ -22,6 +22,8 @@ pub struct Task {
     pub order: Option<f64>,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub date: Option<String>,
 }
 
 /// Tag filter — discriminated by the `operator` field. Tag-based variants
@@ -75,6 +77,8 @@ struct TaskFrontmatter {
     order: Option<f64>,
     #[serde(default, deserialize_with = "deserialize_tags_lenient")]
     tags: Vec<String>,
+    #[serde(default, deserialize_with = "deserialize_date_lenient")]
+    date: Option<String>,
 }
 
 /// Falling back to an empty Vec for non-array shapes or arrays with any
@@ -98,6 +102,52 @@ where
         }
     }
     Ok(out)
+}
+
+/// Returns true iff `s` is a canonical `YYYY-MM-DD` calendar date: exactly ten
+/// ASCII chars, `-` separators at the fixed positions, and a real day for the
+/// month (leap years honored). This is the single source of truth for what
+/// counts as a valid task `date` — used both by the lenient deserializer (to
+/// drop non-canonical frontmatter) and by `write_task_file` (to reject bad
+/// input arriving via the Tauri command or the MCP `create_task` tool).
+pub(crate) fn is_canonical_date(s: &str) -> bool {
+    let b = s.as_bytes();
+    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
+        return false;
+    }
+    for &i in &[0, 1, 2, 3, 5, 6, 8, 9] {
+        if !b[i].is_ascii_digit() {
+            return false;
+        }
+    }
+    // Safe to slice: every relevant byte above is ASCII, so the string is too.
+    let year: u32 = s[0..4].parse().unwrap();
+    let month: u32 = s[5..7].parse().unwrap();
+    let day: u32 = s[8..10].parse().unwrap();
+    let leap = (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
+    let days_in_month = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days_in_month).contains(&day)
+}
+
+/// Falling back to `None` for non-string shapes, non-canonical strings, or YAML
+/// date scalars keeps a malformed `date:` from poisoning the whole task — the
+/// file still loads as "no due date". Mirrors `deserialize_tags_lenient`: a bad
+/// value is silently dropped rather than failing the entire frontmatter parse.
+fn deserialize_date_lenient<'de, D>(de: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(de)?;
+    match value.as_str() {
+        Some(s) if is_canonical_date(s) => Ok(Some(s.to_string())),
+        _ => Ok(None),
+    }
 }
 
 /// Apply title-fuzzy query + tag filters to a task list. Empty `query` /
@@ -247,6 +297,7 @@ pub(crate) fn read_all_tasks(dir: &Path) -> Vec<Task> {
                 body,
                 order: f.order,
                 tags: f.tags,
+                date: f.date,
             })
         })
         .collect();
@@ -280,6 +331,43 @@ pub fn get_task(
         body,
         order: f.order,
         tags: f.tags,
+        date: f.date,
+    })
+}
+
+/// The three intents a `date` argument can express, mirroring the `tags`
+/// Keep / Set / Clear semantics: `None` = Keep (leave the existing value
+/// untouched), `Some("")` = Clear (drop the key), `Some(canonical)` = Set.
+pub(crate) enum DateOp {
+    Keep,
+    Set(String),
+    Clear,
+}
+
+/// Single validation gate for a `date` argument, shared by the create path
+/// (`write_task_file`, via `normalize_date_arg`) and the update path
+/// (`update_task`). A non-canonical non-empty string is rejected here, so the
+/// Tauri command and the MCP `create_task` tool can never drift on what they
+/// accept or on the error message.
+pub(crate) fn classify_date_arg(date: Option<String>) -> CmdResult<DateOp> {
+    match date {
+        None => Ok(DateOp::Keep),
+        Some(s) if s.is_empty() => Ok(DateOp::Clear),
+        Some(s) if is_canonical_date(&s) => Ok(DateOp::Set(s)),
+        Some(s) => Err(CommandError::other(format!(
+            "invalid date '{s}': expected YYYY-MM-DD"
+        ))),
+    }
+}
+
+/// Normalize a `date` argument for the create path, where there is no "keep"
+/// distinction: `Keep` / `Clear` both mean "no due date" (skip the key),
+/// `Set(canonical)` is written. Non-canonical input is rejected by
+/// `classify_date_arg`.
+pub(crate) fn normalize_date_arg(date: Option<String>) -> CmdResult<Option<String>> {
+    Ok(match classify_date_arg(date)? {
+        DateOp::Set(s) => Some(s),
+        DateOp::Keep | DateOp::Clear => None,
     })
 }
 
@@ -292,8 +380,10 @@ pub fn write_task_file(
     body: &str,
     order: Option<f64>,
     tags: Option<Vec<String>>,
+    date: Option<String>,
 ) -> CmdResult<Task> {
     let title = sanitize_title(title)?;
+    let date = normalize_date_arg(date)?;
 
     let file_path = dir.join(format!("{}.md", title));
     if file_path.exists() {
@@ -308,6 +398,9 @@ pub fn write_task_file(
         if let Some(t) = tags.as_ref().filter(|t| !t.is_empty()) {
             obj.insert("tags".to_string(), serde_json::json!(t));
         }
+        if let Some(d) = date.as_ref() {
+            obj.insert("date".to_string(), serde_json::json!(d));
+        }
     }
     let yaml = frontmatter::serialize(&fm_value);
     let content = frontmatter::ensure_trailing_newline(format!("---\n{}---\n\n{}", yaml, body));
@@ -321,10 +414,12 @@ pub fn write_task_file(
         body: body.to_string(),
         order,
         tags: tags.unwrap_or_default(),
+        date,
     })
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn create_task(
     window: tauri::WebviewWindow,
     title: String,
@@ -332,6 +427,7 @@ pub fn create_task(
     body: Option<String>,
     order: Option<f64>,
     tags: Option<Vec<String>>,
+    date: Option<String>,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<Task> {
     let label = window.label();
@@ -339,7 +435,7 @@ pub fn create_task(
     let dir_canonical = security::canonical_workspace(&dir)?;
 
     let body = body.unwrap_or_default();
-    let task = write_task_file(&dir_canonical, &title, &status, &body, order, tags.clone())?;
+    let task = write_task_file(&dir_canonical, &title, &status, &body, order, tags.clone(), date)?;
     state.invalidate_cache(label);
     state.upsert_last_reported(label, task.id.clone(), task.status.clone(), task.order);
 
@@ -361,6 +457,7 @@ pub fn update_task(
     body: Option<String>,
     order: Option<f64>,
     tags: Option<Vec<String>>,
+    date: Option<String>,
     state: tauri::State<'_, AppState>,
 ) -> CmdResult<Task> {
     let label = window.label();
@@ -381,6 +478,7 @@ pub fn update_task(
         .as_ref()
         .map(|f| f.tags.clone())
         .unwrap_or_default();
+    let current_date = fm.as_ref().and_then(|f| f.date.clone());
     let current_title = path_canonical
         .file_stem()
         .and_then(|s| s.to_str())
@@ -415,6 +513,16 @@ pub fn update_task(
         TagOp::Clear => Vec::new(),
     };
 
+    // `date` mirrors `tags` exactly: Keep preserves the existing frontmatter
+    // field, Clear removes the key, Set writes the canonical value. The
+    // None/empty/canonical classification + rejection lives in one shared gate.
+    let date_op = classify_date_arg(date)?;
+    let new_date = match &date_op {
+        DateOp::Keep => current_date.clone(),
+        DateOp::Set(s) => Some(s.clone()),
+        DateOp::Clear => None,
+    };
+
     let mut fm_updates: Vec<(&str, serde_json::Value)> =
         vec![("status", serde_json::json!(new_status))];
     if let Some(o) = current_order {
@@ -422,6 +530,9 @@ pub fn update_task(
     }
     if let TagOp::Set(t) = &tag_op {
         fm_updates.push(("tags", serde_json::json!(t)));
+    }
+    if let DateOp::Set(d) = &date_op {
+        fm_updates.push(("date", serde_json::json!(d)));
     }
     let new_content = if body_provided {
         let with_updates = frontmatter::update(&content, &fm_updates);
@@ -437,6 +548,12 @@ pub fn update_task(
     let new_content = match tag_op {
         TagOp::Clear if !current_tags.is_empty() => {
             frontmatter::remove_keys(&new_content, &["tags"]).map_err(CommandError::other)?
+        }
+        _ => new_content,
+    };
+    let new_content = match date_op {
+        DateOp::Clear if current_date.is_some() => {
+            frontmatter::remove_keys(&new_content, &["date"]).map_err(CommandError::other)?
         }
         _ => new_content,
     };
@@ -467,6 +584,7 @@ pub fn update_task(
         body: new_body,
         order: current_order,
         tags: new_tags,
+        date: new_date,
     })
 }
 
@@ -1082,6 +1200,7 @@ mod tests {
             body: String::new(),
             order: None,
             tags: vec!["bug".to_string(), "ui".to_string()],
+            date: None,
         };
         let json = serde_json::to_value(&task).unwrap();
         assert_eq!(json["tags"], serde_json::json!(["bug", "ui"]));
@@ -1221,6 +1340,142 @@ mod tests {
         assert_eq!(fm.tags, Vec::<String>::new());
     }
 
+    // --- date ---------------------------------------------------------------
+
+    #[test]
+    fn is_canonical_date_accepts_valid_dates() {
+        assert!(is_canonical_date("2026-06-15"));
+        assert!(is_canonical_date("2000-01-01"));
+        assert!(is_canonical_date("2026-12-31"));
+        // Leap day in a leap year is valid.
+        assert!(is_canonical_date("2024-02-29"));
+        // 2000 is a leap year (divisible by 400).
+        assert!(is_canonical_date("2000-02-29"));
+    }
+
+    #[test]
+    fn is_canonical_date_rejects_invalid_dates() {
+        assert!(!is_canonical_date("")); // empty
+        assert!(!is_canonical_date("2026/06/15")); // wrong separator
+        assert!(!is_canonical_date("2026-6-5")); // not zero-padded
+        assert!(!is_canonical_date("2026-13-01")); // month out of range
+        assert!(!is_canonical_date("2026-00-10")); // month zero
+        assert!(!is_canonical_date("2026-02-30")); // day out of range for Feb
+        assert!(!is_canonical_date("2025-02-29")); // not a leap year
+        assert!(!is_canonical_date("2026-04-31")); // April has 30 days
+        assert!(!is_canonical_date("2026-06-00")); // day zero
+        assert!(!is_canonical_date("abc")); // garbage
+        assert!(!is_canonical_date("2026-06-15T00:00")); // has time
+        assert!(!is_canonical_date("2026-06-1")); // too short
+    }
+
+    #[test]
+    fn task_frontmatter_parses_canonical_date() {
+        // Both quoted and unquoted forms must read back as the string date.
+        for content in [
+            "---\nstatus: todo\ndate: \"2026-06-15\"\n---\nbody\n",
+            "---\nstatus: todo\ndate: 2026-06-15\n---\nbody\n",
+        ] {
+            let (fm, _) = frontmatter::parse::<TaskFrontmatter>(content);
+            assert_eq!(fm.unwrap().date.as_deref(), Some("2026-06-15"));
+        }
+    }
+
+    #[test]
+    fn task_frontmatter_drops_non_canonical_date() {
+        // Slash-separated / non-zero-padded / garbage all fall back to None
+        // without poisoning the rest of the frontmatter.
+        for bad in ["2026/6/5", "abc", "2026-13-40"] {
+            let content = format!("---\nstatus: todo\ndate: {bad}\n---\nbody\n");
+            let (fm, _) = frontmatter::parse::<TaskFrontmatter>(&content);
+            let fm = fm.unwrap();
+            assert_eq!(fm.status.as_deref(), Some("todo"));
+            assert_eq!(fm.date, None, "bad date {bad:?} should drop to None");
+        }
+    }
+
+    #[test]
+    fn task_frontmatter_handles_null_and_missing_date_as_none() {
+        let null_date = "---\nstatus: todo\ndate: null\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(null_date);
+        assert_eq!(fm.unwrap().date, None);
+
+        let missing = "---\nstatus: todo\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(missing);
+        assert_eq!(fm.unwrap().date, None);
+    }
+
+    #[test]
+    fn task_frontmatter_handles_non_string_date_as_none() {
+        // A bare integer or mapping should not crash — falls back to None.
+        let content = "---\nstatus: todo\ndate: 42\n---\nbody\n";
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(content);
+        assert_eq!(fm.unwrap().date, None);
+    }
+
+    #[test]
+    fn normalize_date_arg_classifies_keep_clear_set_invalid() {
+        // None / empty → no date.
+        assert_eq!(normalize_date_arg(None).unwrap(), None);
+        assert_eq!(normalize_date_arg(Some(String::new())).unwrap(), None);
+        // Canonical → kept.
+        assert_eq!(
+            normalize_date_arg(Some("2026-06-15".into())).unwrap(),
+            Some("2026-06-15".to_string())
+        );
+        // Non-canonical non-empty → error.
+        assert!(normalize_date_arg(Some("2026/6/5".into())).is_err());
+        assert!(normalize_date_arg(Some("nope".into())).is_err());
+    }
+
+    #[test]
+    fn write_task_file_writes_canonical_date() {
+        let dir = TempDir::new().unwrap();
+        let task = write_task_file(
+            dir.path(),
+            "Ship release",
+            "Doing",
+            "body",
+            Some(0.0),
+            None,
+            Some("2026-06-20".into()),
+        )
+        .unwrap();
+        assert_eq!(task.date.as_deref(), Some("2026-06-20"));
+        let content = fs::read_to_string(dir.path().join("Ship release.md")).unwrap();
+        let (fm, _) = frontmatter::parse::<TaskFrontmatter>(&content);
+        assert_eq!(fm.unwrap().date.as_deref(), Some("2026-06-20"));
+    }
+
+    #[test]
+    fn write_task_file_omits_date_when_none_or_empty() {
+        let dir = TempDir::new().unwrap();
+        for (title, date) in [("No date", None), ("Empty date", Some(String::new()))] {
+            let task =
+                write_task_file(dir.path(), title, "Todo", "body", None, None, date).unwrap();
+            assert_eq!(task.date, None);
+            let content = fs::read_to_string(dir.path().join(format!("{title}.md"))).unwrap();
+            assert!(!content.contains("date:"), "no date key for {title}");
+        }
+    }
+
+    #[test]
+    fn write_task_file_rejects_non_canonical_date() {
+        let dir = TempDir::new().unwrap();
+        let result = write_task_file(
+            dir.path(),
+            "Bad date",
+            "Todo",
+            "body",
+            None,
+            None,
+            Some("2026/6/5".into()),
+        );
+        assert!(result.is_err());
+        // The file must not have been created on the rejected path.
+        assert!(!dir.path().join("Bad date.md").exists());
+    }
+
     // --- fuzzy search -------------------------------------------------------
 
     fn score(pattern: &Pattern, text: &str, matcher: &mut Matcher) -> Option<u32> {
@@ -1282,6 +1537,7 @@ mod tests {
             body: String::new(),
             order: None,
             tags: tags.iter().map(|s| s.to_string()).collect(),
+            date: None,
         }
     }
 
@@ -1461,6 +1717,7 @@ mod tests {
             body: String::new(),
             order: None,
             tags: tags_vec(tags),
+            date: None,
         }
     }
 
@@ -1599,6 +1856,7 @@ mod tests {
             body: String::new(),
             order,
             tags: Vec::new(),
+            date: None,
         }
     }
 

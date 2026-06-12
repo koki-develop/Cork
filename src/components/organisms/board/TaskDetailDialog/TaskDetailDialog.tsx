@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { AutoresizeInput, ErrorBanner } from "@/components/atoms";
 import {
+  DateField,
   DropdownMenu,
   FormField,
   IconButton,
@@ -46,6 +47,8 @@ export function TaskDetailDialog({
     status,
     setBody,
     tags,
+    date,
+    handleDateChange,
     error,
     tagEditorRef,
     handleTitleBlur,
@@ -156,6 +159,10 @@ export function TaskDetailDialog({
                 onChange={handleStatusChange}
                 options={statuses.map((s) => ({ label: s.label, value: s.label }))}
               />
+            </FormField>
+
+            <FormField label="Date">
+              <DateField value={date} onChange={handleDateChange} ariaLabel="Date" />
             </FormField>
 
             <FormField label="Tags">

@@ -3,7 +3,12 @@ import { toast } from "sonner";
 
 import { useFieldError } from "@/hooks/ui/useFieldError";
 import { useTagEditorController } from "@/hooks/ui/useTagEditorController";
-import { computeDirtyUpdates, type TaskFormSnapshot, withTaskUpdates } from "@/lib/task";
+import {
+  computeDirtyUpdates,
+  type TaskFormSnapshot,
+  taskFormSnapshot,
+  withTaskUpdates,
+} from "@/lib/task";
 import type { Task, TaskUpdates } from "@/types";
 
 type FieldKey = keyof TaskUpdates;
@@ -18,6 +23,7 @@ function withFieldReverted(
     status: field === "status" ? original.status : snapshot.status,
     body: field === "body" ? original.body : snapshot.body,
     tags: field === "tags" ? original.tags : snapshot.tags,
+    date: field === "date" ? original.date : snapshot.date,
   };
 }
 
@@ -58,16 +64,14 @@ export function useTaskDialogState({
   const [status, setStatus] = useState(task.status);
   const [body, setBody] = useState(task.body);
   const [tags, setTags] = useState<string[]>(task.tags);
+  // Held as a string ("" = no due date) to mirror `tags`; seeded from the
+  // task's `date: string | null` via the snapshot's null→"" mapping.
+  const [date, setDate] = useState<string>(task.date ?? "");
 
   // Dirty-tracking baseline initialized once per mount from the freshly-
   // fetched task; BoardPage remounts via a `key` bump on each open, so this
   // re-seeds without a prop-sync effect. Successful saves keep it current.
-  const originalRef = useRef<TaskFormSnapshot>({
-    title: task.title,
-    status: task.status,
-    body: task.body,
-    tags: task.tags,
-  });
+  const originalRef = useRef<TaskFormSnapshot>(taskFormSnapshot(task));
 
   const { error, set: setError, clear: clearError, peek: peekError } = useFieldError<FieldKey>();
   const tagEditor = useTagEditorController();
@@ -85,6 +89,9 @@ export function useTaskDialogState({
         return;
       case "tags":
         setTags(originalRef.current.tags);
+        return;
+      case "date":
+        setDate(originalRef.current.date);
         return;
     }
   }, []);
@@ -146,13 +153,25 @@ export function useTaskDialogState({
     (next: string[]) => {
       setTags(next);
       const dirty = computeDirtyUpdates(originalRef.current, {
-        title: originalRef.current.title,
-        status: originalRef.current.status,
-        body: originalRef.current.body,
+        ...originalRef.current,
         tags: next,
       });
       if (dirty.tags !== undefined) {
         void autoSave("tags", { tags: next });
+      }
+    },
+    [autoSave],
+  );
+
+  const handleDateChange = useCallback(
+    (next: string) => {
+      setDate(next);
+      const dirty = computeDirtyUpdates(originalRef.current, {
+        ...originalRef.current,
+        date: next,
+      });
+      if (dirty.date !== undefined) {
+        void autoSave("date", { date: next });
       }
     },
     [autoSave],
@@ -177,6 +196,7 @@ export function useTaskDialogState({
       status,
       body,
       tags: finalTags,
+      date,
     };
     const dirty = computeDirtyUpdates(originalRef.current, current);
 
@@ -230,6 +250,7 @@ export function useTaskDialogState({
     title,
     status,
     body,
+    date,
     peekError,
     trySave,
     clearError,
@@ -245,6 +266,8 @@ export function useTaskDialogState({
     body,
     setBody,
     tags,
+    date,
+    handleDateChange,
     error,
     tagEditorRef: tagEditor.ref,
     handleTitleBlur,

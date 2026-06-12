@@ -24,7 +24,8 @@ export const createTask = (
   body?: string,
   order?: number,
   tags?: string[],
-) => invoke<Task>("create_task", { title, status, body, order, tags });
+  date?: string,
+) => invoke<Task>("create_task", { title, status, body, order, tags, date });
 
 export const moveTask = (path: string, status: string, order: number) =>
   invoke<void>("move_task", { path, status, order });

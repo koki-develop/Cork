@@ -390,6 +390,18 @@ mod tests {
     }
 
     #[test]
+    fn serialize_date_like_string_roundtrips_as_string() {
+        // A `YYYY-MM-DD` value must survive serialize → parse as the *string*
+        // "2026-06-15", not get re-interpreted as a YAML date/timestamp scalar.
+        // This pins the round-trip the task `date` field depends on.
+        let yaml = serialize(&serde_json::json!({"date": "2026-06-15"}));
+        let doc = format!("---\n{}---\n\nbody\n", yaml);
+        let (fm, _) = parse::<serde_json::Value>(&doc);
+        let fm = fm.unwrap();
+        assert_eq!(fm["date"], serde_json::json!("2026-06-15"));
+    }
+
+    #[test]
     fn serialize_float_keeps_decimal() {
         let yaml = serialize(&serde_json::json!({"order": 3.5}));
         assert_eq!(yaml, "order: 3.5\n");

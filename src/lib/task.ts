@@ -1,6 +1,26 @@
 import type { Task, TaskUpdates } from "@/types";
 
-export type TaskFormSnapshot = Pick<Task, "title" | "status" | "body" | "tags">;
+/**
+ * Editable form fields. `date` is held as a `string` (`""` = no due date) so it
+ * mirrors `tags` (`[]` = none) exactly: the same value doubles as the value and
+ * the clear sentinel, so `computeDirtyUpdates` needs no null↔"" translation.
+ * The only null→"" conversion happens once, when seeding from a `Task` (whose
+ * `date` is `string | null`) — see `taskFormSnapshot`.
+ */
+export type TaskFormSnapshot = Pick<Task, "title" | "status" | "body" | "tags"> & {
+  date: string;
+};
+
+/** Seed a form snapshot from a fetched task, mapping `date: null` → `""`. */
+export function taskFormSnapshot(task: Task): TaskFormSnapshot {
+  return {
+    title: task.title,
+    status: task.status,
+    body: task.body,
+    tags: task.tags,
+    date: task.date ?? "",
+  };
+}
 
 const tagsEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((t, i) => t === b[i]);
@@ -19,6 +39,7 @@ export function computeDirtyUpdates(
   if (current.status !== original.status) updates.status = current.status;
   if (current.body !== original.body) updates.body = current.body;
   if (!tagsEqual(current.tags, original.tags)) updates.tags = current.tags;
+  if (current.date !== original.date) updates.date = current.date;
   return updates;
 }
 
@@ -32,5 +53,6 @@ export function withTaskUpdates(
     status: updates.status ?? snapshot.status,
     body: updates.body ?? snapshot.body,
     tags: updates.tags ?? snapshot.tags,
+    date: updates.date ?? snapshot.date,
   };
 }

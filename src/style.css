@@ -17,6 +17,8 @@
   --color-cork-danger-bg: #220808;
   --color-cork-danger-border: #5c1a1a;
   --color-cork-danger-text: #f87171;
+  --color-cork-success-text: #4ade80;
+  --color-cork-warning-text: #fbbf24;
 }
 
 @layer base {

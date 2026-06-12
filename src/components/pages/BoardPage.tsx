@@ -167,8 +167,14 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
     onTasksChange: loadTasks,
   });
 
-  const handleCreateTask = async (title: string, status: string, body: string, tags: string[]) => {
-    await createTask(title, status, body, tags);
+  const handleCreateTask = async (
+    title: string,
+    status: string,
+    body: string,
+    tags: string[],
+    date: string,
+  ) => {
+    await createTask(title, status, body, tags, date);
     toast.success("Task created");
   };
 

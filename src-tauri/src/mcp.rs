@@ -125,13 +125,16 @@ impl Workspace {
 }
 
 /// Minimal task representation returned over MCP. Intentionally drops `body` /
-/// `order` from `Task` to produce a lightweight LLM-oriented DTO.
+/// `order` from `Task` to produce a lightweight LLM-oriented DTO. `date`
+/// (the due date, canonical `YYYY-MM-DD` or `null`) is kept because it is
+/// useful context for an LLM coordinating tasks.
 #[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
 pub struct McpTask {
     pub title: String,
     pub file_path: String,
     pub status: String,
     pub tags: Vec<String>,
+    pub date: Option<String>,
 }
 
 /// Output wrapper for `list_tasks`.
@@ -230,6 +233,8 @@ pub struct CreateTaskInput {
     pub tags: Option<Vec<String>>,
     /// Optional markdown body.
     pub body: Option<String>,
+    /// Optional due date in canonical `YYYY-MM-DD` form. A non-canonical value is rejected.
+    pub date: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -532,6 +537,7 @@ impl CorkMcpServer {
                 file_path: t.id,
                 status: t.status,
                 tags: t.tags,
+                date: t.date,
             })
             .collect();
         let limit = resolve_limit(input.limit);
@@ -629,9 +635,22 @@ impl CorkMcpServer {
         };
 
         let body = input.body.unwrap_or_default();
-        let created =
-            task::write_task_file(workspace.as_path(), &input.title, &input.status, &body, Some(order), input.tags)
-                .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+        // Validate the date up front so a malformed date is reported as a
+        // client error (invalid_params), while genuine write failures —
+        // duplicate title, IO errors — surface as internal_error rather than
+        // being mislabeled as bad parameters.
+        let date = task::normalize_date_arg(input.date)
+            .map_err(|e| rmcp::ErrorData::invalid_params(e.to_string(), None))?;
+        let created = task::write_task_file(
+            workspace.as_path(),
+            &input.title,
+            &input.status,
+            &body,
+            Some(order),
+            input.tags,
+            date,
+        )
+        .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
 
         Ok(Json(CreateTaskOutput {
             task: McpTask {
@@ -639,6 +658,7 @@ impl CorkMcpServer {
                 file_path: created.id,
                 status: created.status,
                 tags: created.tags,
+                date: created.date,
             },
         }))
     }
@@ -694,6 +714,7 @@ impl CorkMcpServer {
                 file_path: t.id.clone(),
                 status: t.status.clone(),
                 tags: t.tags.clone(),
+                date: t.date.clone(),
             },
         }))
     }
@@ -1485,6 +1506,7 @@ mod tests {
                 file_path: format!("{}.md", title),
                 status: status.into(),
                 tags: vec![],
+                date: None,
             }
         }
 
@@ -1513,6 +1535,7 @@ mod tests {
                 file_path: format!("task-{i:03}.md"),
                 status: "Todo".to_string(),
                 tags: vec![],
+                date: None,
             })
             .collect()
     }
@@ -1604,12 +1627,14 @@ mod tests {
             "status": "Doing",
             "tags": ["bug", "feature"],
             "body": "Some description",
+            "date": "2026-06-20",
         });
         let input: CreateTaskInput = serde_json::from_value(json).unwrap();
         assert_eq!(input.title, "My New Task");
         assert_eq!(input.status, "Doing");
         assert_eq!(input.tags, Some(vec!["bug".into(), "feature".into()]));
         assert_eq!(input.body.as_deref(), Some("Some description"));
+        assert_eq!(input.date.as_deref(), Some("2026-06-20"));
     }
 
     #[test]
@@ -1623,6 +1648,8 @@ mod tests {
         assert_eq!(input.status, "Todo");
         assert!(input.tags.is_none());
         assert!(input.body.is_none());
+        // `date` is optional and absent here.
+        assert!(input.date.is_none());
     }
 
     #[test]
@@ -1648,6 +1675,7 @@ mod tests {
                 file_path: "/workspace/Created Task.md".into(),
                 status: "Todo".into(),
                 tags: vec!["tag1".into()],
+                date: Some("2026-06-20".into()),
             },
         };
         let json = serde_json::to_value(&output).unwrap();
@@ -1659,6 +1687,7 @@ mod tests {
                     "file_path": "/workspace/Created Task.md",
                     "status": "Todo",
                     "tags": ["tag1"],
+                    "date": "2026-06-20",
                 }
             })
         );

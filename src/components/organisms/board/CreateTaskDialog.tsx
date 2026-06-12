@@ -3,6 +3,7 @@ import { type FormEvent, type KeyboardEvent, useState } from "react";
 
 import { AutoresizeInput, ErrorBanner, Heading, Text } from "@/components/atoms";
 import {
+  DateField,
   DialogFooter,
   DialogHeader,
   FormField,
@@ -21,7 +22,13 @@ export type CreateTaskDialogProps = {
   statuses: StatusEntry[];
   preselectedStatus?: string;
   availableTags?: string[];
-  onCreateTask: (title: string, status: string, body: string, tags: string[]) => Promise<void>;
+  onCreateTask: (
+    title: string,
+    status: string,
+    body: string,
+    tags: string[],
+    date: string,
+  ) => Promise<void>;
   onOpenLink: (url: string) => void;
 };
 
@@ -38,12 +45,14 @@ export function CreateTaskDialog({
   const [status, setStatus] = useState(preselectedStatus ?? statuses[0]?.label ?? "");
   const [body, setBody] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  // "" = no due date, mirroring the form's string-based date convention.
+  const [date, setDate] = useState("");
   const { error, setError, clearError } = useDialogError();
   const tagEditor = useTagEditorController();
 
   const [confirmingClose, setConfirmingClose] = useState(false);
 
-  const isDirty = title !== "" || body !== "" || tags.length > 0;
+  const isDirty = title !== "" || body !== "" || tags.length > 0 || date !== "";
 
   const handleClose = () => {
     if (isDirty && !confirmingClose) {
@@ -71,7 +80,7 @@ export function CreateTaskDialog({
     }
     clearError();
     const finalTags = tagEditor.flushAndMerge(tags);
-    onCreateTask(trimmed, status, body.trim(), finalTags)
+    onCreateTask(trimmed, status, body.trim(), finalTags, date)
       .then(() => {
         onClose();
       })
@@ -138,6 +147,10 @@ export function CreateTaskDialog({
                   onChange={setStatus}
                   options={statuses.map((s) => ({ label: s.label, value: s.label }))}
                 />
+              </FormField>
+
+              <FormField label="Date">
+                <DateField value={date} onChange={setDate} ariaLabel="Date" />
               </FormField>
 
               <FormField label="Tags">

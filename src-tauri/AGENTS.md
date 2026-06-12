@@ -16,7 +16,7 @@ src-tauri/src/
 ├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters, list_workspace_history) + workspace history + open_new_window_impl + build_workspace_window + seed_window_from_history + handle_macos_reopen
 ├── task.rs            Task type + task commands (list/get/create/update/delete/renumber, ...)
 ├── status.rs          StatusEntry type + status commands + .cork.json read/write
-└── mcp.rs             Embedded MCP server (Streamable HTTP transport, Bearer auth + workspace header middleware, `list_tasks` tool, settings persistence, lifecycle start/stop)
+└── mcp.rs             Embedded MCP server (Streamable HTTP transport, Bearer auth + workspace header middleware, tools: `list_tasks` / `list_statuses` / `list_tags` / `create_task` / `delete_task`, settings persistence, lifecycle start/stop)
 ```
 
 ## State

@@ -307,6 +307,7 @@ mod tests {
             body: String::new(),
             order,
             tags: Vec::new(),
+            date: None,
         }
     }
 

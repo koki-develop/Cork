@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { clsx } from "clsx";
 
 import { Heading, Text } from "@/components/atoms";
-import { TagList } from "@/components/molecules";
+import { DateBadge, TagList } from "@/components/molecules";
 import type { Task } from "@/types";
 
 export type KanbanCardProps = {
@@ -53,6 +53,7 @@ export function KanbanCard({ task, group, index, onClick, onContextMenu }: Kanba
       <Heading level={3} variant="card" className="line-clamp-2">
         {task.title}
       </Heading>
+      {task.date && <DateBadge date={task.date} className="mt-2" />}
       <TagList tags={task.tags} className="mt-2" />
       {bodyPreview && (
         <Text as="p" variant="muted" size="xs" className="mt-1.5 line-clamp-2 leading-relaxed">

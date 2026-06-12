@@ -1,5 +1,8 @@
+export { Calendar, type CalendarProps } from "./Calendar";
 export { CodeBlock, type CodeBlockProps } from "./CodeBlock";
 export { ContextMenu, type ContextMenuProps } from "./ContextMenu";
+export { DateBadge, type DateBadgeProps } from "./DateBadge";
+export { DateField, type DateFieldProps } from "./DateField";
 export { DialogFooter, type DialogFooterProps } from "./DialogFooter";
 export { DialogHeader, type DialogHeaderProps } from "./DialogHeader";
 export { DragHandle, type DragHandleProps } from "./DragHandle";
