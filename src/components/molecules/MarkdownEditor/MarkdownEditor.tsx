@@ -1,11 +1,12 @@
-import { CodeNode } from "@lexical/code";
-import { LinkNode } from "@lexical/link";
+import { $isCodeNode, CodeNode } from "@lexical/code";
+import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
   TRANSFORMERS,
 } from "@lexical/markdown";
+import { AutoLinkPlugin, createLinkMatcherWithRegExp } from "@lexical/react/LexicalAutoLinkPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
@@ -56,8 +57,24 @@ const theme: EditorThemeClasses = {
   },
 };
 
-// Registered once; the default Markdown TRANSFORMERS require exactly these.
-const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode, CodeNode, LinkNode];
+// Registered once; the default Markdown TRANSFORMERS require all but
+// AutoLinkNode, which AutoLinkPlugin needs to wrap bare URLs.
+const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode, CodeNode, LinkNode, AutoLinkNode];
+
+// Auto-links bare `https://` / `http://` URLs so they're clickable without
+// `[text](url)` syntax (GFM-style). The trailing char class drops sentence
+// punctuation, so `https://x.com.` links just the URL. On serialization the
+// Markdown LINK transformer skips AutoLinkNode, writing it back as the raw URL —
+// the file is never rewritten to `[url](url)`. The library only links at
+// whitespace / `.,;` / line-start boundaries, so URLs glued to other text
+// (e.g. inside parens) are intentionally left alone.
+const AUTO_LINK_MATCHERS = [createLinkMatcherWithRegExp(/https?:\/\/[^\s<]+[^\s<.,;:!?'")\]}]/i)];
+
+// Keep URLs inside fenced code blocks as plain text (a pasted command stays a
+// command). Inline code isn't reachable here — the plugin only exposes the
+// text node's parent — but a bare URL in inline code is rare and still
+// round-trips as `` `url` ``.
+const AUTO_LINK_EXCLUDE_PARENTS = [$isCodeNode];
 
 export type MarkdownEditorProps = {
   /** Markdown seeded once on mount; later changes are ignored (dialogs remount on open). */
@@ -137,6 +154,9 @@ export function MarkdownEditor({
             and makes a mixed selection always enable rather than toggle off the
             first node. See the plugin header for the full rationale. */}
         <FormatFormattableTextPlugin />
+        {/* Wraps bare URLs in AutoLinkNodes (typed or loaded from file) so
+            LinkOpenPlugin's click handler can open them in the system browser. */}
+        <AutoLinkPlugin matchers={AUTO_LINK_MATCHERS} excludeParents={AUTO_LINK_EXCLUDE_PARENTS} />
         <LinkOpenPlugin onOpenLink={onOpenLink} />
         {/* Selection-triggered floating toolbar: toggles bold / italic /
             strikethrough / inline-code for the highlighted text. */}
