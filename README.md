@@ -16,7 +16,9 @@
 </p>
 
 <p align="center">
-<img src="./docs/screenshot.png" alt="Screenshot" width="680">
+<img src="./screenshots/board.png" alt="Board" width="680">
+<img src="./screenshots/task.png" alt="Task" width="680">
+<img src="./screenshots/settings.png" alt="Settings" width="680">
 </p>
 
 ## Installation
@@ -24,6 +26,27 @@
 ```
 brew install --cask koki-develop/tap/cork
 ```
+
+## How it works
+
+Cork has no database. A workspace is just a folder, and every task is a plain Markdown file inside it — so your board lives entirely in version-controllable, editor-friendly text.
+
+- **One task = one `.md` file.** The file name is the task title; the Markdown body is the task description.
+- **Frontmatter holds the metadata.** `status`, `tags`, and `date` live in the YAML frontmatter at the top of each file.
+
+```markdown
+---
+status: In Progress
+tags:
+  - feature
+  - urgent
+date: 2026-06-12
+---
+
+Write the project README, including a "How it works" section.
+```
+
+Because it's all just files, you can edit tasks in any editor, grep them, and track the whole board in Git.
 
 ## License
 
