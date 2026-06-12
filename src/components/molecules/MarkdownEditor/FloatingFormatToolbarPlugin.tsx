@@ -16,6 +16,7 @@ import { type ReactNode, useCallback, useEffect, useEffectEvent, useRef, useStat
 import { createPortal } from "react-dom";
 
 import { $getSelectedFormattableTextNodes } from "./codeBlock";
+import { type Anchor, firstLineAnchor, placeCenteredAbove } from "./placement";
 
 // The four inline formats the toolbar toggles, in display order. Each maps to a
 // Lexical `TextFormatType` that `FORMAT_TEXT_COMMAND` flips and the default
@@ -41,11 +42,6 @@ const TOOLBAR_WIDTH =
   FORMATS.length * BUTTON_SIZE + (FORMATS.length - 1) * BUTTON_GAP + 2 * PANEL_INSET;
 const TOOLBAR_HEIGHT = BUTTON_SIZE + 2 * PANEL_INSET;
 
-// Gap between the selection and the toolbar, and the minimum padding the toolbar
-// keeps from the viewport edges.
-const GAP = 8;
-const EDGE_PADDING = 8;
-
 // As the selection is dragged wider, its bounding box — and thus the toolbar's
 // target spot — moves. Tweening x/y (rather than snapping) turns that into a
 // smooth glide. `instant` skips the tween for scroll/resize, where the toolbar
@@ -56,7 +52,7 @@ const INSTANT = { duration: 0 } as const;
 // Viewport-space geometry of the current text selection, plus which formats it
 // already carries and whether this update should reposition instantly.
 type ToolbarPlacement = {
-  anchor: { left: number; top: number; bottom: number; width: number };
+  anchor: Anchor;
   active: TextFormatType[];
   instant: boolean;
 };
@@ -205,7 +201,7 @@ export function FloatingFormatToolbarPlugin(): ReactNode {
   // known from the constant estimate / last measurement), so the very first
   // frame is already placed — the appear animation is a pure in-place fade,
   // never a fly-in from a stale position.
-  const target = state ? placeToolbar(state.anchor, sizeRef.current) : null;
+  const target = state ? placeCenteredAbove(state.anchor, sizeRef.current) : null;
   const moveTransition = state?.instant ? INSTANT : GLIDE;
 
   return createPortal(
@@ -265,58 +261,12 @@ export function FloatingFormatToolbarPlugin(): ReactNode {
   );
 }
 
-// Top-left viewport coordinate for the toolbar: centered over the selection and
-// placed above it, flipping below when there's no room and clamping to the
-// viewport edges. `size` is the cached toolbar size (estimate then measured).
-function placeToolbar(
-  anchor: ToolbarState["anchor"],
-  size: { width: number; height: number },
-): { x: number; y: number } {
-  const centerX = anchor.left + anchor.width / 2;
-  const x = Math.min(
-    Math.max(centerX - size.width / 2, EDGE_PADDING),
-    window.innerWidth - size.width - EDGE_PADDING,
-  );
-  const above = anchor.top - size.height - GAP;
-  const y = above < EDGE_PADDING ? anchor.bottom + GAP : above;
-  return { x, y };
-}
-
-// Viewport-space anchor for placing the toolbar over the active DOM range.
-//
-// Horizontal centering and the "above" edge come from the FIRST client rect
-// (the text at the top of the selection), not the range's bounding box: a
-// multi-line selection's bounding box is inflated by the full-width line-fill
-// rects that mark selected newlines, which would drag the horizontal center
-// toward the editor middle and pull the toolbar away from left-aligned content
-// (e.g. selecting several short list items). The first rect tracks the real
-// text and stays put as more lines join the selection. `bottom` still comes
-// from the whole range so the rare flip-below clears the entire selection.
-function selectionRect(
-  selection: Selection,
-): { left: number; top: number; bottom: number; width: number } | null {
+// Viewport-space anchor for placing the toolbar over the active DOM range. The
+// first-line-not-bounding-box rationale lives in `firstLineAnchor`; here it
+// keeps the toolbar centered on the real text (not dragged toward the editor
+// middle by a multi-line selection's full-width line-fill rects).
+function selectionRect(selection: Selection): Anchor | null {
   if (selection.rangeCount === 0) return null;
   const range = selection.getRangeAt(0);
-  const rects = range.getClientRects();
-  for (let i = 0; i < rects.length; i++) {
-    const rect = rects[i];
-    if (rect.width > 0 || rect.height > 0) {
-      return {
-        left: rect.left,
-        top: rect.top,
-        bottom: range.getBoundingClientRect().bottom,
-        width: rect.width,
-      };
-    }
-  }
-  // No usable line rects (e.g. a selection over non-text content): fall back to
-  // the bounding box if it has any extent.
-  const bounding = range.getBoundingClientRect();
-  if (bounding.width === 0 && bounding.height === 0) return null;
-  return {
-    left: bounding.left,
-    top: bounding.top,
-    bottom: bounding.bottom,
-    width: bounding.width,
-  };
+  return firstLineAnchor(range.getClientRects(), range.getBoundingClientRect());
 }

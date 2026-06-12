@@ -9,13 +9,12 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 
+import { isBrowserOpenable } from "./link";
+
 export type LinkOpenPluginProps = {
   /** Invoked with the clicked link's URL (wired to the system browser). */
   onOpenLink: (url: string) => void;
 };
-
-// Schemes the Tauri opener (`opener:default` capability) can hand to the OS.
-const BROWSER_OPENABLE = /^(?:https?|mailto|tel):/i;
 
 // Lexical renders a LinkNode as an `<a>`, but inside a contenteditable a click
 // never navigates — and in a Tauri webview we wouldn't want it to anyway. This
@@ -50,7 +49,7 @@ export function LinkOpenPlugin({ onOpenLink }: LinkOpenPluginProps): null {
       // fragment targets (`./x.md`, `#heading`) and unsupported schemes
       // (`javascript:`, `file:`) are left as no-ops rather than surfacing a
       // "Failed to open link" toast for a click that can't go anywhere useful.
-      if (url == null || !BROWSER_OPENABLE.test(url)) return;
+      if (url == null || !isBrowserOpenable(url)) return;
       if (hasTextSelection) return;
 
       event.preventDefault();

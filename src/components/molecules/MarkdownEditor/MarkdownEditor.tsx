@@ -22,6 +22,7 @@ import { useCallback } from "react";
 
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
+import { FloatingLinkEditorPlugin } from "./FloatingLinkEditorPlugin";
 import { FormatFormattableTextPlugin } from "./FormatFormattableTextPlugin";
 import { LinkOpenPlugin } from "./LinkOpenPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
@@ -166,6 +167,9 @@ export function MarkdownEditor({
         {/* Selection-triggered floating toolbar: toggles bold / italic /
             strikethrough / inline-code for the highlighted text. */}
         <FloatingFormatToolbarPlugin />
+        {/* Hover a manually-authored link → a floating editor fades in below it
+            to open / edit / remove its URL. */}
+        <FloatingLinkEditorPlugin onOpenLink={onOpenLink} />
         {/* ignoreSelectionChange: only real content edits emit — a bare
             focus/cursor move must NOT serialize, or a no-edit open/close of a
             non-canonical body would auto-save a normalized rewrite. */}
