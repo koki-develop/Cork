@@ -54,7 +54,7 @@ export function KanbanColumn({
   return (
     <div
       ref={ref}
-      className="border-cork-border/40 bg-cork-surface/60 flex max-h-full min-h-0 w-72 shrink-0 flex-col rounded-xl border"
+      className="border-cork-border/40 bg-cork-surface/60 flex max-h-full min-h-0 w-80 shrink-0 flex-col rounded-xl border"
     >
       <div className="border-cork-border/40 flex items-center gap-2 border-b px-4 py-3">
         {draggable && handleRef ? (
