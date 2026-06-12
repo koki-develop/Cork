@@ -5,6 +5,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
+import { useClickOutside } from "@/hooks/ui/useClickOutside";
 import { formatISODate, parseDate } from "@/lib/date";
 
 import { Calendar } from "./Calendar";
@@ -45,6 +46,8 @@ export function DateField({
   useEffect(() => {
     setText(value);
   }, [value]);
+
+  useClickOutside([containerRef, popoverRef], () => setOpen(false), open);
 
   const rect = useAnchorRect(containerRef, open, [value]);
   const position = rect ? { top: rect.bottom + 4, left: rect.left } : null;

@@ -11,6 +11,7 @@ import {
 
 import { TagChip } from "@/components/atoms";
 import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
+import { useClickOutside } from "@/hooks/ui/useClickOutside";
 import { isImeKeyEvent } from "@/lib/keyboard";
 import { commitPending, fuzzySubsequenceMatch } from "@/lib/tags";
 
@@ -115,6 +116,12 @@ export function TagEditor({
         width: Math.max(containerRect.width, 200),
       }
     : null;
+
+  useClickOutside(
+    [containerRef, suggestionPopoverRef],
+    () => setSuggestionOpen(false),
+    suggestionOpen,
+  );
 
   useImperativeHandle(
     ref,
