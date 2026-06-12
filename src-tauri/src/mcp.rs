@@ -725,7 +725,7 @@ impl ServerHandler for CorkMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(
-                "Cork — a local Markdown Kanban board. Use `list_tasks` to read tasks, `create_task` to create a new task, `delete_task` to delete a task by title, `list_statuses` to list status columns, and `list_tags` to list all tags from the workspace.",
+                "Cork — a local Markdown Kanban board. Every task is a plain Markdown file on disk, so this server intentionally exposes only read and create/delete tools — there is NO update tool, and you should not expect one.\n\nTools:\n- `list_tasks` — read tasks. Each result includes its `file_path` (the absolute path to the task's Markdown file).\n- `create_task` — create a new task.\n- `delete_task` — delete a task by title.\n- `list_statuses` — list status columns.\n- `list_tags` — list all tags in the workspace.\n\nTo modify an existing task (change its title, status, tags, due date, or body), do NOT look for an MCP tool. Instead, call `list_tasks` to obtain the task's `file_path`, then edit that Markdown file directly with your file-editing tools. Status/tags/date live in the YAML frontmatter; the task body is the Markdown below it.",
             )
     }
 }
