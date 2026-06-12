@@ -30,7 +30,9 @@ import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 // with the app's typography. Headings/inline-code override the editor box's
 // base `text-sm`.
 const theme: EditorThemeClasses = {
-  code: "my-2 block overflow-x-auto whitespace-pre rounded-md bg-cork-bg/60 p-3 font-mono text-xs leading-relaxed",
+  // Sunken dark well (not the lighter `cork-elevated` used by inputs) so a code
+  // block reads as code, not an editable field.
+  code: "my-2 block overflow-x-auto whitespace-pre rounded-md border border-cork-border/50 bg-cork-bg p-3 font-mono text-xs leading-relaxed",
   heading: {
     h1: "mt-3 mb-2 text-2xl font-bold tracking-tight first:mt-0",
     h2: "mt-3 mb-2 text-xl font-bold tracking-tight first:mt-0",
@@ -50,8 +52,11 @@ const theme: EditorThemeClasses = {
   paragraph: "mb-2 last:mb-0",
   quote: "my-2 border-l-2 border-cork-border pl-3 text-cork-muted",
   text: {
-    bold: "font-semibold",
-    code: "rounded bg-cork-bg/60 px-1 py-0.5 font-mono text-[0.85em]",
+    bold: "font-bold",
+    code: "rounded border border-cork-border/50 bg-cork-bg px-1 py-0.5 font-mono text-[0.85em]",
+    // `==text==` is a <mark>: Lexical applies theme.text classes to an inner
+    // <span>, never the <mark> itself, so the UA's harsh yellow can't be tamed
+    // from here. The soft amber wash lives in style.css (`mark`) instead.
     italic: "italic",
     strikethrough: "line-through",
   },

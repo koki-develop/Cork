@@ -36,6 +36,13 @@
     @apply bg-cork-accent/30 text-cork-text;
   }
 
+  /* `==text==` highlights (the only <mark> in the app, from the Markdown
+     editor). Replace the UA's loud yellow with a soft amber wash that keeps
+     the body text legible. */
+  mark {
+    @apply bg-cork-warning-text/35 text-cork-text rounded-sm px-0.5;
+  }
+
   *:focus {
     outline: none;
   }
