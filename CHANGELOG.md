@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.0](https://github.com/koki-develop/Cork/compare/v0.4.0...v0.5.0) (2026-06-12)
+
+
+### Features
+
+* add delete_task MCP tool with security guard ([8f4cc26](https://github.com/koki-develop/Cork/commit/8f4cc266eebca5a5635cb1a0cdaac98916645ae6))
+* add task due dates ([1ac2d42](https://github.com/koki-develop/Cork/commit/1ac2d4213596ee2a83387f774acd9932b15af214))
+* **ui:** add selection floating toolbar to task body editor ([bfcef57](https://github.com/koki-develop/Cork/commit/bfcef57d12048a38f1306291638ebfe2c91e8016))
+* **ui:** improve task body editor links, lists, and code blocks ([e371957](https://github.com/koki-develop/Cork/commit/e3719574c69c8abbe3dd4bc7a3e6ba16ddf7a93c))
+* **ui:** increase task dialog body default height to 20rem ([4101e33](https://github.com/koki-develop/Cork/commit/4101e3368ea83e2860f0abc9903e8b71c66f756e))
+* **ui:** make task body a WYSIWYG Markdown editor (Lexical) ([05f7875](https://github.com/koki-develop/Cork/commit/05f7875f7c3df69b9674d738c340942341bf8c96))
+* **ui:** make task create/detail dialogs 2-column ([bfdf27d](https://github.com/koki-develop/Cork/commit/bfdf27de2a9429c4b9f90c3b27425f7bf5d8ac73))
+* **ui:** restyle task title and body fields as a borderless document ([ec2650b](https://github.com/koki-develop/Cork/commit/ec2650b2d86940543364f9b9280c3340536efbcf))
+* **ui:** tighten create dialog body and drop its hover fill ([955be14](https://github.com/koki-develop/Cork/commit/955be14250de14f1564584791e1223b5fb214a9c))
+* **ui:** tighten task dialog title layout and padding ([dbc9043](https://github.com/koki-develop/Cork/commit/dbc904350c0c440ceeefc3b6abed3fb4d257db64))
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies ([#7](https://github.com/koki-develop/Cork/issues/7)) ([04a7b6a](https://github.com/koki-develop/Cork/commit/04a7b6aca9f6e22afc80df820d1ba56b9c169e6e))
+* **ui:** confine task body inline formatting to non-code text ([86c1127](https://github.com/koki-develop/Cork/commit/86c1127aeb556122a05dd8de5a1a53427d5c0325))
+* **ui:** keep task detail Status/Tags pinned to the top ([9f4ca8b](https://github.com/koki-develop/Cork/commit/9f4ca8b9e20f546f59361e35cb4949ee420e2083))
+* **ui:** show format toolbar whenever the selection has formattable text ([9241421](https://github.com/koki-develop/Cork/commit/9241421da0e93167a567102415096b96b4c0615f))
+
 ## [0.4.0](https://github.com/koki-develop/Cork/compare/v0.3.0...v0.4.0) (2026-06-11)
 
 
