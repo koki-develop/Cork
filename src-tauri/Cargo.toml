@@ -11,36 +11,36 @@ name = "cork_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "=2.6.2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
-tauri-plugin-fs = { version = "2", features = ["watch"] }
-tauri-plugin-store = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
-rfd = "0.17"
-gray_matter = "0.3"
-yaml-rust2 = "0.10"
-rayon = "1.12"
-nucleo-matcher = "0.3"
-objc2-app-kit = { version = "0.3.2", features = ["NSColor", "NSWindow", "objc2-core-foundation"] }
-rmcp = { version = "1.7", features = [
+tauri = { version = "=2.11.2", features = [] }
+tauri-plugin-opener = "=2.5.4"
+tauri-plugin-fs = { version = "=2.5.1", features = ["watch"] }
+tauri-plugin-store = "=2.4.3"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.150", features = ["preserve_order"] }
+rfd = "=0.17.2"
+gray_matter = "=0.3.2"
+yaml-rust2 = "=0.10.4"
+rayon = "=1.12.0"
+nucleo-matcher = "=0.3.1"
+objc2-app-kit = { version = "=0.3.2", features = ["NSColor", "NSWindow", "objc2-core-foundation"] }
+rmcp = { version = "=1.7.0", features = [
   "server",
   "transport-streamable-http-server",
   "macros",
   "schemars",
 ] }
-rand = "0.9"
-tokio = { version = "1", features = ["sync", "time", "rt", "fs"] }
-tokio-util = "0.7"
-axum = "0.8"
-http = "1"
-subtle = "2"
-schemars = "1"
+rand = "=0.9.4"
+tokio = { version = "=1.52.3", features = ["sync", "time", "rt", "fs"] }
+tokio-util = "=0.7.18"
+axum = "=0.8.9"
+http = "=1.4.1"
+subtle = "=2.6.1"
+schemars = "=1.2.1"
 
 [dev-dependencies]
-tempfile = "3"
-tower = { version = "0.5", features = ["util"] }
+tempfile = "=3.27.0"
+tower = { version = "=0.5.3", features = ["util"] }
 
