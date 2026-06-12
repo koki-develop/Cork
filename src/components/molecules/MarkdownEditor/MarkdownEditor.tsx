@@ -109,10 +109,9 @@ export function MarkdownEditor({
             <ContentEditable
               ariaLabel={ariaLabel}
               onBlur={onBlur}
-              // Borderless writing surface: flat at rest, with a faint fill
-              // fading in on hover for affordance. The caret signals focus (no
-              // outline ring).
-              className="text-cork-text hover:bg-cork-elevated/30 min-h-0 flex-1 overflow-y-auto rounded-lg px-3 py-2 text-sm break-words whitespace-pre-wrap transition-colors focus-visible:outline-none"
+              // Borderless writing surface: flat at rest, no hover or focus
+              // fill — the caret alone signals focus (no outline ring).
+              className="text-cork-text min-h-0 flex-1 overflow-y-auto px-3 py-2 text-sm break-words whitespace-pre-wrap focus-visible:outline-none"
             />
           }
           placeholder={

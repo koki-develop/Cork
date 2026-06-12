@@ -102,7 +102,7 @@ export function CreateTaskDialog({
       >
         <DialogHeader title="New Task" onClose={handleClose} closeAriaLabel="Cancel" />
 
-        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex flex-col gap-6">
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown}>
           <div className="flex flex-col gap-4 md:flex-row md:gap-6">
             <div className="flex min-w-0 flex-col md:flex-1">
               {/* The underline sits on the input, but its left inset comes from
@@ -149,17 +149,25 @@ export function CreateTaskDialog({
                   ariaLabel="Tags"
                 />
               </FormField>
+
+              {/* The action row lives at the bottom of the sidebar (md:mt-auto
+                  pins it there) rather than as a full-width row beneath the
+                  columns. Right-aligned, it lands in the same bottom-right
+                  corner a full-width footer would — but because it no longer
+                  forms a row under the Body, the Body fills straight down to
+                  the actions instead of leaving an empty band beneath it. */}
+              <div className="md:mt-auto">
+                <DialogFooter
+                  onCancel={handleClose}
+                  action={{
+                    label: "Create",
+                    icon: <Plus className="size-3.5" />,
+                    type: "submit",
+                  }}
+                />
+              </div>
             </div>
           </div>
-
-          <DialogFooter
-            onCancel={handleClose}
-            action={{
-              label: "Create",
-              icon: <Plus className="size-3.5" />,
-              type: "submit",
-            }}
-          />
         </form>
       </Modal>
 
