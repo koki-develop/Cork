@@ -34,7 +34,7 @@ Multi-window: a single process can host any number of windows, each with its own
 
 - **Rust (`src-tauri/`)**: `cargo test` runs unit tests for the testable helpers (frontmatter, security, state, errors, etc.). `#[tauri::command]` bodies and GUI code aren't covered — see `src-tauri/AGENTS.md`.
 - **Frontend (`src/`)**: no test framework. Verification of changes is `bunx tsc --noEmit` + `bun run lint` + `bun run fmt:check` + `bun run tauri dev` for visual smoke tests.
-- **CI**: none.
+- **CI**: `.github/workflows/ci.yml` runs `bun run lint` and `bun run tauri build --no-bundle` on push to `main` and on PRs (no test run).
 
 ## Change workflow
 
