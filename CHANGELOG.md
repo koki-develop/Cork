@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/koki-develop/Cork/compare/v0.6.0...v0.7.0) (2026-06-12)
+
+
+### Features
+
+* allow task titles to contain slashes ([c8a9ffc](https://github.com/koki-develop/Cork/commit/c8a9ffc4be40946b73566ca88340e9f59cec8371))
+
 ## [0.6.0](https://github.com/koki-develop/Cork/compare/v0.5.1...v0.6.0) (2026-06-12)
 
 
