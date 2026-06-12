@@ -123,7 +123,7 @@ function ModalContainer({
       />
       <m.div
         className={clsx(
-          "border-cork-border/60 bg-cork-surface/95 relative mx-4 max-h-[85vh] w-full overflow-y-auto rounded-2xl border p-6 shadow-2xl backdrop-blur-xl",
+          "border-cork-border/60 bg-cork-surface relative mx-4 max-h-[85vh] w-full overflow-y-auto rounded-2xl border p-6 shadow-2xl",
           maxWidthClassName,
           containerClassName,
         )}
