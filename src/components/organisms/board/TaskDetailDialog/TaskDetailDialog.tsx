@@ -76,47 +76,66 @@ export function TaskDetailDialog({
         onClose={handleClose}
         closeAriaLabel="Close"
         maxWidthClassName="max-w-4xl"
+        // Trim the panel's left and bottom padding (p-6 → pl-4 / pb-4) so the
+        // borderless title and body sit a touch closer to the edges; pl-4 / pb-4
+        // sort after p-6 in Tailwind's output so they override only those sides.
+        containerClassName="pl-4 pb-4"
       >
-        <div className="flex items-center justify-end gap-1">
-          <DropdownMenu
-            trigger={<MoreHorizontal className="size-4" />}
-            triggerAriaLabel="Task actions"
-            items={[
-              {
-                label: "Copy path",
-                icon: <Copy className="size-3.5" />,
-                onClick: handleCopyPath,
-              },
-              {
-                label: "Delete",
-                icon: <Trash2 className="size-3.5" />,
-                color: "danger",
-                onClick: () => setDeleteConfirmOpen(true),
-              },
-            ]}
-          />
-          <IconButton
-            icon={<X className="size-4" />}
-            aria-label="Close"
-            onClick={handleClose}
-            // Keep focus on the active field so its blur-driven save handler
-            // doesn't race handleClose.
-            onMouseDown={(e) => e.preventDefault()}
-          />
+        {/* The editable title is the dialog's de-facto heading. It leads a header
+            row sized like the body row below — a flex-1 title slot beside a w-60
+            action slot, same md:gap-6 — so the title's right edge lines up with
+            the body's while the overflow/close chrome sits in the top-right
+            corner. This pulls the title flush to the top instead of leaving the
+            empty header band that used to sit above it. */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+          <div className="flex min-w-0 flex-col md:flex-1">
+            {/* The underline sits on the input, but its left inset comes from this
+                pl-3 wrapper rather than the input's own padding — so the border
+                starts at the first character instead of poking out into the
+                padding. The input keeps pr-3 for its right inset. */}
+            <div className="pl-3">
+              <AutoresizeInput
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={handleTitleBlur}
+                placeholder="Task title"
+                aria-label="Title"
+                className="text-cork-text placeholder:text-cork-muted/40 border-cork-border/40 border-b pr-3 pb-3 text-2xl font-bold tracking-tight placeholder:font-normal focus-visible:outline-none"
+              />
+              {error?.message && <ErrorBanner className="mt-1.5">{error.message}</ErrorBanner>}
+            </div>
+          </div>
+          <div className="flex justify-end gap-1 md:w-60 md:shrink-0">
+            <DropdownMenu
+              trigger={<MoreHorizontal className="size-4" />}
+              triggerAriaLabel="Task actions"
+              items={[
+                {
+                  label: "Copy path",
+                  icon: <Copy className="size-3.5" />,
+                  onClick: handleCopyPath,
+                },
+                {
+                  label: "Delete",
+                  icon: <Trash2 className="size-3.5" />,
+                  color: "danger",
+                  onClick: () => setDeleteConfirmOpen(true),
+                },
+              ]}
+            />
+            <IconButton
+              icon={<X className="size-4" />}
+              aria-label="Close"
+              onClick={handleClose}
+              // Keep focus on the active field so its blur-driven save handler
+              // doesn't race handleClose.
+              onMouseDown={(e) => e.preventDefault()}
+            />
+          </div>
         </div>
 
-        <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+        <div className="mt-4 flex flex-col gap-4 md:flex-row md:gap-6">
           <div className="flex min-w-0 flex-col md:flex-1">
-            <AutoresizeInput
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleTitleBlur}
-              placeholder="Task title"
-              aria-label="Title"
-              className="text-cork-text placeholder:text-cork-muted/40 border-cork-border/40 border-b px-3 pb-3 text-2xl font-bold tracking-tight placeholder:font-normal focus-visible:outline-none"
-            />
-            {error?.message && <ErrorBanner className="mt-1.5">{error.message}</ErrorBanner>}
-
             <MarkdownEditor
               initialValue={task.body}
               onChange={setBody}
@@ -124,7 +143,7 @@ export function TaskDetailDialog({
               onBlur={handleBodyBlur}
               placeholder="Add a description…"
               ariaLabel="Body"
-              className="mt-4 min-h-[16rem] flex-1"
+              className="min-h-[16rem] flex-1"
             />
           </div>
 
