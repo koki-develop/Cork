@@ -10,12 +10,12 @@ import {
   SELECTION_CHANGE_COMMAND,
   type TextFormatType,
 } from "lexical";
-import { Bold, Code, Italic, Strikethrough } from "lucide-react";
+import { Bold, Code, Italic, RemoveFormatting, Strikethrough } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { $getSelectedFormattableTextNodes } from "./codeBlock";
+import { $getSelectedFormattableTextNodes, $isFormattableTextNode } from "./codeBlock";
 import { type Anchor, firstLineAnchor, placeCenteredAbove } from "./placement";
 
 // The four inline formats the toolbar toggles, in display order. Each maps to a
@@ -30,6 +30,9 @@ const FORMATS: readonly ToolbarFormat[] = [
   { type: "code", label: "Inline code", icon: Code },
 ];
 
+// Separator definition between format toggles and the clear-formatting button.
+const CLEAR_FORMAT = { label: "Clear formatting", icon: RemoveFormatting } as const;
+
 // Initial estimate of the toolbar size, derived from the fixed markup below, so
 // the first frame can be positioned before the node has been measured (the real
 // size is cached on mount and takes over — see `measure`). Each button is a
@@ -39,7 +42,7 @@ const BUTTON_SIZE = 24;
 const BUTTON_GAP = 2;
 const PANEL_INSET = 5;
 const TOOLBAR_WIDTH =
-  FORMATS.length * BUTTON_SIZE + (FORMATS.length - 1) * BUTTON_GAP + 2 * PANEL_INSET;
+  (FORMATS.length + 1) * BUTTON_SIZE + FORMATS.length * BUTTON_GAP + 2 * PANEL_INSET;
 const TOOLBAR_HEIGHT = BUTTON_SIZE + 2 * PANEL_INSET;
 
 // As the selection is dragged wider, its bounding box — and thus the toolbar's
@@ -254,6 +257,28 @@ export function FloatingFormatToolbarPlugin(): ReactNode {
               </button>
             );
           })}
+          {/* Clear formatting */}
+          <div className="bg-cork-border/40 mx-0.5 h-4 w-px" />
+          <button
+            key="clear-formatting"
+            type="button"
+            aria-label={CLEAR_FORMAT.label}
+            title={CLEAR_FORMAT.label}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              editor.update(() => {
+                const selection = $getSelection();
+                if (!$isRangeSelection(selection) || selection.isCollapsed()) return;
+                for (const node of selection.extract().filter($isFormattableTextNode)) {
+                  node.setFormat(0);
+                }
+                selection.format = 0;
+              });
+            }}
+            className="text-cork-muted hover:bg-cork-border/50 hover:text-cork-text flex cursor-pointer items-center justify-center rounded-md p-1 transition-colors duration-200"
+          >
+            <RemoveFormatting className="size-4" />
+          </button>
         </m.div>
       )}
     </AnimatePresence>,
