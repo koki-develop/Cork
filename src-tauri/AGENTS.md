@@ -1,5 +1,24 @@
 # Rust backend (`src-tauri/`)
 
+## Cargo workspace
+
+`src-tauri/Cargo.toml` is both the **app package** (`cork`) and the **workspace root** (`resolver = "2"`). Members:
+
+- `cork` (this dir) — the Tauri desktop app. `main.rs` → `cork_lib::run()`.
+- `cork-cli` (`cli/`) — the `cork` command-line tool. A deliberately lean crate (depends only on `clap`) so it never drags Tauri / axum / rmcp / objc2 into its compile-and-link. Shared logic, if it ever appears, should be factored into a third `core` member rather than pulling `cork_lib` (which is Tauri-bound) into the CLI.
+
+Build them separately: `tauri build` builds only the `cork` package; the CLI is built with `cargo build -p cork-cli` (wrapped by `bun run build:sidecar`). Both share `src-tauri/target/`. The app executable inside the bundle is `Contents/MacOS/cork` (named after the Cargo package, lowercase), which is why the CLI binary is named `cork-cli` — `cork` would collide on the case-insensitive APFS.
+
+## CLI distribution
+
+The `cork` CLI ships **inside** `Cork.app` and is exposed on `PATH` by Homebrew — installing the app gives you the command, with nothing extra to download.
+
+1. **Build + stage** — `scripts/build-sidecar.ts` (`bun run build:sidecar`) runs `cargo build --release -p cork-cli`, then copies the binary to `src-tauri/binaries/cork-cli-<host-target-triple>` (the suffix Tauri's `externalBin` requires; the dir is gitignored). It's wired into `tauri.conf.json` → `build.beforeDevCommand` / `beforeBuildCommand`, so `tauri dev` and `tauri build` stage it with no extra step (and dev won't fail on a missing sidecar).
+2. **Embed** — `tauri.conf.json` → `bundle.externalBin: ["binaries/cork-cli"]` tells Tauri to strip the triple suffix and embed the binary as `Cork.app/Contents/MacOS/cork-cli`.
+3. **Expose on PATH** — `scripts/build-cask.ts` emits a Homebrew `binary "#{appdir}/Cork.app/Contents/MacOS/cork-cli", target: "cork"` stanza, symlinking the embedded binary to `$(brew --prefix)/bin/cork`. Invoked as `cork`, argv[0] makes `clap` print `cork` in usage; `--version` reads from the `name = "cork"` attribute. The cask's existing ad-hoc `codesign --deep` preflight re-signs the embedded CLI too, so it runs from the terminal without Gatekeeper complaints.
+
+The CLI version is **not** maintained separately: `cli/build.rs` reads the repo-root `package.json` `version` (the single source release-please bumps) and injects it as `CORK_VERSION` at compile time. DMG-only installs (drag-to-Applications, no Homebrew) don't get the `cork` symlink — a future `cork`-self-install subcommand can cover that.
+
 ## Layout
 
 `main.rs` is the entry point and calls `cork_lib::run()`. `lib.rs` only declares modules and wires plugins, state, `#[tauri::command]`s, the `on_window_event` cleanup hook, and the macOS `RunEvent::Reopen` handler in `run()` — domain logic lives in the per-module files below.

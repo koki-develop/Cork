@@ -1,3 +1,7 @@
+[workspace]
+members = ["cli"]
+resolver = "2"
+
 [package]
 name = "cork"
 description = "A Tauri App"

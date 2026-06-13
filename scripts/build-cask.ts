@@ -33,6 +33,10 @@ cask "cork" do
 
   app "Cork.app"
 
+  # \`cork\` CLI を PATH に公開する。Cork.app に同梱した sidecar バイナリ
+  # (Contents/MacOS/cork-cli) を \`cork\` という名前でシンボリックリンクする。
+  binary "#{appdir}/Cork.app/Contents/MacOS/cork-cli", target: "cork"
+
   preflight do
     # ad-hoc 署名で designated requirement を identifier のみに設定
     # これにより、ビルドが変わっても TCC が同じアプリとして認識する

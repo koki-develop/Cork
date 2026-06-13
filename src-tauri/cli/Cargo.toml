@@ -1,0 +1,18 @@
+[package]
+name = "cork-cli"
+version = "0.0.0"
+description = "Command-line interface for Cork"
+edition = "2021"
+
+# The user-facing command is `cork`; the binary is named `cork-cli` to avoid
+# colliding with the Tauri app executable (also `cork`) inside the bundle's
+# `Contents/MacOS/` directory. The Homebrew Cask symlinks it onto PATH as `cork`.
+[[bin]]
+name = "cork-cli"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "=4.6.1", features = ["derive"] }
+
+[build-dependencies]
+serde_json = "=1.0.150"

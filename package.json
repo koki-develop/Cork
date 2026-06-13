@@ -7,6 +7,7 @@
     "prepare": "husky",
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:sidecar": "bun run ./scripts/build-sidecar.ts",
     "preview": "vite preview",
     "tauri": "tauri",
     "format": "oxlint --fix && oxfmt",

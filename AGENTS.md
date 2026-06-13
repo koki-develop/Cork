@@ -2,6 +2,7 @@
 
 Frontend = React + atomic design (see `src/AGENTS.md`).
 Backend = Tauri v2 + Rust (see `src-tauri/AGENTS.md`).
+CLI = the `cork` command, a separate lean Rust crate shipped **inside** the app bundle (see `src-tauri/AGENTS.md` → "CLI distribution").
 Multi-window: a single process can host any number of windows, each with its own workspace. The `File > New Window` menu / `Cmd+Shift+N` opens an empty welcome window, and the macOS Dock-reopen path restores the last-used workspace into a fresh window. Per-window state lives in `AppState` keyed by `WebviewWindow::label()`; see `src-tauri/AGENTS.md` for the state model.
 
 ## Stack
@@ -14,17 +15,18 @@ Multi-window: a single process can host any number of windows, each with its own
 
 ## Commands
 
-| Command             | What it does                                                               |
-| ------------------- | -------------------------------------------------------------------------- |
-| `bun run dev`       | Vite dev server on port 1420 (frontend only — Tauri APIs error in browser) |
-| `bun run build`     | `tsc && vite build` (full typecheck + bundle)                              |
-| `bun run tauri`     | Tauri CLI passthrough (e.g. `bun run tauri dev`, `bun run tauri build`)    |
-| `bun run format`    | `oxlint --fix && oxfmt` (lint fix + format)                                |
-| `bun run lint`      | `oxlint` (lint check only)                                                 |
-| `bun run lint:fix`  | `oxlint --fix` (lint with autofix)                                         |
-| `bun run fmt`       | `oxfmt` (format only)                                                      |
-| `bun run fmt:check` | `oxfmt --check` (check formatting)                                         |
-| `bun run preview`   | `vite preview` (serve production build)                                    |
+| Command                 | What it does                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun run dev`           | Vite dev server on port 1420 (frontend only — Tauri APIs error in browser)                                                                                               |
+| `bun run build`         | `tsc && vite build` (full typecheck + bundle)                                                                                                                            |
+| `bun run build:sidecar` | Build the `cork` CLI and stage it as a Tauri sidecar (`src-tauri/binaries/cork-cli-<triple>`). Run automatically by `tauri dev` / `tauri build` via the before-commands. |
+| `bun run tauri`         | Tauri CLI passthrough (e.g. `bun run tauri dev`, `bun run tauri build`)                                                                                                  |
+| `bun run format`        | `oxlint --fix && oxfmt` (lint fix + format)                                                                                                                              |
+| `bun run lint`          | `oxlint` (lint check only)                                                                                                                                               |
+| `bun run lint:fix`      | `oxlint --fix` (lint with autofix)                                                                                                                                       |
+| `bun run fmt`           | `oxfmt` (format only)                                                                                                                                                    |
+| `bun run fmt:check`     | `oxfmt --check` (check formatting)                                                                                                                                       |
+| `bun run preview`       | `vite preview` (serve production build)                                                                                                                                  |
 
 ## Pre-commit
 
