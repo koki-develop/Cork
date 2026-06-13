@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/koki-develop/Cork/compare/v0.9.0...v0.10.0) (2026-06-13)
+
+
+### Features
+
+* implement cork CLI to open and focus workspace windows ([bd357b8](https://github.com/koki-develop/Cork/commit/bd357b8ef14bcfd055d9f17b927e48285aa531ed))
+
 ## [0.9.0](https://github.com/koki-develop/Cork/compare/v0.8.0...v0.9.0) (2026-06-13)
 
 
