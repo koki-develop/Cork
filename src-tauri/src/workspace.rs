@@ -1,7 +1,7 @@
 use crate::error::{CmdResult, CommandError};
 use crate::state::AppState;
 use crate::task::TagFilter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_fs::FsExt;
 use tauri_plugin_store::StoreExt;
@@ -57,14 +57,23 @@ pub fn set_workspace_directory(
     app.fs_scope()
         .allow_directory(&dir, false)
         .map_err(CommandError::other)?;
+    persist_workspace_history(&app, &path)?;
+
+    state.set_workspace(window.label(), dir);
+    Ok(())
+}
+
+/// Prepend `path` to the persisted recent-workspace history (dedup + cap) and
+/// save it. Shared by `set_workspace_directory` (the WelcomePage picker) and
+/// the `cork <path>` CLI open path, so a workspace opened from the terminal
+/// shows up in "Recent Workspaces" exactly like one opened from the UI.
+fn persist_workspace_history(app: &tauri::AppHandle, path: &str) -> CmdResult<()> {
     let store = app.store(SETTINGS_FILE).map_err(CommandError::other)?;
     let existing = store.get(WORKSPACE_HISTORY_KEY);
     let history = parse_workspace_history(existing.as_ref());
-    let updated = prepend_unique_capped(history, path, MAX_WORKSPACE_HISTORY);
+    let updated = prepend_unique_capped(history, path.to_string(), MAX_WORKSPACE_HISTORY);
     store.set(WORKSPACE_HISTORY_KEY, history_to_json(&updated));
     store.save().map_err(CommandError::other)?;
-
-    state.set_workspace(window.label(), dir);
     Ok(())
 }
 
@@ -211,27 +220,34 @@ pub(crate) fn open_new_window_impl(app: &tauri::AppHandle) -> tauri::Result<Webv
     build_workspace_window(app, &label)
 }
 
-fn reopen_with_history_restore(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
-    let state = app.state::<AppState>();
-    let label = state.next_window_label();
-    // Seed FIRST, build SECOND — the webview's JS execution starts as soon as
-    // `build()` returns, so a seed-after-build sequence would let
-    // `useCurrentDir` race and read `None` before the AppState write lands.
-    // `next_window_label` already gave us the label we need to seed under, so
-    // there's no chicken-and-egg here.
-    seed_window_from_history(app, &label);
+/// Mint a fresh window label, seed it via `seed`, then build the window —
+/// cleaning up the AppState entry if the build fails. The shared skeleton
+/// behind both the Dock-reopen history restore and the `cork <path>` CLI open;
+/// the only thing that differs between them is how the label is seeded.
+///
+/// **Seed FIRST, build SECOND**: the webview's JS execution starts as soon as
+/// `build()` returns, so a seed-after-build sequence would let `useCurrentDir`
+/// race and read `None` before the AppState write lands, dropping the user into
+/// WelcomePage. On build failure the seeded entry must be removed explicitly —
+/// no `WindowEvent::Destroyed` fires for a window that never came up, so the
+/// entry would otherwise leak for the process's lifetime.
+fn build_seeded_window(
+    app: &tauri::AppHandle,
+    seed: impl FnOnce(&tauri::AppHandle, &str),
+) -> tauri::Result<WebviewWindow> {
+    let label = app.state::<AppState>().next_window_label();
+    seed(app, &label);
     match build_workspace_window(app, &label) {
         Ok(window) => Ok(window),
         Err(e) => {
-            // The build failed after we already wrote the seeded workspace
-            // into AppState for this label. No `WindowEvent::Destroyed`
-            // will ever fire for a window that never existed, so without
-            // this explicit cleanup the entry would leak across the
-            // process's lifetime.
             app.state::<AppState>().remove_window(&label);
             Err(e)
         }
     }
+}
+
+fn reopen_with_history_restore(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
+    build_seeded_window(app, seed_window_from_history)
 }
 
 /// macOS Dock-icon reactivation path. Called from the `RunEvent::Reopen`
@@ -259,9 +275,136 @@ pub(crate) fn handle_macos_reopen(app: &tauri::AppHandle) {
         return;
     }
     for (_, window) in windows {
-        let _ = window.unminimize();
-        let _ = window.show();
-        let _ = window.set_focus();
+        raise_window(&window);
+    }
+}
+
+/// Bring a window to the foreground. The order is load-bearing: un-minimise and
+/// show *before* focusing, because tao's `set_focus` (which also activates the
+/// app via `activateIgnoringOtherApps:`) is a no-op on a minimised or hidden
+/// window — so raising Cork from the background would otherwise silently fail.
+/// Shared by the Dock-reopen path and the `cork` CLI handler.
+fn raise_window(window: &WebviewWindow) {
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+/// Extract the workspace-directory argument from a process argv vector. argv[0]
+/// is the executable path; the `cork` CLI passes the workspace as the first
+/// positional. Anything starting with `-` is skipped so a stray launch flag
+/// (e.g. a legacy macOS `-psn_*` process-serial argument) can never be mistaken
+/// for a directory. Returns `None` when there's no positional — the
+/// "open a new empty window" case.
+///
+/// Pure (no IO) so the cold-start and warm-start argv parsing share one tested
+/// implementation. Both call sites feed it an absolute path (the CLI
+/// canonicalizes before launching), so no working-directory context is needed.
+pub(crate) fn workspace_arg_from_argv(argv: &[String]) -> Option<PathBuf> {
+    argv.iter()
+        .skip(1)
+        .find(|arg| !arg.starts_with('-'))
+        .map(PathBuf::from)
+}
+
+/// Handle a `cork` CLI invocation forwarded to the already-running instance by
+/// `tauri-plugin-single-instance`. No path → open a fresh welcome window (the
+/// `File > New Window` behaviour). A path → focus the window already hosting
+/// that workspace, or open a new window seeded with it. Either way the
+/// resulting window is raised so Cork comes to the foreground in front of the
+/// terminal the command was typed into.
+///
+/// **Must run on the main thread.** The single-instance callback fires on a
+/// background task (`tauri::async_runtime::spawn`), but window creation on
+/// macOS has to happen on the main thread — `lib.rs` marshals this call through
+/// `AppHandle::run_on_main_thread`.
+pub(crate) fn handle_cli_invocation(app: &tauri::AppHandle, argv: &[String]) {
+    // `filter(is_dir)` mirrors the cold-start guard in `lib.rs::setup`: a path
+    // that no longer resolves to a directory — deleted or unmounted in the race
+    // between the CLI validating it and this forwarded argv arriving — is
+    // treated like a bare `cork` and opens a fresh welcome window, rather than
+    // seeding a dead workspace and pushing the dead path into Recent
+    // Workspaces. Without this, the warm path diverged from the cold path,
+    // which already falls back when the directory is gone.
+    let window = match workspace_arg_from_argv(argv).filter(|dir| dir.is_dir()) {
+        Some(dir) => open_or_focus_workspace(app, &dir),
+        None => match open_new_window_impl(app) {
+            Ok(window) => Some(window),
+            Err(e) => {
+                eprintln!("failed to open new window from CLI: {e}");
+                None
+            }
+        },
+    };
+
+    if let Some(window) = window {
+        raise_window(&window);
+    }
+}
+
+/// Focus the window already showing `dir`, or open a new one seeded with it.
+/// Returns the window to raise (`None` only if opening a new window failed).
+fn open_or_focus_workspace(app: &tauri::AppHandle, dir: &Path) -> Option<WebviewWindow> {
+    if let Some(label) = find_window_for_workspace(app, dir) {
+        if let Some(window) = app.get_webview_window(&label) {
+            return Some(window);
+        }
+    }
+    match open_workspace_window(app, dir) {
+        Ok(window) => Some(window),
+        Err(e) => {
+            eprintln!("failed to open workspace window from CLI: {e}");
+            None
+        }
+    }
+}
+
+/// Find an existing window whose workspace resolves to the same directory as
+/// `target`, so `cork <path>` focuses an open workspace instead of opening a
+/// duplicate. Both sides are canonicalized before comparison because a stored
+/// workspace may carry symlinks or `.`/`..` segments the picker never resolved.
+fn find_window_for_workspace(app: &tauri::AppHandle, target: &Path) -> Option<String> {
+    let target = canonical_or_raw(target);
+    let state = app.state::<AppState>();
+    app.webview_windows().into_keys().find(|label| {
+        state
+            .workspace(label)
+            .is_some_and(|ws| canonical_or_raw(&ws) == target)
+    })
+}
+
+/// Canonicalize for comparison, falling back to the path as-is when
+/// canonicalization fails (e.g. the directory was unmounted). Routes through
+/// `security::canonical_workspace` so all workspace-path canonicalization stays
+/// funnelled through the security module; the fallback degrades matching to
+/// plain path equality rather than panicking.
+fn canonical_or_raw(path: &Path) -> PathBuf {
+    crate::security::canonical_workspace(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Open a new window seeded with an explicit workspace directory (the
+/// `cork <path>` CLI path). The explicit-directory counterpart of
+/// `reopen_with_history_restore`: same `build_seeded_window` skeleton, but the
+/// workspace comes from the CLI argument rather than the persisted history.
+fn open_workspace_window(app: &tauri::AppHandle, dir: &Path) -> tauri::Result<WebviewWindow> {
+    build_seeded_window(app, |app, label| seed_window_with_workspace(app, label, dir))
+}
+
+/// Seed a window's AppState with an explicit workspace directory, register its
+/// fs scope, and record it in the recent-workspace history. The explicit-path
+/// sibling of `seed_window_from_history`: a `cork <path>` open is a genuine
+/// open event (like the WelcomePage picker), so unlike the history-restore
+/// path it *does* push onto the history. Best-effort — fs-scope and history
+/// failures are logged but don't block the window from opening, mirroring
+/// `seed_window_from_history`.
+pub(crate) fn seed_window_with_workspace(app: &tauri::AppHandle, label: &str, dir: &Path) {
+    let state = app.state::<AppState>();
+    state.set_workspace(label, dir.to_path_buf());
+    if let Err(e) = app.fs_scope().allow_directory(dir, false) {
+        eprintln!("failed to allow directory in fs scope: {e}");
+    }
+    if let Err(e) = persist_workspace_history(app, &dir.to_string_lossy()) {
+        eprintln!("failed to record workspace history: {e}");
     }
 }
 
@@ -728,6 +871,49 @@ mod tests {
         let value = history_to_json(&original);
         let parsed = parse_workspace_history(Some(&value));
         assert_eq!(parsed, original);
+    }
+
+    // --- workspace_arg_from_argv -----------------------------------------------
+
+    #[test]
+    fn workspace_arg_returns_none_when_only_the_binary_is_present() {
+        // Bare `cork` (and any normal Dock/Finder launch) → new empty window.
+        assert_eq!(workspace_arg_from_argv(&["/path/to/cork".to_string()]), None);
+    }
+
+    #[test]
+    fn workspace_arg_returns_none_for_empty_argv() {
+        assert_eq!(workspace_arg_from_argv(&[]), None);
+    }
+
+    #[test]
+    fn workspace_arg_picks_the_first_positional() {
+        let argv = vec!["/path/to/cork".to_string(), "/work/board".to_string()];
+        assert_eq!(
+            workspace_arg_from_argv(&argv),
+            Some(PathBuf::from("/work/board"))
+        );
+    }
+
+    #[test]
+    fn workspace_arg_skips_leading_flags() {
+        // A stray launch flag (e.g. a legacy macOS `-psn_*` argument) must not
+        // be mistaken for the workspace directory.
+        let argv = vec![
+            "/path/to/cork".to_string(),
+            "-psn_0_12345".to_string(),
+            "/work/board".to_string(),
+        ];
+        assert_eq!(
+            workspace_arg_from_argv(&argv),
+            Some(PathBuf::from("/work/board"))
+        );
+    }
+
+    #[test]
+    fn workspace_arg_returns_none_when_every_arg_is_a_flag() {
+        let argv = vec!["/path/to/cork".to_string(), "-psn_0_12345".to_string()];
+        assert_eq!(workspace_arg_from_argv(&argv), None);
     }
 
     #[test]

@@ -21,6 +21,22 @@ const MAIN_WINDOW_LABEL: &str = "main";
 
 pub fn run() {
     let app = tauri::Builder::default()
+        // MUST be the first plugin registered (per the plugin's contract). When
+        // the `cork` CLI launches the app binary while an instance is already
+        // running, this intercepts the second launch, forwards its argv to the
+        // live instance via a Unix socket, and exits the spawned process. The
+        // callback fires on a background task, so window work is marshalled onto
+        // the main thread. `argv[0]` is the binary path; the workspace path (if
+        // any) follows. The cold-start counterpart lives in `setup`, which
+        // reads this process's own `std::env::args()`.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let handle = app.clone();
+            if let Err(e) = app.run_on_main_thread(move || {
+                workspace::handle_cli_invocation(&handle, &argv);
+            }) {
+                eprintln!("failed to dispatch CLI invocation to the main thread: {e}");
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -61,13 +77,27 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            // Restore the most recently used workspace into the `main`
-            // window's state *before* the window is built, so the frontend's
-            // `useCurrentDir` reads the seeded value on its very first
-            // `getWorkspaceDirectory` call. Doing this after `build()` would
-            // race the webview's JS startup and drop the user into
-            // WelcomePage despite a perfectly good history entry.
-            workspace::seed_window_from_history(app.handle(), MAIN_WINDOW_LABEL);
+            // Seed the `main` window's workspace into AppState *before* the
+            // window is built, so the frontend's `useCurrentDir` reads the
+            // seeded value on its very first `getWorkspaceDirectory` call.
+            // Doing this after `build()` would race the webview's JS startup
+            // and drop the user into WelcomePage despite a perfectly good
+            // workspace.
+            //
+            // `cork <path>` launched while Cork was *not* already running takes
+            // the cold path: this is the same process whose argv carries the
+            // directory (single-instance found no peer to forward to), so we
+            // seed that workspace into `main`. A bare `cork` (or any normal
+            // Dock/Finder launch — they're indistinguishable, both argv-less)
+            // falls through to restoring the most recent workspace from history.
+            // A path that no longer resolves to a directory also falls back to
+            // history rather than booting into a dead workspace.
+            match workspace::workspace_arg_from_argv(&std::env::args().collect::<Vec<_>>()) {
+                Some(dir) if dir.is_dir() => {
+                    workspace::seed_window_with_workspace(app.handle(), MAIN_WINDOW_LABEL, &dir);
+                }
+                _ => workspace::seed_window_from_history(app.handle(), MAIN_WINDOW_LABEL),
+            }
 
             workspace::build_workspace_window(app.handle(), MAIN_WINDOW_LABEL)?;
 

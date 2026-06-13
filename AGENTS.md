@@ -2,8 +2,8 @@
 
 Frontend = React + atomic design (see `src/AGENTS.md`).
 Backend = Tauri v2 + Rust (see `src-tauri/AGENTS.md`).
-CLI = the `cork` command, a separate lean Rust crate shipped **inside** the app bundle (see `src-tauri/AGENTS.md` → "CLI distribution").
-Multi-window: a single process can host any number of windows, each with its own workspace. The `File > New Window` menu / `Cmd+Shift+N` opens an empty welcome window, and the macOS Dock-reopen path restores the last-used workspace into a fresh window. Per-window state lives in `AppState` keyed by `WebviewWindow::label()`; see `src-tauri/AGENTS.md` for the state model.
+CLI = the `cork` command, a separate lean Rust crate shipped **inside** the app bundle. `cork` opens a new window; `cork <dir>` opens (or focuses) that workspace. It works by launching the app binary and letting `tauri-plugin-single-instance` forward argv to the running instance (see `src-tauri/AGENTS.md` → "CLI distribution" and "CLI behavior").
+Multi-window: a single process can host any number of windows, each with its own workspace. The `File > New Window` menu / `Cmd+Shift+N` opens an empty welcome window, the macOS Dock-reopen path restores the last-used workspace into a fresh window, and the `cork` CLI opens a new / workspace-seeded window. Per-window state lives in `AppState` keyed by `WebviewWindow::label()`; see `src-tauri/AGENTS.md` for the state model.
 
 ## Stack
 

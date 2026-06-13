@@ -22,6 +22,7 @@ tauri = { version = "=2.11.2", features = [] }
 tauri-plugin-opener = "=2.5.4"
 tauri-plugin-fs = { version = "=2.5.1", features = ["watch"] }
 tauri-plugin-store = "=2.4.3"
+tauri-plugin-single-instance = "=2.4.2"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = { version = "=1.0.150", features = ["preserve_order"] }
 rfd = "=0.17.2"

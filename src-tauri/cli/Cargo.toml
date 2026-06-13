@@ -16,3 +16,8 @@ clap = { version = "=4.6.1", features = ["derive"] }
 
 [build-dependencies]
 serde_json = "=1.0.150"
+
+# Dev-only: does not link into the released binary, so the runtime stays lean
+# (only `clap`). Shared with the app crate's filesystem-touching unit tests.
+[dev-dependencies]
+tempfile = "=3.27.0"

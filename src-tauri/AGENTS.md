@@ -5,7 +5,7 @@
 `src-tauri/Cargo.toml` is both the **app package** (`cork`) and the **workspace root** (`resolver = "2"`). Members:
 
 - `cork` (this dir) — the Tauri desktop app. `main.rs` → `cork_lib::run()`.
-- `cork-cli` (`cli/`) — the `cork` command-line tool. A deliberately lean crate (depends only on `clap`) so it never drags Tauri / axum / rmcp / objc2 into its compile-and-link. Shared logic, if it ever appears, should be factored into a third `core` member rather than pulling `cork_lib` (which is Tauri-bound) into the CLI.
+- `cork-cli` (`cli/`) — the `cork` command-line tool. A deliberately lean crate (runtime deps are only `clap`; `tempfile` is a dev-dependency for the unit tests and never links into the released binary) so it never drags Tauri / axum / rmcp / objc2 into its compile-and-link. Shared logic, if it ever appears, should be factored into a third `core` member rather than pulling `cork_lib` (which is Tauri-bound) into the CLI.
 
 Build them separately: `tauri build` builds only the `cork` package; the CLI is built with `cargo build -p cork-cli` (wrapped by `bun run build:sidecar`). Both share `src-tauri/target/`. The app executable inside the bundle is `Contents/MacOS/cork` (named after the Cargo package, lowercase), which is why the CLI binary is named `cork-cli` — `cork` would collide on the case-insensitive APFS.
 
@@ -19,6 +19,21 @@ The `cork` CLI ships **inside** `Cork.app` and is exposed on `PATH` by Homebrew 
 
 The CLI version is **not** maintained separately: `cli/build.rs` reads the repo-root `package.json` `version` (the single source release-please bumps) and injects it as `CORK_VERSION` at compile time. DMG-only installs (drag-to-Applications, no Homebrew) don't get the `cork` symlink — a future `cork`-self-install subcommand can cover that.
 
+## CLI behavior
+
+The CLI never talks to the app directly — it **launches the sibling `cork` app binary** and lets `tauri-plugin-single-instance` route the invocation:
+
+- `cork` (no argument) → open a new empty window (the `File > New Window` behaviour).
+- `cork <dir>` → open `<dir>` as a workspace, or focus the window already hosting it.
+
+How it works end to end:
+
+1. **CLI (`cli/src/main.rs`)** — `locate_app_binary` canonicalizes `current_exe()` (so the Homebrew `cork` symlink resolves into the bundle) and finds the `cork` binary next to `cork-cli` in `Contents/MacOS`. A `<dir>` argument is canonicalized + validated as a directory by `resolve_workspace` _before_ launch (the app receives argv over a socket with no shared cwd, so the path must be absolute; bad paths fail fast with a terminal message). The app binary is then `spawn`ed detached with null stdio.
+2. **Warm start (app already running)** — single-instance (registered as the **first** plugin in `lib.rs`) intercepts the second launch, forwards its argv over the `/tmp/me_koki_cork_si.sock` Unix socket, and exits the spawned process. The primary's callback fires on a background task, so it marshals to the main thread via `run_on_main_thread` before calling `workspace::handle_cli_invocation` (window creation must be on the main thread). That handler opens a new window / focuses the matching one and raises Cork to the foreground (`unminimize` → `show` → `set_focus`, the same order as `handle_macos_reopen`, because tao's `set_focus` — which also activates the app — no-ops on a hidden/minimised window).
+3. **Cold start (app not running)** — the spawned process _is_ the app; single-instance finds no peer, so `lib.rs::setup` reads this process's own `std::env::args()` via `workspace::workspace_arg_from_argv` and seeds `main` with the CLI directory (falling back to history restore when there's no path arg or it no longer resolves). A bare `cork` cold start is argv-indistinguishable from a Dock/Finder launch, so both restore the most recent workspace — the "new empty window" semantics only apply to the warm path.
+
+`workspace_arg_from_argv` is the single pure argv parser shared by both the cold and warm paths (skips `argv[0]` and any leading `-` flags). `single-instance` exposes no JS commands, so it needs no `capabilities/default.json` entry.
+
 ## Layout
 
 `main.rs` is the entry point and calls `cork_lib::run()`. `lib.rs` only declares modules and wires plugins, state, `#[tauri::command]`s, the `on_window_event` cleanup hook, and the macOS `RunEvent::Reopen` handler in `run()` — domain logic lives in the per-module files below.
@@ -26,13 +41,13 @@ The CLI version is **not** maintained separately: `cli/build.rs` reads the repo-
 ```
 src-tauri/src/
 ├── main.rs            entry point (cork_lib::run())
-├── lib.rs             mod declarations + run() + Reopen handler + main window seed + MCP setup/stop
+├── lib.rs             mod declarations + run() + single-instance plugin (CLI argv forwarding) + Reopen handler + main window seed (incl. cold-start CLI workspace) + MCP setup/stop
 ├── state.rs           AppState (per-window workspace / cache / snapshot maps + process-global MCP runtime)
 ├── error.rs           CommandError + CmdResult<T>
 ├── security.rs        workspace-scope path checks
 ├── frontmatter.rs     YAML frontmatter parse / update / serialize
 ├── menu.rs            macOS menu (Cork / File > New Task + New Window / Edit / Window) + focused-window settings/create-task emit
-├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters, list_workspace_history) + workspace history + open_new_window_impl + build_workspace_window + seed_window_from_history + handle_macos_reopen
+├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters, list_workspace_history) + workspace history + open_new_window_impl + build_workspace_window + seed_window_from_history + handle_macos_reopen + CLI invocation (workspace_arg_from_argv / handle_cli_invocation / seed_window_with_workspace + open-or-focus)
 ├── task.rs            Task type + task commands (list/get/create/update/delete/renumber, ...)
 ├── status.rs          StatusEntry type + status commands + .cork.json read/write
 └── mcp.rs             Embedded MCP server (Streamable HTTP transport, Bearer auth + workspace header middleware, tools: `list_tasks` / `list_statuses` / `list_tags` / `create_task` / `delete_task`, settings persistence, lifecycle start/stop)
@@ -82,7 +97,7 @@ Capabilities are declared in `capabilities/default.json`. The `windows` field is
 
 ## Cargo deps
 
-`tauri-plugin-fs = { version = "2", features = ["watch"] }` — the `"watch"` feature is required by the frontend `useWorkspace` hook. Other plugins are stock.
+`tauri-plugin-fs = { version = "2", features = ["watch"] }` — the `"watch"` feature is required by the frontend `useWorkspace` hook. `tauri-plugin-single-instance` backs the `cork` CLI (see "CLI behavior") and **must be the first plugin registered** in `lib.rs`. Other plugins are stock.
 
 MCP-related deps live under the same `[dependencies]` block: `rmcp` (server + `transport-streamable-http-server` + `macros` + `schemars` features — gives us `#[tool_router]` / `#[tool_handler]` macros and the Streamable HTTP transport), `axum` (rmcp's transport mounts a service onto an axum `Router`, and our middleware layers are axum `from_fn` / `from_fn_with_state`), `tokio` with `sync` + `time` + `rt` + `fs` features (`fs` is for the async `canonicalize` / `metadata` in `workspace_layer`; blocking versions would pin a runtime worker on disk I/O in the request hot path), `tokio-util` for `CancellationToken`, `rand` (CSRNG-backed `OsRng` for token minting), `subtle` (constant-time string compare in `auth_layer`), `schemars` (JSON Schema generation for the tool's `outputSchema`), `http` (raw `Request<Parts>` extraction in the `list_tasks` handler).
 
@@ -99,7 +114,8 @@ Covered modules:
 - `security.rs` — `canonical_workspace` / `ensure_in_workspace` / `check_in_workspace`, including symlink and `..` escape rejection
 - `frontmatter.rs` — `parse` / `update` / `serialize` and the private `format_yaml_float`
 - `task.rs` — `encode_title_to_stem` / `decode_stem_to_title` (the `/`⟷U+2215 title-filename swap, round-trip + reserved-sentinel invariants), `read_task_preview`, and `compute_reconciled_orders` (including the multi-window invariant that internal moves with `status` and `order` both changed don't trigger external-edit repair)
-- `workspace.rs` — `parse_workspace_history` / `history_to_json` / `prepend_unique_capped` (workspace-history pure helpers), `update_workspaces_map` (persisted-store mutation), and `filter_existing_directories` (the `is_dir()` survival filter backing `list_workspace_history`)
+- `workspace.rs` — `parse_workspace_history` / `history_to_json` / `prepend_unique_capped` (workspace-history pure helpers), `update_workspaces_map` (persisted-store mutation), `filter_existing_directories` (the `is_dir()` survival filter backing `list_workspace_history`), and `workspace_arg_from_argv` (the CLI argv parser shared by the cold/warm paths — none / first-positional / leading-flag-skip cases)
+- `cork-cli` (`cli/src/main.rs`) — `resolve_workspace` (existing dir → canonical absolute path, missing path / regular file rejected) and `resolve_app_binary` (sibling `cork` present → Ok, missing / directory → Err). Run with `cargo test -p cork-cli`. Not covered: `locate_app_binary` (depends on `current_exe()`) and the detached `spawn`
 - `mcp.rs` — token minting / validation / `McpSettings` round-trip / store-key wire-shape pinning / `resolve_settings` (cold-start + corrupt-token rotation, preserving `enabled`), `slug_for_workspace`, `build_sample_config` (single / multi / duplicate-slug disambiguation / stable FNV-1a), `McpRuntime` / `McpStatus` / `McpStartError` (Display + tagged-enum wire format), `is_token_only_change` branches, `auth_layer` (matching Bearer / mismatch / missing / lowercase `bearer` NG / extra-whitespace NG / `WWW-Authenticate` header presence), `workspace_layer` (valid dir / missing header / empty value / non-existent path / file-not-dir), tool-router registration end-to-end (`CorkMcpServer::tool_router()` doesn't panic on the MCP `outputSchema` root-must-be-object validation; `ListTasksOutput` schema root is `object`), `list_tasks` pagination (`resolve_limit` default/clamp, `paginate` page boundaries / offset-past-end / `has_more`)
 
 Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime), `menu::setup`, `workspace::pick_directory` (GUI), and `workspace::set/get_workspace_directory` (need `AppHandle`). The `mcp` commands (`get_settings` / `update_settings` / `generate_token` / `get_sample_config` / `get_server_status`) likewise wrap tested helpers — `load_settings` / `save_settings` (Tauri-runtime-bound) and `start` / `stop` (Tokio-runtime-bound) are exercised manually via the dev build's `bun run tauri dev` flow (see `openspec/changes/archive/2026-06-10-mcp-server/tasks.md` section 13). The commands are thin wrappers over the tested helpers, so the practical risk of skipping them is small.
