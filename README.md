@@ -27,6 +27,13 @@
 brew install --cask koki-develop/tap/cork
 ```
 
+To update:
+
+```
+brew update
+brew upgrade koki-develop/tap/cork
+```
+
 ## How it works
 
 Cork has no database. A workspace is just a folder, and every task is a plain Markdown file inside it — so your board lives entirely in version-controllable, editor-friendly text.
