@@ -48,6 +48,18 @@ Write the project README, including a "How it works" section.
 
 Because it's all just files, you can edit tasks in any editor, grep them, and track the whole board in Git.
 
+## CLI
+
+Installing via Homebrew also puts a `cork` command on your `PATH`.
+
+```sh
+# Open a new window.
+cork
+
+# Open a directory as a workspace.
+cork ./path/to/workspace
+```
+
 ## License
 
 [MIT](./LICENSE)
