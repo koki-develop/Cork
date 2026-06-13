@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/koki-develop/Cork/compare/v0.8.0...v0.9.0) (2026-06-13)
+
+
+### Features
+
+* ship cork CLI inside the app bundle and link it onto PATH ([81ad0a7](https://github.com/koki-develop/Cork/commit/81ad0a7622af60eee6674ca366289c724899fd76))
+
 ## [0.8.0](https://github.com/koki-develop/Cork/compare/v0.7.0...v0.8.0) (2026-06-12)
 
 
