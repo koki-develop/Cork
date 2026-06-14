@@ -131,7 +131,7 @@ export function TaskDetailDialog({
               onBlur={handleBodyBlur}
               placeholder="Add a description…"
               ariaLabel="Body"
-              className="min-h-[20rem] md:col-start-1 md:row-start-2"
+              className="order-1 min-h-[20rem] md:order-none md:col-start-1 md:row-start-2"
             />
 
             <div className="flex flex-col gap-4 md:col-start-2 md:row-start-1 md:row-end-3">
