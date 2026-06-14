@@ -108,6 +108,12 @@ export function TagEditor({
 
   // Container size depends on tags/pending — recompute when they change.
   const popoverOpen = suggestionsEnabled && suggestionOpen;
+  // The popover only actually renders when there are suggestions to show (see
+  // TagSuggestionPopover). Keyboard interactions that belong to the popover
+  // (arrow navigation, Escape-to-dismiss) must key off *visibility*, not the
+  // raw open flag — otherwise an Escape while the popover is empty gets
+  // silently swallowed here, forcing a second Escape to reach the dialog.
+  const popoverVisible = popoverOpen && filteredSuggestions.length > 0;
   const containerRect = useAnchorRect(containerRef, popoverOpen, [tags.length, pending]);
   const suggestionPos = containerRect
     ? {
@@ -171,23 +177,22 @@ export function TagEditor({
 
   /** Returns true if the key was handled by the suggestion popover (navigation/dismiss). */
   const handleSuggestionNavKey = (e: KeyboardEvent<HTMLInputElement>): boolean => {
-    if (!suggestionsEnabled || !suggestionOpen) return false;
+    // Only intercept keys when the popover is actually on screen. When it isn't
+    // (e.g. zero matches), Escape must fall through to close the enclosing
+    // dialog instead of being consumed as a popover dismiss.
+    if (!popoverVisible) return false;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((i) => {
-        if (filteredSuggestions.length === 0) return 0;
-        if (i < 0) return 0;
-        return (i + 1) % filteredSuggestions.length;
-      });
+      setSelectedIndex((i) => (i < 0 ? 0 : (i + 1) % filteredSuggestions.length));
       return true;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((i) => {
-        if (filteredSuggestions.length === 0) return 0;
-        if (i < 0) return filteredSuggestions.length - 1;
-        return (i - 1 + filteredSuggestions.length) % filteredSuggestions.length;
-      });
+      setSelectedIndex((i) =>
+        i < 0
+          ? filteredSuggestions.length - 1
+          : (i - 1 + filteredSuggestions.length) % filteredSuggestions.length,
+      );
       return true;
     }
     if (e.key === "Escape") {
@@ -214,21 +219,12 @@ export function TagEditor({
       if (e.key === "Enter" && e.metaKey) return;
       // Tab should select the highlighted suggestion when the autocomplete is
       // open, not move focus to the next element. Shift+Tab passes through.
-      if (
-        e.key === "Tab" &&
-        (e.shiftKey ||
-          !(
-            suggestionsEnabled &&
-            suggestionOpen &&
-            filteredSuggestions.length > 0 &&
-            selectedIndex >= 0
-          ))
-      ) {
+      if (e.key === "Tab" && (e.shiftKey || !(popoverVisible && selectedIndex >= 0))) {
         return;
       }
       e.preventDefault();
       // Prefer selected suggestion if available and not already in tags
-      if (suggestionsEnabled && suggestionOpen && filteredSuggestions.length > 0) {
+      if (popoverVisible) {
         const candidate = filteredSuggestions[selectedIndex];
         if (candidate && !tags.includes(candidate)) {
           tryCommit(candidate);
