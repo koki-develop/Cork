@@ -19,6 +19,14 @@
   --color-cork-danger-text: #f87171;
   --color-cork-success-text: #4ade80;
   --color-cork-warning-text: #fbbf24;
+
+  /* Rendered height of the app chrome header (`AppHeader`). Shared so `Modal`
+     can keep its centered panel below the header: the header deliberately sits
+     above the modal backdrop in z-index (so its drag region / traffic lights
+     stay reachable), so without reserving this space a tall dialog in a short
+     window slides up and hides behind it. Keep in sync with `AppHeader`'s
+     height. */
+  --cork-header-height: 3.25rem;
 }
 
 @layer base {

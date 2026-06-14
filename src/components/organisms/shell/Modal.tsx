@@ -105,7 +105,7 @@ function ModalContainer({
       aria-modal="true"
       tabIndex={-1}
       inert={!isTop}
-      className="text-cork-text fixed inset-0 z-50 flex h-screen w-screen items-center justify-center outline-none"
+      className="text-cork-text fixed inset-0 z-50 flex h-screen w-screen flex-col items-center px-4 pt-[var(--cork-header-height)] outline-none"
     >
       <m.button
         type="button"
@@ -121,9 +121,17 @@ function ModalContainer({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
       />
+      {/* Spacers distribute the free space above/below the panel by ratio
+          (`2 : 3`) rather than a fixed offset. When there's slack the panel
+          sits ~40% down (a touch above center); when the window is short or the
+          body is long the same ratio just shrinks, so the top/bottom gaps stay
+          balanced instead of leaving a fixed gap that reads as bottom-heavy.
+          They sit under the absolute backdrop, so clicking either still closes
+          the modal. */}
+      <div aria-hidden className="flex-[2]" />
       <m.div
         className={clsx(
-          "border-cork-border/60 bg-cork-surface relative mx-4 max-h-[85vh] w-full overflow-y-auto rounded-2xl border p-6 shadow-2xl",
+          "border-cork-border/60 bg-cork-surface relative max-h-[calc(100vh-var(--cork-header-height)-2rem)] w-full shrink-0 overflow-y-auto rounded-2xl border p-6 shadow-2xl",
           maxWidthClassName,
           containerClassName,
         )}
@@ -134,6 +142,7 @@ function ModalContainer({
       >
         {children}
       </m.div>
+      <div aria-hidden className="flex-[3]" />
     </div>
   );
 }
