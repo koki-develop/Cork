@@ -10,7 +10,6 @@
     "build:sidecar": "bun run ./scripts/build-sidecar.ts",
     "preview": "vite preview",
     "tauri": "tauri",
-    "format": "oxlint --fix && oxfmt",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",

@@ -21,7 +21,6 @@ Multi-window: a single process can host any number of windows, each with its own
 | `bun run build`         | `tsc && vite build` (full typecheck + bundle)                                                                                                                            |
 | `bun run build:sidecar` | Build the `cork` CLI and stage it as a Tauri sidecar (`src-tauri/binaries/cork-cli-<triple>`). Run automatically by `tauri dev` / `tauri build` via the before-commands. |
 | `bun run tauri`         | Tauri CLI passthrough (e.g. `bun run tauri dev`, `bun run tauri build`)                                                                                                  |
-| `bun run format`        | `oxlint --fix && oxfmt` (lint fix + format)                                                                                                                              |
 | `bun run lint`          | `oxlint` (lint check only)                                                                                                                                               |
 | `bun run lint:fix`      | `oxlint --fix` (lint with autofix)                                                                                                                                       |
 | `bun run fmt`           | `oxfmt` (format only)                                                                                                                                                    |
