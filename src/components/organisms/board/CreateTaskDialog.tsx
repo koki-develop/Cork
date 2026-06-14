@@ -133,16 +133,16 @@ export function CreateTaskDialog({
                 {error && <ErrorBanner className="mt-1.5">{error}</ErrorBanner>}
               </div>
 
-              <div className="flex flex-col gap-4 md:col-start-2 md:row-start-1 md:row-end-3">
-                <div className="hidden md:flex md:justify-end">
-                  <IconButton
-                    icon={<X className="size-4" />}
-                    aria-label="Cancel"
-                    onClick={handleClose}
-                    onMouseDown={(e) => e.preventDefault()}
-                  />
-                </div>
+              <MarkdownEditor
+                initialValue=""
+                onChange={setBody}
+                onOpenLink={onOpenLink}
+                placeholder="Add a description…"
+                ariaLabel="Body"
+                className="min-h-[20rem] md:col-start-1 md:row-start-2"
+              />
 
+              <div className="flex flex-col gap-4 md:col-start-2 md:row-start-1 md:row-end-3">
                 <FormField label="Status">
                   <Select
                     value={status}
@@ -175,16 +175,16 @@ export function CreateTaskDialog({
                     }}
                   />
                 </div>
-              </div>
 
-              <MarkdownEditor
-                initialValue=""
-                onChange={setBody}
-                onOpenLink={onOpenLink}
-                placeholder="Add a description…"
-                ariaLabel="Body"
-                className="min-h-[20rem] md:col-start-1 md:row-start-2"
-              />
+                <div className="hidden md:order-first md:flex md:justify-end">
+                  <IconButton
+                    icon={<X className="size-4" />}
+                    aria-label="Cancel"
+                    onClick={handleClose}
+                    onMouseDown={(e) => e.preventDefault()}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="mt-4 md:hidden">

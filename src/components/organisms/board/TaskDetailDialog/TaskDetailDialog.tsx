@@ -124,8 +124,40 @@ export function TaskDetailDialog({
               {error?.message && <ErrorBanner className="mt-1.5">{error.message}</ErrorBanner>}
             </div>
 
+            <MarkdownEditor
+              initialValue={task.body}
+              onChange={handleBodyChange}
+              onOpenLink={onOpenLink}
+              onBlur={handleBodyBlur}
+              placeholder="Add a description…"
+              ariaLabel="Body"
+              className="min-h-[20rem] md:col-start-1 md:row-start-2"
+            />
+
             <div className="flex flex-col gap-4 md:col-start-2 md:row-start-1 md:row-end-3">
-              <div className="hidden md:flex md:justify-end md:gap-1">
+              <FormField label="Status">
+                <Select
+                  value={status}
+                  onChange={handleStatusChange}
+                  options={statuses.map((s) => ({ label: s.label, value: s.label }))}
+                />
+              </FormField>
+
+              <FormField label="Date">
+                <DateField value={date} onChange={handleDateChange} ariaLabel="Date" />
+              </FormField>
+
+              <FormField label="Tags">
+                <TagEditor
+                  ref={tagEditorRef}
+                  tags={tags}
+                  onChange={handleTagsChange}
+                  suggestions={availableTags}
+                  ariaLabel="Tags"
+                />
+              </FormField>
+
+              <div className="hidden md:order-first md:flex md:justify-end md:gap-1">
                 <DropdownMenu
                   trigger={<MoreHorizontal className="size-4" />}
                   triggerAriaLabel="Task actions"
@@ -150,39 +182,7 @@ export function TaskDetailDialog({
                   onMouseDown={(e) => e.preventDefault()}
                 />
               </div>
-
-              <FormField label="Status">
-                <Select
-                  value={status}
-                  onChange={handleStatusChange}
-                  options={statuses.map((s) => ({ label: s.label, value: s.label }))}
-                />
-              </FormField>
-
-              <FormField label="Date">
-                <DateField value={date} onChange={handleDateChange} ariaLabel="Date" />
-              </FormField>
-
-              <FormField label="Tags">
-                <TagEditor
-                  ref={tagEditorRef}
-                  tags={tags}
-                  onChange={handleTagsChange}
-                  suggestions={availableTags}
-                  ariaLabel="Tags"
-                />
-              </FormField>
             </div>
-
-            <MarkdownEditor
-              initialValue={task.body}
-              onChange={handleBodyChange}
-              onOpenLink={onOpenLink}
-              onBlur={handleBodyBlur}
-              placeholder="Add a description…"
-              ariaLabel="Body"
-              className="min-h-[20rem] md:col-start-1 md:row-start-2"
-            />
           </div>
         </div>
       </Modal>
