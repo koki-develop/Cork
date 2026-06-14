@@ -6,6 +6,11 @@ import {
   type Transformer,
 } from "@lexical/markdown";
 import {
+  $createHorizontalRuleNode,
+  $isHorizontalRuleNode,
+  HorizontalRuleNode,
+} from "@lexical/react/LexicalHorizontalRuleNode";
+import {
   $createTableCellNode,
   $createTableNode,
   $createTableRowNode,
@@ -194,6 +199,54 @@ const TABLE: ElementTransformer = {
   type: "element",
 };
 
+// `@lexical/markdown`'s defaults have no thematic-break ("horizontal rule")
+// support, so we add one backed by Lexical's built-in HorizontalRuleNode (an
+// <hr> decorator node; styled via MarkdownEditor's `hr` theme class and driven
+// by HorizontalRulePlugin). Import accepts all three CommonMark markers (`---`,
+// `***`, `___`, 3+ chars); export always writes `---`, so a loaded `---`
+// round-trips unchanged and authored rules stay canonical. Only the non-spaced
+// forms match — a spaced `- - -` would collide with an unordered-list item.
+const HORIZONTAL_RULE_REG_EXP = /^(?:-{3,}|\*{3,}|_{3,})\s*$/;
+
+const HORIZONTAL_RULE: ElementTransformer = {
+  dependencies: [HorizontalRuleNode],
+  export: (node: LexicalNode) => ($isHorizontalRuleNode(node) ? "---" : null),
+  regExp: HORIZONTAL_RULE_REG_EXP,
+  replace: (parentNode, children, match, isImport) => {
+    // Never build a rule inside a table cell — a cell body that is exactly
+    // `---`/`***`/`___` must stay literal text, not become an <hr> nested in the
+    // cell. Cell bodies recurse through MARKDOWN_TRANSFORMERS (via
+    // $createTableCell), so without this guard they'd match here. Mirrors the
+    // TABLE transformer's own cell guard.
+    if ($getTableCellNodeFromLexicalNode(parentNode) != null) {
+      // On import, $importBlocks has already sliced the matched marker off the
+      // line's text node before calling us and doesn't roll that back on a
+      // cancel, so restore it — otherwise a cell body of `---` would reload
+      // empty. (Live typing splits the node non-destructively, so the text
+      // survives there without help.)
+      const textNode = children[0];
+      if (isImport && $isTextNode(textNode)) {
+        textNode.setTextContent(match[0] + textNode.getTextContent());
+      }
+      return false;
+    }
+
+    const rule = $createHorizontalRuleNode();
+    // On import (or anywhere mid-document) replace the matched line outright.
+    // When typed live as the document's last block, insert the rule *above* the
+    // paragraph instead so the caret keeps a trailing line to continue in
+    // (mirrors Lexical's playground HR transformer).
+    if (isImport || parentNode.getNextSibling() != null) {
+      parentNode.replace(rule);
+    } else {
+      parentNode.insertBefore(rule);
+    }
+    rule.selectNext();
+  },
+  triggerOnEnter: true,
+  type: "element",
+};
+
 // Promotes the first row to a header (no-op-safe if malformed). Returns the
 // header row so callers can extend it / add a body.
 function $promoteHeader(table: TableNode): TableRowNode | null {
@@ -290,6 +343,8 @@ function decodeCell(text: string): string {
 }
 
 // TABLE leads so its row regExp wins before the default element transformers
-// (e.g. a leading-pipe line is a table row, not a quote). The TABLE transformer
-// recurses into this list for cell bodies, so it must be defined here.
-export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [TABLE, ...TRANSFORMERS];
+// (e.g. a leading-pipe line is a table row, not a quote). HORIZONTAL_RULE
+// follows so `---`/`***`/`___` lines become a rule before any default element
+// transformer sees them. Both are defined here because the TABLE transformer
+// recurses into this list for cell bodies.
+export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [TABLE, HORIZONTAL_RULE, ...TRANSFORMERS];

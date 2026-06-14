@@ -7,6 +7,8 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
+import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
@@ -22,6 +24,7 @@ import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
 import { FloatingLinkEditorPlugin } from "./FloatingLinkEditorPlugin";
 import { FormatFormattableTextPlugin } from "./FormatFormattableTextPlugin";
+import { HorizontalRuleKeyboardPlugin } from "./HorizontalRuleKeyboardPlugin";
 import { LinkOpenPlugin } from "./LinkOpenPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
@@ -42,6 +45,12 @@ const theme: EditorThemeClasses = {
     h5: "mt-2 mb-1 text-sm font-medium first:mt-0",
     h6: "mt-2 mb-1 text-xs font-medium text-cork-muted first:mt-0",
   },
+  // Horizontal rule (`---`). The <hr>'s visible line + click-target padding and
+  // the click-selected outline live in style.css (`cork-hr` needs an `::after`
+  // to draw the rule, like the table-cell overlay); `hrSelected` is the class
+  // HorizontalRuleNode toggles when the rule is click-selected.
+  hr: "cork-hr",
+  hrSelected: "cork-hr-selected",
   // `cursor-pointer` signals that a click follows the link (LinkOpenPlugin).
   link: "cursor-pointer text-cork-accent underline underline-offset-2 hover:text-cork-accent-hover",
   list: {
@@ -98,6 +107,7 @@ const NODES = [
   CodeNode,
   LinkNode,
   AutoLinkNode,
+  HorizontalRuleNode,
   TableNode,
   TableRowNode,
   TableCellNode,
@@ -187,6 +197,13 @@ export function MarkdownEditor({
         {/* Registers the empty-list-item Enter handler so lists can be exited,
             plus the list insert/remove commands. */}
         <ListPlugin />
+        {/* Registers INSERT_HORIZONTAL_RULE_COMMAND and the rule's click-to-select
+            behaviour. Rules are authored by typing `---` (or `***` / `___`) and
+            round-trip via the HORIZONTAL_RULE transformer in transformers.ts. */}
+        <HorizontalRulePlugin />
+        {/* Up/Down arrows select an adjacent rule instead of skipping it, so
+            vertical caret movement can land on (and delete) it like left/right. */}
+        <HorizontalRuleKeyboardPlugin />
         {/* Registers TableNode behaviour: cell selection, Tab navigation, and
             the INSERT_TABLE_COMMAND handler. Tables are authored by typing the
             Markdown pipe syntax (a row `| a | b |` then a divider `| --- | --- |`)

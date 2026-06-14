@@ -6,13 +6,14 @@ WYSIWYG Markdown editor (Lexical) for the task body. Seeded once from `initialVa
 
 ## Custom plugins
 
-Six custom plugins bundled in this folder (Lexical's own `AutoLinkPlugin` / `ListPlugin` / `TablePlugin` are listed where relevant below):
+Seven custom plugins bundled in this folder (Lexical's own `AutoLinkPlugin` / `ListPlugin` / `TablePlugin` / `HorizontalRulePlugin` are listed where relevant below):
 
 - **`LinkOpenPlugin`** — click a link → `onOpenLink(url)`, wired to the system browser; handles both `[text](url)` links and bare URLs.
 - **`ListTabIndentationPlugin`** — Tab / Shift+Tab indent-outdent inside list items only.
 - **`CodeBlockEscapePlugin`** — Shift+Enter exits a code block; ArrowUp/ArrowDown escape a block at the document's top/bottom edge.
 - **`FloatingFormatToolbarPlugin`** — select text → a "bubble" toolbar fades in above it to toggle bold / italic / strikethrough / inline-code; mouse-first, portaled to `document.body`, buttons `preventDefault` mousedown to keep the selection.
 - **`FloatingLinkEditorPlugin`** — Notion-style hover editor: dwell on a manually-authored `[text](url)` link → a panel fades in below it to open / edit / remove the URL; hover- not selection-driven, so every mutation targets the link by node key — `setURL` to edit, unwrap to remove — never `TOGGLE_LINK_COMMAND`; a show/hide grace timer bridges the gap between link and panel; bare-URL `AutoLinkNode`s are excluded since they round-trip as text and are edited by editing their text. Hover is the sole entry point (mouse-first, like the format toolbar — no keyboard / touch path), and links are created only by typing Markdown `[text](url)`; both are deliberate trade-offs for this desktop editor.
+- **`HorizontalRuleKeyboardPlugin`** — Up/Down arrows select an adjacent `HorizontalRuleNode` as a node selection instead of skipping it. Lexical's left/right already step onto a rule, but its vertical handlers deliberately leap over block decorators; this plugin restores the symmetry (runs at `COMMAND_PRIORITY_LOW`, above rich-text's `EDITOR`, and bails unless a rule is the next/previous block) so the caret can land on a rule and delete it. Edge detection is geometric — the caret's client rect vs. the block's — so the rule is reachable from _any_ column of the touching visual line (last line for Down, first for Up), not just the block's start/end, while a wrapped paragraph still navigates line-by-line internally.
 - **`FormatFormattableTextPlugin`** — owns ranged `FORMAT_TEXT_COMMAND`: formats only prose, never code-block text (which the Markdown serializer would silently drop), and toggles direction by "enable unless every formattable node already has the format", so a mixed selection always enables, consistent with the toolbar's active state, instead of Lexical's first-node-dependent toggle.
 
 Lexical's **`AutoLinkPlugin`** wraps bare `https://` / `http://` URLs (typed or loaded from file) in `AutoLinkNode`s so they're clickable without `[text](url)` syntax; the Markdown serializer skips `AutoLinkNode`, so URLs round-trip as raw text and the file is never rewritten to `[url](url)`; fenced code blocks are excluded via `excludeParents`. Lexical's **`ListPlugin`** supplies empty-item Enter-to-exit.
@@ -23,6 +24,10 @@ Lexical's **`AutoLinkPlugin`** wraps bare `https://` / `http://` URLs (typed or 
 - **`link.ts`** — shared link helpers (`$closestProseLink`, `isBrowserOpenable`).
 - **`placement.ts`** — the two floating panels' viewport positioning (`firstLineAnchor`, `placeCenteredAbove`, `placeBelowStart`).
 - **`tableHelpers.ts`** — shared table selection/structure helpers (`$cellFromSelection`, `$tableOf`, `$rowOf`, `$isCellEmpty`, `$isRowEmpty`, `$isColumnEmpty`, `$isHeaderRow`, `$hasBodyRow`).
+
+## Horizontal rules
+
+Lexical's `HorizontalRulePlugin` + built-in `HorizontalRuleNode` (an `<hr>` decorator) render thematic breaks. A rule is authored by typing `---`, `***`, or `___` on its own line (the `HORIZONTAL_RULE` element transformer in `transformers.ts` is `triggerOnEnter`); `@lexical/markdown`'s defaults have none, so we add it. Import accepts all three CommonMark markers (3+ chars, non-spaced only — a spaced `- - -` would collide with an unordered-list item); export always writes `---`. This means only `---` round-trips byte-for-byte: a file that used `***` or `___` has its rules **normalized to `---`** the first time the body is edited and saved (a deliberate trade-off — `HorizontalRuleNode` doesn't carry which marker it came from — unlike tables, which preserve their input shape). The transformer also bails inside table cells (`$getTableCellNodeFromLexicalNode`, mirroring `TABLE`), so a cell body of literally `---`/`***`/`___` stays text instead of nesting an `<hr>` in the cell. Styling lives in `style.css` (`cork-hr` draws the line + click target via `::after`, `cork-hr-selected` outlines the selected rule) and is wired through the editor theme's `hr` / `hrSelected` keys; the rule is selectable (and thus deletable) by click, by left/right caret, and — via `HorizontalRuleKeyboardPlugin` — by up/down caret.
 
 ## Tables
 
@@ -55,4 +60,4 @@ Keyboard-only, no toolbar — the table grows/shrinks under the keys (all handle
 
 ### Transformers
 
-The default `@lexical/markdown` transformers have no table support, so `transformers.ts` exports `MARKDOWN_TRANSFORMERS` = a GFM `TABLE` element transformer (round-trips `TableNode` ⇄ pipe-delimited Markdown; cell bodies recurse through the same list, hard newlines collapse to literal `\n`) prepended to the defaults; all three of import / export / `MarkdownShortcutPlugin` use it.
+The default `@lexical/markdown` transformers have no table or horizontal-rule support, so `transformers.ts` exports `MARKDOWN_TRANSFORMERS` = a GFM `TABLE` element transformer (round-trips `TableNode` ⇄ pipe-delimited Markdown; cell bodies recurse through the same list, hard newlines collapse to literal `\n`) plus a `HORIZONTAL_RULE` element transformer (`---`/`***`/`___` ⇄ `HorizontalRuleNode`), both prepended to the defaults; all three of import / export / `MarkdownShortcutPlugin` use it.

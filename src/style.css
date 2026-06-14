@@ -67,6 +67,32 @@
     background-color: transparent;
   }
 
+  /* Horizontal rule (`---`/`***`/`___`) in the Markdown editor. Lexical renders
+     a HorizontalRuleNode as an <hr> carrying `cork-hr` and toggles
+     `cork-hr-selected` while it's selected (by click or vertical-arrow caret;
+     see MarkdownEditor's theme). Like the table-cell overlay, the visible line
+     is drawn with an `::after` so the <hr>'s own padding gives a comfortable
+     click target around the thin rule; the selected state outlines the whole
+     target. */
+  .cork-hr {
+    border: none;
+    margin: 1rem 0;
+    padding: 0.25rem 0;
+  }
+
+  .cork-hr::after {
+    content: "";
+    display: block;
+    height: 1px;
+    background-color: var(--color-cork-border);
+  }
+
+  .cork-hr.cork-hr-selected {
+    border-radius: 2px;
+    outline: 2px solid color-mix(in oklab, var(--color-cork-accent) 50%, transparent);
+    user-select: none;
+  }
+
   *:focus {
     outline: none;
   }
