@@ -28,6 +28,7 @@
     "@lexical/markdown": "0.45.0",
     "@lexical/react": "0.45.0",
     "@lexical/rich-text": "0.45.0",
+    "@lexical/table": "0.45.0",
     "@tailwindcss/vite": "4.3.0",
     "@tauri-apps/api": "2.11.0",
     "@tauri-apps/plugin-fs": "2.5.1",

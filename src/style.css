@@ -43,6 +43,30 @@
     @apply bg-cork-warning-text/35 text-cork-text rounded-sm px-0.5;
   }
 
+  /* Cross-cell (grid) selection in the Markdown editor's tables. Lexical adds
+     `cork-table-cell-selected` to each selected cell and
+     `cork-table-grid-selection` to the table while a multi-cell selection is
+     active (see MarkdownEditor's theme). The overlay is an `::after` so it tints
+     header and body cells alike without fighting their own backgrounds;
+     suppressing `*::selection` hides the leftover native text-selection
+     highlight in the anchor cell. */
+  .cork-table-cell-selected {
+    caret-color: transparent;
+  }
+
+  .cork-table-cell-selected::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-cork-accent);
+    opacity: 0.25;
+    pointer-events: none;
+  }
+
+  .cork-table-grid-selection *::selection {
+    background-color: transparent;
+  }
+
   *:focus {
     outline: none;
   }
