@@ -20,6 +20,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
+      - run: bun run fmt:check
       - run: bun run lint
 
   build:
