@@ -252,6 +252,24 @@ pub struct DeleteTaskInput {
     pub title: String,
 }
 
+// ---------------------------------------------------------------------------
+// MCP tool: update_task_title types
+// ---------------------------------------------------------------------------
+
+/// Output wrapper for `update_task_title`.
+#[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
+pub struct UpdateTaskTitleOutput {
+    pub task: McpTask,
+}
+
+#[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
+pub struct UpdateTaskTitleInput {
+    /// Exact current title of the task to rename. Use `list_tasks` to discover valid titles.
+    pub title: String,
+    /// The new title for the task.
+    pub new_title: String,
+}
+
 impl From<McpTagFilter> for task::TagFilter {
     fn from(f: McpTagFilter) -> Self {
         match f {
@@ -410,6 +428,58 @@ fn paginate(tasks: Vec<McpTask>, offset: usize, limit: usize) -> ListTasksOutput
     ListTasksOutput {
         tasks: page,
         has_more,
+    }
+}
+
+/// Resolve a task by its exact (decoded) title within `workspace`, returning the
+/// matched task together with its canonical, in-workspace path.
+///
+/// Shared by the title-targeting tools (`delete_task`, `update_task_title`) so
+/// they can never disagree on what counts as "found" or on the error wording:
+/// not-found and ambiguous-title are client errors (`invalid_params`), and a
+/// path that escapes the workspace is an internal error. Centralizing the
+/// `ensure_in_workspace` re-check here also guarantees every title-resolved
+/// mutation verifies its path before touching disk.
+fn resolve_task_by_title(
+    workspace: &Workspace,
+    title: &str,
+) -> Result<(task::Task, PathBuf), rmcp::ErrorData> {
+    let mut matched: Vec<task::Task> = task::read_all_tasks(workspace.as_path())
+        .into_iter()
+        .filter(|t| t.title == title)
+        .collect();
+
+    if matched.is_empty() {
+        return Err(rmcp::ErrorData::invalid_params(
+            format!("task not found with title: {title}"),
+            None,
+        ));
+    }
+    if matched.len() > 1 {
+        return Err(rmcp::ErrorData::invalid_params(
+            format!("multiple tasks found with title: {title}"),
+            None,
+        ));
+    }
+
+    let task = matched.remove(0);
+    let canonical =
+        security::ensure_in_workspace(workspace.as_path(), std::path::Path::new(&task.id))
+            .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+    Ok((task, canonical))
+}
+
+/// Map a task-mutation `CommandError` to an MCP error: client-correctable input
+/// (empty/blank title, duplicate title) → `invalid_params`; everything else
+/// (IO failures, access denied) → `internal_error`. Shared by `create_task` /
+/// `update_task_title` so the two tools never disagree on the error class for
+/// the same underlying failure.
+fn map_task_write_error(e: CommandError) -> rmcp::ErrorData {
+    match e {
+        CommandError::EmptyTitle | CommandError::DuplicateTask => {
+            rmcp::ErrorData::invalid_params(e.to_string(), None)
+        }
+        _ => rmcp::ErrorData::internal_error(e.to_string(), None),
     }
 }
 
@@ -635,9 +705,9 @@ impl CorkMcpServer {
 
         let body = input.body.unwrap_or_default();
         // Validate the date up front so a malformed date is reported as a
-        // client error (invalid_params), while genuine write failures —
-        // duplicate title, IO errors — surface as internal_error rather than
-        // being mislabeled as bad parameters.
+        // client error (invalid_params). Remaining write failures are
+        // classified by `map_task_write_error`: a duplicate / empty title is a
+        // client error, IO failures are internal.
         let date = task::normalize_date_arg(input.date)
             .map_err(|e| rmcp::ErrorData::invalid_params(e.to_string(), None))?;
         let created = task::write_task_file(
@@ -649,7 +719,7 @@ impl CorkMcpServer {
             input.tags,
             date,
         )
-        .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+        .map_err(map_task_write_error)?;
 
         Ok(Json(CreateTaskOutput {
             task: McpTask {
@@ -682,26 +752,7 @@ impl CorkMcpServer {
                 )
             })?;
 
-        let tasks = task::read_all_tasks(workspace.as_path());
-        let matched: Vec<&task::Task> = tasks.iter().filter(|t| t.title == input.title).collect();
-
-        if matched.is_empty() {
-            return Err(rmcp::ErrorData::invalid_params(
-                format!("task not found with title: {}", input.title),
-                None,
-            ));
-        }
-        if matched.len() > 1 {
-            return Err(rmcp::ErrorData::invalid_params(
-                format!("multiple tasks found with title: {}", input.title),
-                None,
-            ));
-        }
-
-        let t = matched[0];
-        let file_path = std::path::Path::new(&t.id);
-        let canonical = security::ensure_in_workspace(workspace.as_path(), file_path)
-            .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+        let (t, canonical) = resolve_task_by_title(&workspace, &input.title)?;
         std::fs::remove_file(&canonical).map_err(|e| {
             let msg = format!("failed to delete task file: {}", e);
             rmcp::ErrorData::internal_error(msg, None)
@@ -709,11 +760,49 @@ impl CorkMcpServer {
 
         Ok(Json(DeleteTaskOutput {
             task: McpTask {
-                title: t.title.clone(),
-                file_path: t.id.clone(),
-                status: t.status.clone(),
-                tags: t.tags.clone(),
-                date: t.date.clone(),
+                title: t.title,
+                file_path: t.id,
+                status: t.status,
+                tags: t.tags,
+                date: t.date,
+            },
+        }))
+    }
+
+    #[tool(
+        name = "update_task_title",
+        description = "Rename a task in the Cork workspace by its exact current title."
+    )]
+    async fn update_task_title(
+        &self,
+        Parameters(input): Parameters<UpdateTaskTitleInput>,
+        Extension(parts): Extension<http::request::Parts>,
+    ) -> Result<Json<UpdateTaskTitleOutput>, rmcp::ErrorData> {
+        let workspace = parts
+            .extensions
+            .get::<Workspace>()
+            .cloned()
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_params(
+                    "workspace not bound to this session; middleware did not run",
+                    None,
+                )
+            })?;
+
+        // Resolve the target by exact title (shared with `delete_task`):
+        // not-found and ambiguous-title are client errors the caller can fix.
+        let (_, canonical) = resolve_task_by_title(&workspace, &input.title)?;
+
+        let renamed = task::rename_task_file(workspace.as_path(), &canonical, &input.new_title)
+            .map_err(map_task_write_error)?;
+
+        Ok(Json(UpdateTaskTitleOutput {
+            task: McpTask {
+                title: renamed.title,
+                file_path: renamed.id,
+                status: renamed.status,
+                tags: renamed.tags,
+                date: renamed.date,
             },
         }))
     }
@@ -724,7 +813,7 @@ impl ServerHandler for CorkMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(
-                "Cork — a local Markdown Kanban board. Every task is a plain Markdown file on disk, so this server intentionally exposes only read and create/delete tools — there is NO update tool, and you should not expect one.\n\nTools:\n- `list_tasks` — read tasks. Each result includes its `file_path` (the absolute path to the task's Markdown file).\n- `create_task` — create a new task.\n- `delete_task` — delete a task by title.\n- `list_statuses` — list status columns.\n- `list_tags` — list all tags in the workspace.\n\nTo modify an existing task (change its title, status, tags, due date, or body), do NOT look for an MCP tool. Instead, call `list_tasks` to obtain the task's `file_path`, then edit that Markdown file directly with your file-editing tools. Status/tags/date live in the YAML frontmatter; the task body is the Markdown below it.",
+                "Cork — a local Markdown Kanban board. Every task is a plain Markdown file on disk, so this server keeps a deliberately lean tool surface: read tasks, create/delete whole tasks, rename a task's title, and edit everything else by writing to the Markdown file directly.\n\nTools:\n- `list_tasks` — read tasks. Each result includes its `file_path` (the absolute path to the task's Markdown file).\n- `create_task` — create a new task.\n- `delete_task` — delete a task by title.\n- `update_task_title` — rename a task (change its title).\n- `list_statuses` — list status columns.\n- `list_tags` — list all tags in the workspace.\n\nTo change an existing task's status, tags, due date, or body, do NOT look for an MCP tool. Instead, call `list_tasks` to obtain the task's `file_path`, then edit that Markdown file directly with your file-editing tools. Status/tags/date live in the YAML frontmatter; the task body is the Markdown below it.\n\nThe title is the one exception: Cork derives a task's filename from its title with its own encoding (e.g. `/` handling), so renaming by editing or moving the file yourself will not work correctly. Always use `update_task_title` to change a title — never a manual file rename.",
             )
     }
 }
@@ -1290,6 +1379,10 @@ mod tests {
             names.iter().any(|n| n == "delete_task"),
             "delete_task must be registered; got {names:?}",
         );
+        assert!(
+            names.iter().any(|n| n == "update_task_title"),
+            "update_task_title must be registered; got {names:?}",
+        );
     }
 
     #[test]
@@ -1338,6 +1431,80 @@ mod tests {
             .and_then(|v| v.as_str())
             .map(str::to_owned);
         assert_eq!(root_type.as_deref(), Some("object"));
+    }
+
+    #[test]
+    fn update_task_title_output_schema_root_is_object() {
+        let schema = schemars::schema_for!(UpdateTaskTitleOutput);
+        let root_type = schema
+            .as_value()
+            .get("type")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        assert_eq!(root_type.as_deref(), Some("object"));
+    }
+
+    #[test]
+    fn update_task_title_input_deserializes_both_fields() {
+        let json = serde_json::json!({ "title": "Old", "new_title": "New" });
+        let input: UpdateTaskTitleInput = serde_json::from_value(json).unwrap();
+        assert_eq!(input.title, "Old");
+        assert_eq!(input.new_title, "New");
+    }
+
+    #[test]
+    fn update_task_title_input_deserializes_slash_in_new_title() {
+        let json = serde_json::json!({ "title": "Plain", "new_title": "Frontend/Backend" });
+        let input: UpdateTaskTitleInput = serde_json::from_value(json).unwrap();
+        assert_eq!(input.new_title, "Frontend/Backend");
+    }
+
+    // -- map_task_write_error --------------------------------------------------
+
+    #[test]
+    fn map_task_write_error_classifies_client_vs_internal() {
+        // Reference codes minted by the rmcp constructors the helper delegates to.
+        let want_client = rmcp::ErrorData::invalid_params("x", None).code;
+        let want_internal = rmcp::ErrorData::internal_error("x", None).code;
+
+        assert_eq!(
+            map_task_write_error(CommandError::DuplicateTask).code,
+            want_client
+        );
+        assert_eq!(
+            map_task_write_error(CommandError::EmptyTitle).code,
+            want_client
+        );
+        assert_eq!(
+            map_task_write_error(CommandError::other("disk gone")).code,
+            want_internal
+        );
+    }
+
+    // -- resolve_task_by_title -------------------------------------------------
+
+    #[test]
+    fn resolve_task_by_title_returns_task_and_canonical_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // Match the middleware invariant: the Workspace path is canonical.
+        let canonical_dir = std::fs::canonicalize(dir.path()).unwrap();
+        task::write_task_file(&canonical_dir, "Find me", "Todo", "body", None, None, None).unwrap();
+
+        let ws = Workspace::new(canonical_dir.clone());
+        let (found, path) = resolve_task_by_title(&ws, "Find me").unwrap();
+
+        assert_eq!(found.title, "Find me");
+        assert_eq!(path, canonical_dir.join("Find me.md"));
+    }
+
+    #[test]
+    fn resolve_task_by_title_errors_when_absent() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let canonical_dir = std::fs::canonicalize(dir.path()).unwrap();
+        let ws = Workspace::new(canonical_dir);
+
+        let err = resolve_task_by_title(&ws, "nope").unwrap_err();
+        assert_eq!(err.code, rmcp::ErrorData::invalid_params("x", None).code);
     }
 
     #[test]

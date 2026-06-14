@@ -12,7 +12,7 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
     pub title: String,
@@ -407,6 +407,43 @@ pub fn write_task_file(
         order,
         tags: tags.unwrap_or_default(),
         date,
+    })
+}
+
+/// Rename a task file so its filename reflects `new_title`, leaving the file's
+/// contents (frontmatter + body) untouched. Pure filesystem operation — no
+/// cache or snapshot management. Returns the renamed `Task`, mirroring
+/// `write_task_file`.
+///
+/// `src` must be an existing task file inside `dir`; both are expected to be
+/// canonical (the MCP `update_task_title` path canonicalizes via
+/// `security::ensure_in_workspace`, the same invariant `update_task`'s inline
+/// rename relies on). The slash/whitespace/null normalization and the
+/// case-only / duplicate handling are delegated to the shared `encode_title_to_stem`
+/// and `rename_and_write_task` primitives, so this path can never drift from
+/// create / update on those rules:
+///
+/// - an empty or whitespace-only `new_title` surfaces `CommandError::EmptyTitle`
+///   (and short-circuits before any IO),
+/// - a `new_title` that collides with a *different* existing task surfaces
+///   `CommandError::DuplicateTask`,
+/// - a `new_title` that encodes to the current stem (including a no-op or
+///   case-only change) rewrites the unchanged content in place.
+pub fn rename_task_file(dir: &Path, src: &Path, new_title: &str) -> CmdResult<Task> {
+    let new_stem = encode_title_to_stem(new_title)?;
+    let content = fs::read_to_string(src)?;
+    let new_path = dir.join(format!("{}.md", new_stem));
+    rename_and_write_task(src, &new_path, &content)?;
+
+    let (fm, body): (Option<TaskFrontmatter>, String) = frontmatter::parse(&content);
+    Ok(Task {
+        id: new_path.to_string_lossy().to_string(),
+        title: decode_stem_to_title(&new_stem),
+        status: fm.as_ref().and_then(|f| f.status.clone()).unwrap_or_default(),
+        body,
+        order: fm.as_ref().and_then(|f| f.order),
+        tags: fm.as_ref().map(|f| f.tags.clone()).unwrap_or_default(),
+        date: fm.as_ref().and_then(|f| f.date.clone()),
     })
 }
 
@@ -1531,6 +1568,105 @@ mod tests {
         assert!(result.is_err());
         // The file must not have been created on the rejected path.
         assert!(!dir.path().join("Bad date.md").exists());
+    }
+
+    // --- rename_task_file ----------------------------------------------------
+
+    #[test]
+    fn rename_task_file_moves_file_and_preserves_contents() {
+        let dir = TempDir::new().unwrap();
+        let created = write_task_file(
+            dir.path(),
+            "Old title",
+            "Doing",
+            "the body",
+            Some(2.0),
+            Some(vec!["bug".to_string()]),
+            Some("2026-06-20".into()),
+        )
+        .unwrap();
+        let original_content = fs::read_to_string(dir.path().join("Old title.md")).unwrap();
+
+        let renamed = rename_task_file(
+            dir.path(),
+            Path::new(&created.id),
+            "New title",
+        )
+        .unwrap();
+
+        // Old file gone, new file present with byte-identical contents.
+        assert!(!dir.path().join("Old title.md").exists());
+        let new_file = dir.path().join("New title.md");
+        assert!(new_file.exists());
+        assert_eq!(fs::read_to_string(&new_file).unwrap(), original_content);
+
+        // Returned task reflects the new title / id while carrying the
+        // untouched frontmatter + body.
+        assert_eq!(renamed.title, "New title");
+        assert_eq!(renamed.id, new_file.to_string_lossy());
+        assert_eq!(renamed.status, "Doing");
+        assert_eq!(renamed.order, Some(2.0));
+        assert_eq!(renamed.tags, vec!["bug".to_string()]);
+        assert_eq!(renamed.date.as_deref(), Some("2026-06-20"));
+        assert_eq!(renamed.body.trim(), "the body");
+    }
+
+    #[test]
+    fn rename_task_file_encodes_slash_in_new_title() {
+        let dir = TempDir::new().unwrap();
+        let created =
+            write_task_file(dir.path(), "Plain", "Todo", "body", None, None, None).unwrap();
+
+        let renamed =
+            rename_task_file(dir.path(), Path::new(&created.id), "Frontend/Backend").unwrap();
+
+        // On disk the `/` is swapped for the sentinel; the title decodes back.
+        let on_disk = dir.path().join("Frontend\u{2215}Backend.md");
+        assert!(on_disk.exists(), "slash must be encoded to the sentinel on disk");
+        assert!(!dir.path().join("Plain.md").exists());
+        assert_eq!(renamed.title, "Frontend/Backend");
+        assert_eq!(renamed.id, on_disk.to_string_lossy());
+    }
+
+    #[test]
+    fn rename_task_file_rejects_empty_new_title_without_touching_disk() {
+        let dir = TempDir::new().unwrap();
+        let created =
+            write_task_file(dir.path(), "Keep me", "Todo", "body", None, None, None).unwrap();
+
+        let err = rename_task_file(dir.path(), Path::new(&created.id), "   ").unwrap_err();
+        assert!(matches!(err, CommandError::EmptyTitle));
+        // The original file must be untouched.
+        assert!(dir.path().join("Keep me.md").exists());
+    }
+
+    #[test]
+    fn rename_task_file_rejects_collision_with_existing_task() {
+        let dir = TempDir::new().unwrap();
+        let a = write_task_file(dir.path(), "Alpha", "Todo", "a", None, None, None).unwrap();
+        write_task_file(dir.path(), "Beta", "Todo", "b", None, None, None).unwrap();
+        let beta_before = fs::read_to_string(dir.path().join("Beta.md")).unwrap();
+
+        let err = rename_task_file(dir.path(), Path::new(&a.id), "Beta").unwrap_err();
+        assert!(matches!(err, CommandError::DuplicateTask));
+        // Both files survive unchanged — the collision target is not clobbered.
+        assert!(dir.path().join("Alpha.md").exists());
+        assert_eq!(fs::read_to_string(dir.path().join("Beta.md")).unwrap(), beta_before);
+    }
+
+    #[test]
+    fn rename_task_file_noop_rename_rewrites_in_place() {
+        let dir = TempDir::new().unwrap();
+        let created =
+            write_task_file(dir.path(), "Same", "Doing", "body", Some(1.0), None, None).unwrap();
+        let before = fs::read_to_string(dir.path().join("Same.md")).unwrap();
+
+        let renamed = rename_task_file(dir.path(), Path::new(&created.id), "Same").unwrap();
+
+        assert_eq!(renamed.title, "Same");
+        assert_eq!(renamed.id, created.id);
+        // Content is byte-identical (rewritten in place, unchanged).
+        assert_eq!(fs::read_to_string(dir.path().join("Same.md")).unwrap(), before);
     }
 
     // --- fuzzy search -------------------------------------------------------
