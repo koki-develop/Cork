@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.0](https://github.com/koki-develop/Cork/compare/v0.10.0...v0.11.0) (2026-06-14)
+
+
+### Features
+
+* **mcp:** add update_task_title tool to rename tasks ([3dcb33b](https://github.com/koki-develop/Cork/commit/3dcb33bae1fe1306c13bcd6d352eeabd05408084))
+* **ui:** add Markdown table support to the task body editor ([cfa40b1](https://github.com/koki-develop/Cork/commit/cfa40b1744e180b5267e72e974716b082988d141))
+* **ui:** support horizontal rules in the task body editor ([a22a4c2](https://github.com/koki-develop/Cork/commit/a22a4c2ca344611c7a71f3664f77c974a21f5ad9))
+
+
+### Bug Fixes
+
+* **ui:** close dialog on first Escape when tag autocomplete is empty ([9ad3608](https://github.com/koki-develop/Cork/commit/9ad3608b368fbc296fb04072f7c5bd81a3c06d75))
+* **ui:** keep modal dialogs clear of the header in short windows ([8ed0e98](https://github.com/koki-develop/Cork/commit/8ed0e982b4269c5d2c9113c71f5b23a64a6d92df))
+* **ui:** reorder Task dialog fields for logical Tab navigation ([d963a71](https://github.com/koki-develop/Cork/commit/d963a7186be0c86354912cd711c49b8cdfa1d863))
+* **ui:** restore Metadata-before-Body order in narrow task dialogs ([2bc7043](https://github.com/koki-develop/Cork/commit/2bc70432d247909faee736925b9c50259805ae8b))
+
 ## [0.10.0](https://github.com/koki-develop/Cork/compare/v0.9.0...v0.10.0) (2026-06-13)
 
 
