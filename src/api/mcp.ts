@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-import type { McpSettings, McpStatus } from "@/types";
+import type { McpSettings, McpSetupSnippet, McpStatus } from "@/types";
 
 export const getMcpSettings = () => invoke<McpSettings>("get_settings");
 
@@ -11,6 +11,8 @@ export const updateMcpSettings = (settings: McpSettings) =>
 export const generateMcpToken = () => invoke<string>("generate_token");
 
 export const getMcpSampleConfig = () => invoke<string>("get_sample_config");
+
+export const getMcpSetupSnippets = () => invoke<McpSetupSnippet[]>("get_setup_snippets");
 
 export const getMcpServerStatus = () => invoke<McpStatus>("get_server_status");
 

@@ -336,6 +336,7 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
           settings: mcp.settings,
           status: mcp.status,
           sampleConfig: mcp.sampleConfig,
+          setupSnippets: mcp.setupSnippets,
           onUpdateEnabled: mcp.updateEnabled,
           onUpdateToken: mcp.updateToken,
           onGenerateToken: mcp.regenerateToken,

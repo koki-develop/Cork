@@ -2,6 +2,7 @@ export {
   generateMcpToken,
   getMcpSampleConfig,
   getMcpServerStatus,
+  getMcpSetupSnippets,
   getMcpSettings,
   onMcpSettingsChange,
   updateMcpSettings,

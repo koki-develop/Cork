@@ -4,12 +4,15 @@ import { toast } from "sonner";
 
 import { ErrorBanner, Input, Text, Toggle } from "@/components/atoms";
 import { CodeBlock, FormField, IconButton, StatusIndicator } from "@/components/molecules";
-import type { McpSettings, McpStatus } from "@/types";
+import type { McpSettings, McpSetupSnippet, McpStatus } from "@/types";
+
+import { McpSetupSnippets } from "./McpSetupSnippets";
 
 export type McpServerSectionProps = {
   settings: McpSettings;
   status: McpStatus;
   sampleConfig: string;
+  setupSnippets: McpSetupSnippet[];
   onUpdateEnabled: (enabled: boolean) => void;
   onUpdateToken: (token: string) => void;
   onGenerateToken: () => void;
@@ -36,6 +39,7 @@ export function McpServerSection({
   settings,
   status,
   sampleConfig,
+  setupSnippets,
   onUpdateEnabled,
   onUpdateToken,
   onGenerateToken,
@@ -139,6 +143,8 @@ export function McpServerSection({
               />
             )}
           </FormField>
+
+          <McpSetupSnippets snippets={setupSnippets} />
         </div>
       )}
     </div>

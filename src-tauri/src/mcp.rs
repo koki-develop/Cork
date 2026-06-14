@@ -365,23 +365,55 @@ fn stable_short_hash(s: &str) -> u16 {
     (h & 0xffff) as u16
 }
 
+/// One MCP server derived from an open workspace: the stable server name (the
+/// `cork-<slug>` key shown in `mcp.json`) plus the absolute workspace path that
+/// goes in the `X-Cork-Workspace` header. The URL is port-only and identical
+/// across entries, so each builder appends it itself.
+struct ServerEntry {
+    name: String,
+    workspace: String,
+}
+
+/// Resolve every open workspace to its stable server name + path, applying the
+/// `cork-<slug>` naming with FNV-1a disambiguation on duplicate slugs. Shared
+/// by `build_sample_config` and `build_setup_snippets` so the server name a
+/// user sees is identical across the `mcp.json` snippet and every per-tool
+/// setup snippet.
+fn server_entries(open_workspaces: &[PathBuf]) -> Vec<ServerEntry> {
+    let mut taken: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut entries = Vec::with_capacity(open_workspaces.len());
+    for ws in open_workspaces {
+        let slug = slug_for_workspace(ws);
+        let base = format!("cork-{slug}");
+        let name = if taken.contains(&base) {
+            format!("cork-{slug}-{:04x}", stable_short_hash(&ws.to_string_lossy()))
+        } else {
+            base
+        };
+        taken.insert(name.clone());
+        entries.push(ServerEntry {
+            name,
+            workspace: ws.to_string_lossy().to_string(),
+        });
+    }
+    entries
+}
+
+/// The MCP endpoint URL. The host/path are fixed; only the port varies.
+fn mcp_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}/mcp")
+}
+
 /// Build the `mcp.json` snippet that Claude Desktop / Code paste. Pure; takes
 /// open workspaces + the current port + token.
 pub fn build_sample_config(open_workspaces: &[PathBuf], port: u16, token: &str) -> String {
-    if open_workspaces.is_empty() {
+    let entries = server_entries(open_workspaces);
+    if entries.is_empty() {
         return "{}".to_string();
     }
+    let url = mcp_url(port);
     let mut servers = serde_json::Map::new();
-    for ws in open_workspaces {
-        let slug = slug_for_workspace(ws);
-        let key = if servers.contains_key(&format!("cork-{slug}")) {
-            format!(
-                "cork-{slug}-{:04x}",
-                stable_short_hash(&ws.to_string_lossy())
-            )
-        } else {
-            format!("cork-{slug}")
-        };
+    for entry in &entries {
         let mut headers = serde_json::Map::new();
         headers.insert(
             "Authorization".to_string(),
@@ -389,17 +421,145 @@ pub fn build_sample_config(open_workspaces: &[PathBuf], port: u16, token: &str) 
         );
         headers.insert(
             "X-Cork-Workspace".to_string(),
-            serde_json::json!(ws.to_string_lossy().to_string()),
+            serde_json::json!(entry.workspace.clone()),
         );
-        let entry = serde_json::json!({
+        let server = serde_json::json!({
             "type": "http",
-            "url": format!("http://127.0.0.1:{port}/mcp"),
+            "url": url.clone(),
             "headers": headers,
         });
-        servers.insert(key, entry);
+        servers.insert(entry.name.clone(), server);
     }
     let root = serde_json::json!({ "mcpServers": serde_json::Value::Object(servers) });
     serde_json::to_string_pretty(&root).unwrap_or_else(|_| "{}".to_string())
+}
+
+/// A copy-pasteable setup snippet for one external AI coding tool. `hint` says
+/// where the snippet goes (a terminal vs a named config file); `code` is the
+/// full snippet covering every open workspace.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct SetupSnippet {
+    pub tool: String,
+    pub hint: String,
+    pub code: String,
+}
+
+/// Wrap `s` in single quotes for safe inclusion as one shell argument,
+/// escaping embedded single quotes the POSIX way (`'\''`). Used for the header
+/// values in the Claude Code command, since a workspace path can contain
+/// spaces or shell metacharacters.
+fn shell_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+/// Render `s` as a TOML basic string (double-quoted), escaping the characters
+/// TOML requires. Used for the Codex `config.toml` snippet's header values and
+/// URL.
+fn toml_basic_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            // TOML basic strings must escape all control chars: U+0000..=U+001F
+            // and U+007F (DEL).
+            c if (c as u32) < 0x20 || (c as u32) == 0x7f => {
+                out.push_str(&format!("\\u{:04X}", c as u32))
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// Claude Code: a real `claude mcp add` shell command per workspace. Claude
+/// Code is the one tool here with first-class CLI support for HTTP servers
+/// with arbitrary headers (`--header`, repeatable).
+fn claude_code_snippet(entries: &[ServerEntry], port: u16, token: &str) -> String {
+    let url = mcp_url(port);
+    entries
+        .iter()
+        .map(|e| {
+            let auth = shell_single_quote(&format!("Authorization: Bearer {token}"));
+            let ws = shell_single_quote(&format!("X-Cork-Workspace: {}", e.workspace));
+            format!(
+                "claude mcp add --transport http {name} {url} \\\n  --header {auth} \\\n  --header {ws}",
+                name = e.name,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// Codex CLI: a `config.toml` table per workspace. `codex mcp add` cannot set
+/// arbitrary HTTP headers from the CLI (only a bearer token via an env var), so
+/// the `X-Cork-Workspace` header forces the file form with `http_headers`.
+fn codex_snippet(entries: &[ServerEntry], port: u16, token: &str) -> String {
+    let url = toml_basic_string(&mcp_url(port));
+    let auth = toml_basic_string(&format!("Bearer {token}"));
+    entries
+        .iter()
+        .map(|e| {
+            let ws = toml_basic_string(&e.workspace);
+            format!(
+                "[mcp_servers.{name}]\nurl = {url}\nhttp_headers = {{ \"Authorization\" = {auth}, \"X-Cork-Workspace\" = {ws} }}",
+                name = e.name,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// opencode: a real `opencode mcp add` shell command per workspace. opencode's
+/// `--header` flag takes `KEY=VALUE` pairs (not the `Key: Value` form Claude
+/// Code uses), and is repeatable, so both headers go on the CLI.
+fn opencode_snippet(entries: &[ServerEntry], port: u16, token: &str) -> String {
+    let url = mcp_url(port);
+    entries
+        .iter()
+        .map(|e| {
+            let auth = shell_single_quote(&format!("Authorization=Bearer {token}"));
+            let ws = shell_single_quote(&format!("X-Cork-Workspace={}", e.workspace));
+            format!(
+                "opencode mcp add {name} --url {url} \\\n  --header {auth} \\\n  --header {ws}",
+                name = e.name,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// Build the per-tool setup snippets shown under the `mcp.json` block. Pure;
+/// mirrors `build_sample_config`'s inputs. Returns an empty vec when no
+/// workspace is open (the UI shows the same "open a workspace" hint as the
+/// `mcp.json` field).
+pub fn build_setup_snippets(open_workspaces: &[PathBuf], port: u16, token: &str) -> Vec<SetupSnippet> {
+    let entries = server_entries(open_workspaces);
+    if entries.is_empty() {
+        return Vec::new();
+    }
+    vec![
+        SetupSnippet {
+            tool: "Claude Code".to_string(),
+            hint: "Run in your terminal.".to_string(),
+            code: claude_code_snippet(&entries, port, token),
+        },
+        SetupSnippet {
+            tool: "Codex CLI".to_string(),
+            hint: "Add to ~/.codex/config.toml".to_string(),
+            code: codex_snippet(&entries, port, token),
+        },
+        SetupSnippet {
+            tool: "opencode".to_string(),
+            hint: "Run in your terminal.".to_string(),
+            code: opencode_snippet(&entries, port, token),
+        },
+    ]
 }
 
 /// Extracted so `update_settings`'s diff logic can be tested without a Tauri
@@ -1042,6 +1202,18 @@ pub fn get_sample_config(
 }
 
 #[tauri::command]
+pub fn get_setup_snippets(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Vec<SetupSnippet> {
+    let settings = load_settings(&app);
+
+    let list: Vec<PathBuf> = state.workspace(window.label()).into_iter().collect();
+    build_setup_snippets(&list, DEFAULT_PORT, &settings.token)
+}
+
+#[tauri::command]
 pub fn get_server_status(state: tauri::State<'_, AppState>) -> McpStatus {
     state.mcp_status()
 }
@@ -1231,6 +1403,110 @@ mod tests {
         let first = build_sample_config(&workspaces, 8569, "tok");
         let second = build_sample_config(&workspaces, 8569, "tok");
         assert_eq!(first, second);
+    }
+
+    // -- build_setup_snippets ---------------------------------------------------
+
+    #[test]
+    fn build_setup_snippets_empty_when_no_workspace() {
+        assert!(build_setup_snippets(&[], 8569, "tok").is_empty());
+    }
+
+    #[test]
+    fn build_setup_snippets_lists_three_tools_in_order() {
+        let snips = build_setup_snippets(&[PathBuf::from("/Users/alice/notes")], 8569, "tok123456789012");
+        let tools: Vec<&str> = snips.iter().map(|s| s.tool.as_str()).collect();
+        assert_eq!(tools, vec!["Claude Code", "Codex CLI", "opencode"]);
+        // Every snippet carries a non-empty destination hint and code body.
+        assert!(snips.iter().all(|s| !s.hint.is_empty() && !s.code.is_empty()));
+    }
+
+    fn snippet_for<'a>(snips: &'a [SetupSnippet], tool: &str) -> &'a SetupSnippet {
+        snips.iter().find(|s| s.tool == tool).expect("tool present")
+    }
+
+    #[test]
+    fn build_setup_snippets_claude_code_is_a_runnable_command() {
+        let snips = build_setup_snippets(&[PathBuf::from("/Users/alice/notes")], 8569, "tok123456789012");
+        let code = &snippet_for(&snips, "Claude Code").code;
+        assert!(code.starts_with("claude mcp add --transport http cork-notes http://127.0.0.1:8569/mcp"));
+        assert!(code.contains("--header 'Authorization: Bearer tok123456789012'"));
+        assert!(code.contains("--header 'X-Cork-Workspace: /Users/alice/notes'"));
+    }
+
+    #[test]
+    fn build_setup_snippets_claude_code_shell_escapes_paths() {
+        // A single quote in the path must be POSIX-escaped so the command stays
+        // one well-formed argument.
+        let snips = build_setup_snippets(&[PathBuf::from("/Users/alice/o'brien")], 8569, "tok");
+        let code = &snippet_for(&snips, "Claude Code").code;
+        assert!(code.contains("--header 'X-Cork-Workspace: /Users/alice/o'\\''brien'"));
+    }
+
+    #[test]
+    fn build_setup_snippets_codex_is_valid_toml_table() {
+        let snips = build_setup_snippets(&[PathBuf::from("/Users/alice/notes")], 8569, "tok123456789012");
+        let code = &snippet_for(&snips, "Codex CLI").code;
+        assert!(code.contains("[mcp_servers.cork-notes]"));
+        assert!(code.contains("url = \"http://127.0.0.1:8569/mcp\""));
+        assert!(code.contains(
+            "http_headers = { \"Authorization\" = \"Bearer tok123456789012\", \"X-Cork-Workspace\" = \"/Users/alice/notes\" }"
+        ));
+    }
+
+    #[test]
+    fn build_setup_snippets_codex_escapes_toml_special_chars() {
+        // A backslash and a double quote in the path must be TOML-escaped.
+        let snips = build_setup_snippets(&[PathBuf::from("/Users/alice/a\"b\\c")], 8569, "tok");
+        let code = &snippet_for(&snips, "Codex CLI").code;
+        assert!(code.contains("\"X-Cork-Workspace\" = \"/Users/alice/a\\\"b\\\\c\""));
+    }
+
+    #[test]
+    fn toml_basic_string_escapes_control_chars_including_del() {
+        // TOML basic strings forbid literal control chars: U+0000..=U+001F and
+        // U+007F. All must come out as \uXXXX, not raw bytes a strict parser
+        // (the toml crate Codex uses) would reject.
+        assert_eq!(toml_basic_string("a\u{7f}b"), "\"a\\u007Fb\"");
+        assert_eq!(toml_basic_string("a\u{0b}b"), "\"a\\u000Bb\"");
+    }
+
+    #[test]
+    fn build_setup_snippets_opencode_is_a_runnable_command() {
+        let snips = build_setup_snippets(&[PathBuf::from("/Users/alice/notes")], 8569, "tok123456789012");
+        let code = &snippet_for(&snips, "opencode").code;
+        assert!(code.starts_with("opencode mcp add cork-notes --url http://127.0.0.1:8569/mcp"));
+        // opencode's --header uses KEY=VALUE, not the `Key: Value` form.
+        assert!(code.contains("--header 'Authorization=Bearer tok123456789012'"));
+        assert!(code.contains("--header 'X-Cork-Workspace=/Users/alice/notes'"));
+    }
+
+    #[test]
+    fn build_setup_snippets_server_name_matches_sample_config() {
+        // The name in every per-tool snippet must equal the mcp.json key for
+        // the same workspace, including the duplicate-slug disambiguation.
+        let workspaces = [
+            PathBuf::from("/Users/alice/notes"),
+            PathBuf::from("/Users/bob/notes"),
+        ];
+        let cfg = build_sample_config(&workspaces, 8569, "tok");
+        let v: serde_json::Value = serde_json::from_str(&cfg).unwrap();
+        let suffixed = v["mcpServers"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .find(|k| k.as_str() != "cork-notes")
+            .expect("a suffixed key must exist")
+            .clone();
+
+        let snips = build_setup_snippets(&workspaces, 8569, "tok");
+        for snip in &snips {
+            assert!(
+                snip.code.contains("cork-notes") && snip.code.contains(&suffixed),
+                "snippet for {} must reference both mcp.json server names",
+                snip.tool
+            );
+        }
     }
 
     // -- McpRuntime -------------------------------------------------------------

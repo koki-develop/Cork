@@ -6,10 +6,11 @@ import {
   getMcpSampleConfig,
   getMcpServerStatus,
   getMcpSettings,
+  getMcpSetupSnippets,
   onMcpSettingsChange,
   updateMcpSettings,
 } from "@/api";
-import type { McpSettings, McpStatus } from "@/types";
+import type { McpSettings, McpSetupSnippet, McpStatus } from "@/types";
 
 const PLACEHOLDER_SETTINGS: McpSettings = { enabled: false, token: "" };
 const STOPPED_STATUS: McpStatus = { kind: "stopped" };
@@ -18,6 +19,7 @@ export type McpController = {
   settings: McpSettings;
   status: McpStatus;
   sampleConfig: string;
+  setupSnippets: McpSetupSnippet[];
   /**
    * Tracks whether the initial `getMcpSettings` resolved. Until it does, the
    * UI cannot persist updates (it would flush a placeholder token and the
@@ -34,6 +36,7 @@ export function useMcpSettings(isDialogOpen: boolean): McpController {
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<McpStatus>(STOPPED_STATUS);
   const [sampleConfig, setSampleConfig] = useState<string>("{}");
+  const [setupSnippets, setSetupSnippets] = useState<McpSetupSnippet[]>([]);
 
   // Race guard for `refresh`. `refresh` fires from three independent sources
   // (mount, dialog-open, `store://change`) and each fans out into 3 parallel
@@ -79,6 +82,16 @@ export function useMcpSettings(isDialogOpen: boolean): McpController {
       (err) => {
         if (!isLatest()) return;
         console.error("MCP sample config fetch failed:", err);
+      },
+    );
+    getMcpSetupSnippets().then(
+      (s) => {
+        if (!isLatest()) return;
+        setSetupSnippets(s);
+      },
+      (err) => {
+        if (!isLatest()) return;
+        console.error("MCP setup snippets fetch failed:", err);
       },
     );
   }, []);
@@ -161,6 +174,7 @@ export function useMcpSettings(isDialogOpen: boolean): McpController {
     settings,
     status,
     sampleConfig,
+    setupSnippets,
     loaded,
     updateEnabled,
     updateToken,

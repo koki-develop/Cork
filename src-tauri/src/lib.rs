@@ -63,6 +63,7 @@ pub fn run() {
             mcp::update_settings,
             mcp::generate_token,
             mcp::get_sample_config,
+            mcp::get_setup_snippets,
             mcp::get_server_status,
         ])
         .on_window_event(|window, event| {
