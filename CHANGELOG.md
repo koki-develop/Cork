@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/koki-develop/Cork/compare/v0.11.0...v0.12.0) (2026-06-14)
+
+
+### Features
+
+* **mcp:** show per-tool setup snippets under the mcp.json block ([5ae8016](https://github.com/koki-develop/Cork/commit/5ae8016a7425870a5547545790b49ee0a8ac3b77))
+
 ## [0.11.0](https://github.com/koki-develop/Cork/compare/v0.10.0...v0.11.0) (2026-06-14)
 
 
