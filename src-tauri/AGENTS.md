@@ -46,7 +46,7 @@ src-tauri/src/
 ├── error.rs           CommandError + CmdResult<T>
 ├── security.rs        workspace-scope path checks
 ├── frontmatter.rs     YAML frontmatter parse / update / serialize
-├── menu.rs            macOS menu (Cork / File > New Task + New Window / Edit / Window) + focused-window settings/create-task emit
+├── menu.rs            macOS menu (Cork / File > New Task + New Window / Edit / View > Reload / Window) + focused-window settings/create-task emit + focused-window reload
 ├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters, list_workspace_history) + workspace history + open_new_window_impl + build_workspace_window + seed_window_from_history + handle_macos_reopen + CLI invocation (workspace_arg_from_argv / handle_cli_invocation / seed_window_with_workspace + open-or-focus)
 ├── task.rs            Task type + task commands (list/get/create/update/delete/renumber, ...)
 ├── status.rs          StatusEntry type + status commands + .cork.json read/write

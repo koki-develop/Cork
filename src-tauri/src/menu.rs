@@ -27,6 +27,10 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         .accelerator("CmdOrCtrl+Shift+N")
         .build(app)?;
 
+    let reload_item = MenuItemBuilder::with_id("reload", "Reload")
+        .accelerator("CmdOrCtrl+R")
+        .build(app)?;
+
     let app_menu = SubmenuBuilder::new(app, "Cork")
         .about(None)
         .separator()
@@ -57,6 +61,8 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         .select_all()
         .build()?;
 
+    let view_menu = SubmenuBuilder::new(app, "View").item(&reload_item).build()?;
+
     let window_menu = SubmenuBuilder::new(app, "Window")
         .minimize()
         .maximize()
@@ -65,7 +71,7 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         .build()?;
 
     let menu = MenuBuilder::new(app)
-        .items(&[&app_menu, &file_menu, &edit_menu, &window_menu])
+        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu])
         .build()?;
 
     app.set_menu(menu)?;
@@ -113,6 +119,19 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         "new_window" => {
             if let Err(e) = crate::workspace::open_new_window_impl(app) {
                 eprintln!("failed to open new window from menu: {e}");
+            }
+        }
+        "reload" => {
+            // Reload is a per-window action — `WebviewWindow::reload()` only
+            // touches the webview it's called on. We scope to the focused
+            // window the same way `settings` / `new_task` do, so pressing
+            // Cmd+R only refreshes the window the user is looking at.
+            // Drop silently when no window has focus (e.g. focus is in
+            // another app); the worst case is the user presses Cmd+R again.
+            if let Some(window) = focused_webview_window(app) {
+                if let Err(e) = window.reload() {
+                    eprintln!("failed to reload window: {e}");
+                }
             }
         }
         _ => {}
