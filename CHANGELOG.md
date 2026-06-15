@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/koki-develop/Cork/compare/v0.11.0...v0.12.0) (2026-06-15)
+
+
+### Features
+
+* **mcp:** show per-tool setup snippets under the mcp.json block ([5ae8016](https://github.com/koki-develop/Cork/commit/5ae8016a7425870a5547545790b49ee0a8ac3b77))
+* **ui:** add View &gt; Reload menu with Cmd+R shortcut ([cb2a3be](https://github.com/koki-develop/Cork/commit/cb2a3be93ecd5771c037b4e15d91b94762e09b6c))
+
 ## [0.11.0](https://github.com/koki-develop/Cork/compare/v0.10.0...v0.11.0) (2026-06-14)
 
 
