@@ -3,6 +3,7 @@ import { type KeyboardEvent, useId, useRef, useState } from "react";
 
 import { Text } from "@/components/atoms";
 import { CodeBlock } from "@/components/molecules";
+import { isArrowDownKey, isArrowUpKey } from "@/lib/keyboard";
 import type { McpSetupSnippet } from "@/types";
 
 export type McpSetupSnippetsProps = {
@@ -35,17 +36,17 @@ export function McpSetupSnippets({ snippets }: McpSetupSnippetsProps) {
 
   const handleKeyDown = (e: KeyboardEvent) => {
     const last = snippets.length - 1;
+    if (e.key === "ArrowRight" || isArrowDownKey(e)) {
+      e.preventDefault();
+      focusTab(active === last ? 0 : active + 1);
+      return;
+    }
+    if (e.key === "ArrowLeft" || isArrowUpKey(e)) {
+      e.preventDefault();
+      focusTab(active === 0 ? last : active - 1);
+      return;
+    }
     switch (e.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        e.preventDefault();
-        focusTab(active === last ? 0 : active + 1);
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        e.preventDefault();
-        focusTab(active === 0 ? last : active - 1);
-        break;
       case "Home":
         e.preventDefault();
         focusTab(0);

@@ -1,6 +1,8 @@
 import { clsx } from "clsx";
 import { useEffect, useRef } from "react";
 
+import { isArrowDownKey, isArrowUpKey } from "@/lib/keyboard";
+
 import type { DropdownMenuItem } from "./DropdownMenu";
 
 export type MenuListProps = {
@@ -14,7 +16,7 @@ const itemColorStyles: Record<NonNullable<DropdownMenuItem["color"]>, string> = 
     "text-red-400 hover:bg-red-500/10 hover:text-red-300 focus:bg-red-500/10 focus:text-red-300",
 };
 
-const NAV_KEYS = new Set(["Tab", "ArrowDown", "ArrowUp", "Home", "End"]);
+const STATIC_NAV_KEYS = new Set(["Tab", "Home", "End"]);
 
 /**
  * Renders a focus-managed menu list shared by `DropdownMenu` and `ContextMenu`.
@@ -60,7 +62,9 @@ export function MenuList({ items, onSelect }: MenuListProps) {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      if (!NAV_KEYS.has(e.key)) return;
+      const downKey = isArrowDownKey(e);
+      const upKey = isArrowUpKey(e);
+      if (!downKey && !upKey && !STATIC_NAV_KEYS.has(e.key)) return;
       if (!container) return;
       const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
       if (buttons.length === 0) return;
@@ -71,33 +75,33 @@ export function MenuList({ items, onSelect }: MenuListProps) {
       const currentIndex = focusedButton ? buttons.indexOf(focusedButton) : -1;
 
       let nextIndex: number;
-      switch (e.key) {
-        case "Tab":
-          if (currentIndex < 0) {
-            nextIndex = e.shiftKey ? buttons.length - 1 : 0;
-          } else {
-            nextIndex = e.shiftKey
-              ? (currentIndex - 1 + buttons.length) % buttons.length
-              : (currentIndex + 1) % buttons.length;
-          }
-          break;
-        case "ArrowDown":
-          nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % buttons.length;
-          break;
-        case "ArrowUp":
-          nextIndex =
-            currentIndex < 0
-              ? buttons.length - 1
-              : (currentIndex - 1 + buttons.length) % buttons.length;
-          break;
-        case "Home":
-          nextIndex = 0;
-          break;
-        case "End":
-          nextIndex = buttons.length - 1;
-          break;
-        default:
-          return;
+      if (downKey) {
+        nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % buttons.length;
+      } else if (upKey) {
+        nextIndex =
+          currentIndex < 0
+            ? buttons.length - 1
+            : (currentIndex - 1 + buttons.length) % buttons.length;
+      } else {
+        switch (e.key) {
+          case "Tab":
+            if (currentIndex < 0) {
+              nextIndex = e.shiftKey ? buttons.length - 1 : 0;
+            } else {
+              nextIndex = e.shiftKey
+                ? (currentIndex - 1 + buttons.length) % buttons.length
+                : (currentIndex + 1) % buttons.length;
+            }
+            break;
+          case "Home":
+            nextIndex = 0;
+            break;
+          case "End":
+            nextIndex = buttons.length - 1;
+            break;
+          default:
+            return;
+        }
       }
       e.preventDefault();
       buttons[nextIndex].focus();

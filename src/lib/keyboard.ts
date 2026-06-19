@@ -22,3 +22,38 @@ export const isImeKeyEvent = (e: ImeAwareKeyEvent): boolean => {
   const composing = e.nativeEvent?.isComposing ?? e.isComposing ?? false;
   return composing || e.keyCode === 229;
 };
+
+type DirectionalKeyEvent = {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+};
+
+// Plain Ctrl with no co-modifier. Ctrl+Shift+N is "New Window" and Cmd+N is
+// "New Task" — neither must alias to a navigation key, so we reject any chord
+// that combines Ctrl with another modifier.
+const isPlainCtrl = (e: DirectionalKeyEvent): boolean =>
+  e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+
+/**
+ * True when the keydown represents "move down" — either the literal ArrowDown
+ * key or the Emacs-style Ctrl+N. Every list / menu / popover / tab navigation
+ * handler in the project routes through this helper so Ctrl+N stays universally
+ * aligned with ArrowDown.
+ *
+ * Matched only with the *plain* Control modifier (no Cmd / Alt / Shift), so the
+ * shortcut never collides with chords that already mean something else
+ * (Cmd+N "New Task", Ctrl+Shift+N "New Window").
+ */
+export const isArrowDownKey = (e: DirectionalKeyEvent): boolean =>
+  e.key === "ArrowDown" || (isPlainCtrl(e) && e.key.toLowerCase() === "n");
+
+/**
+ * True when the keydown represents "move up" — either the literal ArrowUp key
+ * or the Emacs-style Ctrl+P. Pairs with `isArrowDownKey` for keyboard
+ * navigation across the project.
+ */
+export const isArrowUpKey = (e: DirectionalKeyEvent): boolean =>
+  e.key === "ArrowUp" || (isPlainCtrl(e) && e.key.toLowerCase() === "p");

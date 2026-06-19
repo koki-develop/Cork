@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
 import { useClickOutside } from "@/hooks/ui/useClickOutside";
 import { useEscapeKey } from "@/hooks/ui/useEscapeKey";
+import { isArrowDownKey, isArrowUpKey } from "@/lib/keyboard";
 
 export type SelectOption = {
   label: string;
@@ -32,15 +33,17 @@ export function Select({ value, onChange, options }: SelectProps) {
 
   const handleKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (options.length === 0) return;
+    if (isArrowDownKey(e)) {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev + 1) % options.length);
+      return;
+    }
+    if (isArrowUpKey(e)) {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev - 1 + options.length) % options.length);
+      return;
+    }
     switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        setHighlightedIndex((prev) => (prev + 1) % options.length);
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setHighlightedIndex((prev) => (prev - 1 + options.length) % options.length);
-        break;
       case "Enter":
       case " ":
         e.preventDefault();

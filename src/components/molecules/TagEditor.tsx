@@ -12,7 +12,7 @@ import {
 import { TagChip } from "@/components/atoms";
 import { useAnchorRect } from "@/hooks/ui/useAnchorRect";
 import { useClickOutside } from "@/hooks/ui/useClickOutside";
-import { isImeKeyEvent } from "@/lib/keyboard";
+import { isArrowDownKey, isArrowUpKey, isImeKeyEvent } from "@/lib/keyboard";
 import { commitPending, fuzzySubsequenceMatch } from "@/lib/tags";
 
 import { TagSuggestionPopover } from "./TagSuggestionPopover";
@@ -181,12 +181,12 @@ export function TagEditor({
     // (e.g. zero matches), Escape must fall through to close the enclosing
     // dialog instead of being consumed as a popover dismiss.
     if (!popoverVisible) return false;
-    if (e.key === "ArrowDown") {
+    if (isArrowDownKey(e)) {
       e.preventDefault();
       setSelectedIndex((i) => (i < 0 ? 0 : (i + 1) % filteredSuggestions.length));
       return true;
     }
-    if (e.key === "ArrowUp") {
+    if (isArrowUpKey(e)) {
       e.preventDefault();
       setSelectedIndex((i) =>
         i < 0
