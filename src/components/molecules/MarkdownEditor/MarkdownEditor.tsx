@@ -30,6 +30,7 @@ import { LinkOpenPlugin } from "./LinkOpenPlugin";
 import { ListExitPlugin } from "./ListExitPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 import { NoListInTablePlugin } from "./NoListInTablePlugin";
+import { PasteLinkPlugin } from "./PasteLinkPlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
 import {
   MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS,
@@ -262,6 +263,11 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             excludeParents={AUTO_LINK_EXCLUDE_PARENTS}
           />
           <LinkOpenPlugin onOpenLink={onOpenLink} />
+          {/* Selection + pasted URL → wrap the selection as `[text](url)`.
+            Registered at COMMAND_PRIORITY_LOW so it preempts the rich-text
+            plugin's EDITOR-priority paste handler (which would otherwise
+            replace the selection with the URL as text). */}
+          <PasteLinkPlugin />
           {/* Selection-triggered floating toolbar: toggles bold / italic /
             strikethrough / inline-code for the highlighted text. */}
           <FloatingFormatToolbarPlugin />
