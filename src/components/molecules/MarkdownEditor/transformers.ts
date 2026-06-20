@@ -1,9 +1,12 @@
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
+  CHECK_LIST,
   type ElementTransformer,
+  ORDERED_LIST,
   TRANSFORMERS,
   type Transformer,
+  UNORDERED_LIST,
 } from "@lexical/markdown";
 import {
   $createHorizontalRuleNode,
@@ -342,9 +345,46 @@ function decodeCell(text: string): string {
   return text.replace(/\\(.)/g, (_, ch) => (ch === "n" ? "\n" : ch));
 }
 
+// Wrap each list transformer so it bails (returns false) when the matched
+// paragraph sits inside a table cell. Lists in cells aren't supported (see
+// NoListInTablePlugin and the Tables section in AGENTS.md) and unwrapping a
+// freshly-built ListNode after the fact would erase the typed `- ` / `1. `
+// marker — there's no text on a brand-new empty bullet to preserve. Mirrors
+// the TABLE / HORIZONTAL_RULE cell guards: on import, also restore the
+// matched marker onto the line's text node (`$importBlocks` slices it off
+// before calling us and doesn't roll back when we cancel), so a cell body
+// of literally `- a` reloads as `- a` text instead of empty.
+function cellAware(transformer: ElementTransformer): ElementTransformer {
+  return {
+    ...transformer,
+    replace: (parentNode, children, match, isImport) => {
+      if ($getTableCellNodeFromLexicalNode(parentNode) != null) {
+        const textNode = children[0];
+        if (isImport && $isTextNode(textNode)) {
+          textNode.setTextContent(match[0] + textNode.getTextContent());
+        }
+        return false;
+      }
+      return transformer.replace(parentNode, children, match, isImport);
+    },
+  };
+}
+
+const CELL_AWARE_LIST_TRANSFORMERS = [UNORDERED_LIST, ORDERED_LIST, CHECK_LIST].map(cellAware);
+const NON_LIST_DEFAULTS = TRANSFORMERS.filter(
+  (t) => t !== UNORDERED_LIST && t !== ORDERED_LIST && t !== CHECK_LIST,
+);
+
 // TABLE leads so its row regExp wins before the default element transformers
 // (e.g. a leading-pipe line is a table row, not a quote). HORIZONTAL_RULE
 // follows so `---`/`***`/`___` lines become a rule before any default element
 // transformer sees them. Both are defined here because the TABLE transformer
-// recurses into this list for cell bodies.
-export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [TABLE, HORIZONTAL_RULE, ...TRANSFORMERS];
+// recurses into this list for cell bodies. The list transformers come from
+// @lexical/markdown but are cell-aware-wrapped so they don't try to build a
+// ListNode inside a cell (which would erase the typed `- ` marker).
+export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [
+  TABLE,
+  HORIZONTAL_RULE,
+  ...CELL_AWARE_LIST_TRANSFORMERS,
+  ...NON_LIST_DEFAULTS,
+];
