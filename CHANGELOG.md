@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/koki-develop/Cork/compare/v0.13.1...v0.14.0) (2026-06-20)
+
+
+### Features
+
+* Enter in title focuses body editor in task dialogs ([84dcc03](https://github.com/koki-develop/Cork/commit/84dcc03bf8ce7e24f3f4d0d8a1b1da740b78c97b))
+* **ui:** wrap selected text as a link when pasting a URL ([d7fbab5](https://github.com/koki-develop/Cork/commit/d7fbab53cba8fb53f33ff014cdb36adb5a2df3ef))
+
 ## [0.13.1](https://github.com/koki-develop/Cork/compare/v0.13.0...v0.13.1) (2026-06-20)
 
 
