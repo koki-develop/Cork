@@ -4,6 +4,7 @@ import {
   CHECK_LIST,
   type ElementTransformer,
   ORDERED_LIST,
+  type TextFormatTransformer,
   TRANSFORMERS,
   type Transformer,
   UNORDERED_LIST,
@@ -388,3 +389,13 @@ export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [
   ...CELL_AWARE_LIST_TRANSFORMERS,
   ...NON_LIST_DEFAULTS,
 ];
+
+// Split for the shortcut pipeline. `FormatShortcutPlugin` owns text-format
+// transformers (the upstream `$runTextFormatTransformers` is buggy — wrapping
+// already-formatted text with the same tag un-formats it; see that file's
+// header), so we hand only the non-format transformers to Lexical's
+// `MarkdownShortcutPlugin`. Import/export still use the full list above.
+export const MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS: Array<Transformer> =
+  MARKDOWN_TRANSFORMERS.filter((t) => t.type !== "text-format");
+export const MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS: Array<TextFormatTransformer> =
+  MARKDOWN_TRANSFORMERS.filter((t): t is TextFormatTransformer => t.type === "text-format");

@@ -24,13 +24,18 @@ import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
 import { FloatingLinkEditorPlugin } from "./FloatingLinkEditorPlugin";
 import { FormatFormattableTextPlugin } from "./FormatFormattableTextPlugin";
+import { FormatShortcutPlugin } from "./FormatShortcutPlugin";
 import { HorizontalRuleKeyboardPlugin } from "./HorizontalRuleKeyboardPlugin";
 import { LinkOpenPlugin } from "./LinkOpenPlugin";
 import { ListExitPlugin } from "./ListExitPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 import { NoListInTablePlugin } from "./NoListInTablePlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
-import { MARKDOWN_TRANSFORMERS } from "./transformers";
+import {
+  MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS,
+  MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS,
+  MARKDOWN_TRANSFORMERS,
+} from "./transformers";
 
 // Maps Lexical node types to Cork's Tailwind tokens so Markdown renders WYSIWYG
 // with the app's typography. Headings/inline-code override the editor box's
@@ -195,7 +200,20 @@ export function MarkdownEditor({
           ErrorBoundary={LexicalErrorBoundary}
         />
         <HistoryPlugin />
-        <MarkdownShortcutPlugin transformers={MARKDOWN_TRANSFORMERS} />
+        {/* Block / link shortcuts (headings, lists, tables, horizontal rules,
+            links, etc.) — the upstream MarkdownShortcutPlugin handles these
+            correctly. Text-format transformers (**bold**, *italic*, ==hl==,
+            ~~strike~~, `code`, ***bi***) are stripped from this list because
+            its `$runTextFormatTransformers` toggles the format on the wrapped
+            content, so wrapping already-bold text with `**...**` un-bolds it.
+            FormatShortcutPlugin (below) re-implements that step with set-ON
+            semantics. */}
+        <MarkdownShortcutPlugin transformers={MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS} />
+        {/* Inline-format shortcuts (`**`, `*`, `~~`, `` ` ``, `==`, `***`,
+            `___`) with a fixed `set-ON, never toggle` apply step. Co-exists
+            with MarkdownShortcutPlugin above — the two handle disjoint
+            transformer types, so they can't double-fire. */}
+        <FormatShortcutPlugin transformers={MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS} />
         {/* Registers the empty-list-item Enter handler so lists can be exited,
             plus the list insert/remove commands. */}
         <ListPlugin />
