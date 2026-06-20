@@ -1,5 +1,5 @@
 import { Plus, X } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 
 import { AutoresizeInput, ErrorBanner, Heading, Text } from "@/components/atoms";
 import {
@@ -49,6 +49,8 @@ export function CreateTaskDialog({
   const [date, setDate] = useState("");
   const { error, setError, clearError } = useDialogError();
   const tagEditor = useTagEditorController();
+
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const [confirmingClose, setConfirmingClose] = useState(false);
 
@@ -125,6 +127,12 @@ export function CreateTaskDialog({
                 <AutoresizeInput
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
+                      e.preventDefault();
+                      bodyRef.current?.focus();
+                    }
+                  }}
                   placeholder="Task title"
                   aria-label="Title"
                   data-autofocus
@@ -134,6 +142,7 @@ export function CreateTaskDialog({
               </div>
 
               <MarkdownEditor
+                ref={bodyRef}
                 initialValue=""
                 onChange={setBody}
                 onOpenLink={onOpenLink}

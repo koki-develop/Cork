@@ -18,7 +18,7 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { clsx } from "clsx";
 import type { EditorState, EditorThemeClasses } from "lexical";
-import { useCallback } from "react";
+import { forwardRef, useCallback } from "react";
 
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
@@ -148,59 +148,56 @@ export type MarkdownEditorProps = {
   className?: string;
 };
 
-export function MarkdownEditor({
-  initialValue,
-  onChange,
-  onOpenLink,
-  onBlur,
-  placeholder,
-  ariaLabel,
-  className,
-}: MarkdownEditorProps) {
-  const handleChange = useCallback(
-    (editorState: EditorState) => {
-      onChange(editorState.read(() => $convertToMarkdownString(MARKDOWN_TRANSFORMERS)));
-    },
-    [onChange],
-  );
+export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
+  function MarkdownEditor(
+    { initialValue, onChange, onOpenLink, onBlur, placeholder, ariaLabel, className },
+    ref,
+  ) {
+    const handleChange = useCallback(
+      (editorState: EditorState) => {
+        onChange(editorState.read(() => $convertToMarkdownString(MARKDOWN_TRANSFORMERS)));
+      },
+      [onChange],
+    );
 
-  const initialConfig = {
-    namespace: "task-body",
-    theme,
-    nodes: NODES,
-    // Function form runs inside an editor.update() tagged history-merge, so it
-    // never fires OnChangePlugin — body stays equal to the raw initial value
-    // until the user actually edits (see design Decision 3).
-    editorState: () => $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS),
-    onError: (error: Error) => {
-      throw error;
-    },
-  };
+    const initialConfig = {
+      namespace: "task-body",
+      theme,
+      nodes: NODES,
+      // Function form runs inside an editor.update() tagged history-merge, so it
+      // never fires OnChangePlugin — body stays equal to the raw initial value
+      // until the user actually edits (see design Decision 3).
+      editorState: () => $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS),
+      onError: (error: Error) => {
+        throw error;
+      },
+    };
 
-  return (
-    <div className={clsx("relative flex min-w-0 flex-col", className)}>
-      <LexicalComposer initialConfig={initialConfig}>
-        <RichTextPlugin
-          contentEditable={
-            <ContentEditable
-              ariaLabel={ariaLabel}
-              onBlur={onBlur}
-              // Borderless writing surface: flat at rest, no hover or focus
-              // fill — the caret alone signals focus (no outline ring).
-              className="text-cork-text min-h-0 flex-1 overflow-y-auto px-3 py-2 text-sm break-words whitespace-pre-wrap focus-visible:outline-none"
-            />
-          }
-          placeholder={
-            placeholder == null ? null : (
-              <div className="text-cork-muted/40 pointer-events-none absolute top-2 left-3 text-sm select-none">
-                {placeholder}
-              </div>
-            )
-          }
-          ErrorBoundary={LexicalErrorBoundary}
-        />
-        <HistoryPlugin />
-        {/* Block / link shortcuts (headings, lists, tables, horizontal rules,
+    return (
+      <div className={clsx("relative flex min-w-0 flex-col", className)}>
+        <LexicalComposer initialConfig={initialConfig}>
+          <RichTextPlugin
+            contentEditable={
+              <ContentEditable
+                ref={ref}
+                ariaLabel={ariaLabel}
+                onBlur={onBlur}
+                // Borderless writing surface: flat at rest, no hover or focus
+                // fill — the caret alone signals focus (no outline ring).
+                className="text-cork-text min-h-0 flex-1 overflow-y-auto px-3 py-2 text-sm break-words whitespace-pre-wrap focus-visible:outline-none"
+              />
+            }
+            placeholder={
+              placeholder == null ? null : (
+                <div className="text-cork-muted/40 pointer-events-none absolute top-2 left-3 text-sm select-none">
+                  {placeholder}
+                </div>
+              )
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+          <HistoryPlugin />
+          {/* Block / link shortcuts (headings, lists, tables, horizontal rules,
             links, etc.) — the upstream MarkdownShortcutPlugin handles these
             correctly. Text-format transformers (**bold**, *italic*, ==hl==,
             ~~strike~~, `code`, ***bi***) are stripped from this list because
@@ -208,71 +205,75 @@ export function MarkdownEditor({
             content, so wrapping already-bold text with `**...**` un-bolds it.
             FormatShortcutPlugin (below) re-implements that step with set-ON
             semantics. */}
-        <MarkdownShortcutPlugin transformers={MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS} />
-        {/* Inline-format shortcuts (`**`, `*`, `~~`, `` ` ``, `==`, `***`,
+          <MarkdownShortcutPlugin transformers={MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS} />
+          {/* Inline-format shortcuts (`**`, `*`, `~~`, `` ` ``, `==`, `***`,
             `___`) with a fixed `set-ON, never toggle` apply step. Co-exists
             with MarkdownShortcutPlugin above — the two handle disjoint
             transformer types, so they can't double-fire. */}
-        <FormatShortcutPlugin transformers={MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS} />
-        {/* Registers the empty-list-item Enter handler so lists can be exited,
+          <FormatShortcutPlugin transformers={MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS} />
+          {/* Registers the empty-list-item Enter handler so lists can be exited,
             plus the list insert/remove commands. */}
-        <ListPlugin />
-        {/* Backward delete (Backspace / Cmd+Backspace / Option+Backspace) at
+          <ListPlugin />
+          {/* Backward delete (Backspace / Cmd+Backspace / Option+Backspace) at
             the start of a list item exits the list — empty items dispatch
             INSERT_PARAGRAPH_COMMAND so ListPlugin's Enter listener handles
             them (keeps every backward-delete key symmetric with Enter),
             non-empty nested items outdent, non-empty top-level items become
             paragraphs splitting the list around the cut. */}
-        <ListExitPlugin />
-        {/* Lists inside table cells are unworkable (Tab/Backspace overlap with
+          <ListExitPlugin />
+          {/* Lists inside table cells are unworkable (Tab/Backspace overlap with
             table cell navigation) and visually noisy. The primary block is in
             transformers.ts (cell-aware UNORDERED_LIST/ORDERED_LIST/CHECK_LIST
             wrappers) — this plugin is the safety net for non-transformer paths
             (raw INSERT_*_LIST_COMMAND, paste of pre-built nodes): it unwraps
             any ListNode that still appears inside a TableCellNode. */}
-        <NoListInTablePlugin />
-        {/* Registers INSERT_HORIZONTAL_RULE_COMMAND and the rule's click-to-select
+          <NoListInTablePlugin />
+          {/* Registers INSERT_HORIZONTAL_RULE_COMMAND and the rule's click-to-select
             behaviour. Rules are authored by typing `---` (or `***` / `___`) and
             round-trip via the HORIZONTAL_RULE transformer in transformers.ts. */}
-        <HorizontalRulePlugin />
-        {/* Up/Down arrows select an adjacent rule instead of skipping it, so
+          <HorizontalRulePlugin />
+          {/* Up/Down arrows select an adjacent rule instead of skipping it, so
             vertical caret movement can land on (and delete) it like left/right. */}
-        <HorizontalRuleKeyboardPlugin />
-        {/* Registers TableNode behaviour: cell selection, Tab navigation, and
+          <HorizontalRuleKeyboardPlugin />
+          {/* Registers TableNode behaviour: cell selection, Tab navigation, and
             the INSERT_TABLE_COMMAND handler. Tables are authored by typing the
             Markdown pipe syntax (a row `| a | b |` then a divider `| --- | --- |`)
             and round-trip via the TABLE transformer in transformers.ts. */}
-        <TablePlugin hasHorizontalScroll />
-        {/* Keyboard-driven table editing: Tab on the rightmost cell adds a
+          <TablePlugin hasHorizontalScroll />
+          {/* Keyboard-driven table editing: Tab on the rightmost cell adds a
             column, Enter adds a row (Shift+Enter = in-cell line break; Enter on
             a trailing empty row exits below), ArrowUp/Down escape a table at the
             document edge into a new paragraph, and Backspace in an empty cell
             deletes an empty column / row (never a header) or moves left. */}
-        <TableKeyboardPlugin />
-        {/* Tab/Shift+Tab indent within lists; code-block escape via
+          <TableKeyboardPlugin />
+          {/* Tab/Shift+Tab indent within lists; code-block escape via
             Shift+Enter and the boundary arrow keys; click-to-open for links. */}
-        <ListTabIndentationPlugin />
-        <CodeBlockEscapePlugin />
-        {/* Owns ranged FORMAT_TEXT_COMMAND: keeps inline formatting off
+          <ListTabIndentationPlugin />
+          <CodeBlockEscapePlugin />
+          {/* Owns ranged FORMAT_TEXT_COMMAND: keeps inline formatting off
             code-block text (which the Markdown serializer would silently drop)
             and makes a mixed selection always enable rather than toggle off the
             first node. See the plugin header for the full rationale. */}
-        <FormatFormattableTextPlugin />
-        {/* Wraps bare URLs in AutoLinkNodes (typed or loaded from file) so
+          <FormatFormattableTextPlugin />
+          {/* Wraps bare URLs in AutoLinkNodes (typed or loaded from file) so
             LinkOpenPlugin's click handler can open them in the system browser. */}
-        <AutoLinkPlugin matchers={AUTO_LINK_MATCHERS} excludeParents={AUTO_LINK_EXCLUDE_PARENTS} />
-        <LinkOpenPlugin onOpenLink={onOpenLink} />
-        {/* Selection-triggered floating toolbar: toggles bold / italic /
+          <AutoLinkPlugin
+            matchers={AUTO_LINK_MATCHERS}
+            excludeParents={AUTO_LINK_EXCLUDE_PARENTS}
+          />
+          <LinkOpenPlugin onOpenLink={onOpenLink} />
+          {/* Selection-triggered floating toolbar: toggles bold / italic /
             strikethrough / inline-code for the highlighted text. */}
-        <FloatingFormatToolbarPlugin />
-        {/* Hover a manually-authored link → a floating editor fades in below it
+          <FloatingFormatToolbarPlugin />
+          {/* Hover a manually-authored link → a floating editor fades in below it
             to open / edit / remove its URL. */}
-        <FloatingLinkEditorPlugin onOpenLink={onOpenLink} />
-        {/* ignoreSelectionChange: only real content edits emit — a bare
+          <FloatingLinkEditorPlugin onOpenLink={onOpenLink} />
+          {/* ignoreSelectionChange: only real content edits emit — a bare
             focus/cursor move must NOT serialize, or a no-edit open/close of a
             non-canonical body would auto-save a normalized rewrite. */}
-        <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
-      </LexicalComposer>
-    </div>
-  );
-}
+          <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
+        </LexicalComposer>
+      </div>
+    );
+  },
+);

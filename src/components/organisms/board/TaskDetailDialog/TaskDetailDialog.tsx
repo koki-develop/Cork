@@ -1,5 +1,5 @@
 import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AutoresizeInput, ErrorBanner } from "@/components/atoms";
@@ -40,6 +40,7 @@ export function TaskDetailDialog({
   onOpenLink,
 }: TaskDetailDialogProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const {
     title,
@@ -116,6 +117,12 @@ export function TaskDetailDialog({
               <AutoresizeInput
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
+                    e.preventDefault();
+                    bodyRef.current?.focus();
+                  }
+                }}
                 onBlur={handleTitleBlur}
                 placeholder="Task title"
                 aria-label="Title"
@@ -125,6 +132,7 @@ export function TaskDetailDialog({
             </div>
 
             <MarkdownEditor
+              ref={bodyRef}
               initialValue={task.body}
               onChange={handleBodyChange}
               onOpenLink={onOpenLink}
