@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.0](https://github.com/koki-develop/Cork/compare/v0.12.0...v0.13.0) (2026-06-20)
+
+
+### Features
+
+* **ui:** alias Ctrl+N / Ctrl+P to ArrowDown / ArrowUp in list navigation ([b51b37f](https://github.com/koki-develop/Cork/commit/b51b37ff47ec9416afa06f3677595e9e4164284a))
+
+
+### Bug Fixes
+
+* **ui:** empty the task body editor on select-all delete ([3e8b9a5](https://github.com/koki-develop/Cork/commit/3e8b9a50a3a549703dd1c7d45e1af5a67de3827c))
+* **ui:** refine list-item editing in the task body editor ([#28](https://github.com/koki-develop/Cork/issues/28)) ([db27ab5](https://github.com/koki-develop/Cork/commit/db27ab55383604b046057542c20e79b1de1152f6))
+
 ## [0.12.0](https://github.com/koki-develop/Cork/compare/v0.11.0...v0.12.0) (2026-06-15)
 
 
