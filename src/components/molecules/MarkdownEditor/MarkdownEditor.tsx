@@ -26,7 +26,9 @@ import { FloatingLinkEditorPlugin } from "./FloatingLinkEditorPlugin";
 import { FormatFormattableTextPlugin } from "./FormatFormattableTextPlugin";
 import { HorizontalRuleKeyboardPlugin } from "./HorizontalRuleKeyboardPlugin";
 import { LinkOpenPlugin } from "./LinkOpenPlugin";
+import { ListExitPlugin } from "./ListExitPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
+import { NoListInTablePlugin } from "./NoListInTablePlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
 import { MARKDOWN_TRANSFORMERS } from "./transformers";
 
@@ -197,6 +199,20 @@ export function MarkdownEditor({
         {/* Registers the empty-list-item Enter handler so lists can be exited,
             plus the list insert/remove commands. */}
         <ListPlugin />
+        {/* Backward delete (Backspace / Cmd+Backspace / Option+Backspace) at
+            the start of a list item exits the list — empty items dispatch
+            INSERT_PARAGRAPH_COMMAND so ListPlugin's Enter listener handles
+            them (keeps every backward-delete key symmetric with Enter),
+            non-empty nested items outdent, non-empty top-level items become
+            paragraphs splitting the list around the cut. */}
+        <ListExitPlugin />
+        {/* Lists inside table cells are unworkable (Tab/Backspace overlap with
+            table cell navigation) and visually noisy. The primary block is in
+            transformers.ts (cell-aware UNORDERED_LIST/ORDERED_LIST/CHECK_LIST
+            wrappers) — this plugin is the safety net for non-transformer paths
+            (raw INSERT_*_LIST_COMMAND, paste of pre-built nodes): it unwraps
+            any ListNode that still appears inside a TableCellNode. */}
+        <NoListInTablePlugin />
         {/* Registers INSERT_HORIZONTAL_RULE_COMMAND and the rule's click-to-select
             behaviour. Rules are authored by typing `---` (or `***` / `___`) and
             round-trip via the HORIZONTAL_RULE transformer in transformers.ts. */}
