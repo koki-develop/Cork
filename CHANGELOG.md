@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/koki-develop/Cork/compare/v0.13.0...v0.13.1) (2026-06-20)
+
+
+### Bug Fixes
+
+* **ui:** preserve inline format on text re-wrapped with markdown markers ([2e3cece](https://github.com/koki-develop/Cork/commit/2e3cece93db242c8bb4469bbc962fe0929add593))
+
 ## [0.13.0](https://github.com/koki-develop/Cork/compare/v0.12.0...v0.13.0) (2026-06-20)
 
 
