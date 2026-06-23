@@ -148,4 +148,114 @@
   *:focus-visible {
     transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
   }
+
+  /* GitHub-style task list (`- [ ]` / `- [x]`) in the Markdown editor. Lexical
+     adds `cork-checklist` to the <ul> (in addition to the `ul` theme's
+     `list-disc pl-6`) when the list's type is "check"; per-item it toggles
+     `cork-checklist-item` plus `cork-checklist-item-checked` on each leaf
+     check item. CheckListPlugin's pointer handler reads the ::before's
+     computed width to detect a click in the checkbox area, so the box has
+     to be drawn with a `::before` pseudo-element (not a real <input>).
+
+     These rules MUST live in `@layer utilities` (not `@layer base`) because
+     Tailwind 4 puts class utilities like `pl-6` / `list-disc` in the
+     utilities layer too — and CSS cascade layers beat specificity. Putting
+     `ul.cork-checklist { padding-left: 0 }` in `@layer base` loses to `.pl-6`
+     in utilities even though our selector is more specific, doubling the
+     intended indent. Inside the utilities layer, our `ul.cork-checklist`
+     selector (0,1,1) beats `.pl-6` (0,1,0) on specificity as expected. */
+  /* `padding-left` on ul + li sums to 1.5rem so the text aligns
+     horizontally with bullet / ordered list text (the `ul` theme uses
+     `pl-6` = 1.5rem). The split between ul and li decides where the
+     checkbox sits inside the indent — the `::before` is locked to `left: 0`
+     of the LI's padding box by CheckListPlugin's click hit-test (it reads
+     `target.getBoundingClientRect().left +
+     getComputedStyle(li, '::before').width`), so the box can't be pushed
+     rightward without breaking the click; shifting the LI itself rightward
+     via the ul's padding does the equivalent. 0.25rem leaves a ~7px gap to
+     the text (matching the bullet marker-to-text feel) while nudging the
+     box just inside the indent line so it doesn't read as overshooting
+     left of `•` / `1.`. */
+  ul.cork-checklist {
+    padding-left: 0.25rem;
+    list-style: none;
+  }
+
+  .cork-checklist-item {
+    position: relative;
+    list-style-type: none;
+    padding-left: 1.25rem;
+    cursor: text;
+  }
+
+  .cork-checklist-item::before {
+    content: "";
+    position: absolute;
+    top: 0.3em;
+    left: 0;
+    width: 0.9em;
+    height: 0.9em;
+    box-sizing: border-box;
+    border: 1px solid var(--color-cork-border);
+    border-radius: 3px;
+    background-color: var(--color-cork-elevated);
+    cursor: pointer;
+  }
+
+  .cork-checklist-item-checked::before {
+    border-color: var(--color-cork-accent);
+    background-color: var(--color-cork-accent);
+  }
+
+  .cork-checklist-item-checked::after {
+    content: "";
+    position: absolute;
+    top: 0.45em;
+    left: 0.32em;
+    width: 0.25em;
+    height: 0.45em;
+    border: solid var(--color-cork-text);
+    border-width: 0 0.125em 0.125em 0;
+    transform: rotate(45deg);
+    cursor: pointer;
+  }
+
+  .cork-checklist-item-checked {
+    color: var(--color-cork-muted);
+    text-decoration: line-through;
+  }
+
+  /* The global focus-visible outline (`*:focus-visible`) would draw a box
+     around the whole <li> when CheckListPlugin focuses it via Arrow keys.
+     Scope the indicator to the checkbox so the user can see *which* item
+     is the keyboard target without the LI growing a full-width ring. */
+  .cork-checklist-item:focus-visible {
+    outline: none;
+  }
+
+  .cork-checklist-item:focus-visible::before {
+    outline: 2px solid color-mix(in oklab, var(--color-cork-accent) 50%, transparent);
+    outline-offset: 1px;
+  }
+
+  /* Parent task in a nested checklist: GitHub-style only the leaves carry
+     a checkbox (CheckListPlugin's keyboard / pointer handlers also skip
+     non-leaf items). Suppress only the box + checkmark; keep the LI's
+     1.25rem padding-left so the nested <ul> starts at the outer item's
+     content edge (4px ul + 20px li = 24px from the outer ul). Without
+     this padding the nested <ul> would sit flush at the outer LI's outer
+     edge and the visual indent step would collapse to the inner ul's
+     own 4px padding — making nested checklists barely indented at all,
+     unlike bullet / ordered nests which step a full 24px.
+
+     The selector is compound (both classes required) because Lexical applies
+     `cork-checklist-nested-parent` to EVERY nested-parent LI — bullet,
+     ordered, AND check — via the theme's `nested.listitem`. Only check
+     parents pair it with `cork-checklist-item`, so a bare
+     `.cork-checklist-nested-parent { ... }` rule would silently affect
+     bullet / ordered nested parents too; always compound it. */
+  .cork-checklist-item.cork-checklist-nested-parent::before,
+  .cork-checklist-item.cork-checklist-nested-parent::after {
+    display: none;
+  }
 }

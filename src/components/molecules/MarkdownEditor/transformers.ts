@@ -371,7 +371,47 @@ function cellAware(transformer: ElementTransformer): ElementTransformer {
   };
 }
 
-const CELL_AWARE_LIST_TRANSFORMERS = [UNORDERED_LIST, ORDERED_LIST, CHECK_LIST].map(cellAware);
+// Tighten upstream CHECK_LIST in two ways:
+//
+//   1. `[-*+]\s` (NOT upstream's `(?:[-*+]\s)?\s?`) requires exactly one marker-and-
+//      single-space prefix. Upstream allowed both a bare `[ ] task` (no dash) AND a
+//      `-  [ ] task` (double space). The double-space case round-trips through
+//      `$listExport` as `- [ ] task` (single space) and re-imports as a check item —
+//      meaning a typed `-  [ ] task` would silently rewrite itself on save / reload.
+//      The no-dash case (`[ ] task`) similarly imports as a check item but is
+//      indistinguishable from literal `[ ] task` text the user might want to keep.
+//      GFM accepts `-` / `*` / `+` as task list markers (the test lives at the list
+//      item level, not the marker level — see
+//      https://github.github.com/gfm/#task-list-items-extension-); we accept all three
+//      for parity with GitHub's renderer, but require exactly one whitespace between
+//      the marker and the bracket so on-disk text and the editor's rendering stay in
+//      lockstep — both `[ ] task` (no dash) and `-  [ ] task` (extra space) stay
+//      literal text, end to end.
+//
+//   2. Inner `(\s|x)` (NOT upstream's `(\s|x)?`) makes the bracket content mandatory.
+//      Upstream allowed `[]` (empty brackets); listReplace defaulted it to unchecked and
+//      $listExport wrote it back as `[ ]` — another silent on-disk rewrite. Requiring a
+//      non-empty inner character preserves `[]` as literal text instead of normalizing it.
+//
+// Group indices are unchanged from upstream (1=indent, 2=full `[x]`/`[ ]`, 3=inner
+// space/x), so `listReplace('check')` inherited via the spread reads the same
+// `match[3]==='x'` checked flag and `match[0].trim()[0]` list marker as before. The
+// `match[0].trim()[0]` carry-through is what lets `* [ ] task` / `+ [ ] task` round-trip
+// with their original markers intact — listReplace stores the matched char on the new
+// check list's `listMarkerState`, and `$listExport` writes `${listMarker} [...]` (NOT a
+// hardcoded `-`) when serializing back.
+//
+// CHECK_LIST has to lead the list transformers regardless: import / shortcut both pick the
+// first match (see `$importBlocks` in @lexical/markdown), so `- [ ] task` would read as a
+// bullet item with text `[ ] task` if UNORDERED_LIST's `^(\s*)[-*+]\s/` was tried first.
+const STRICT_CHECK_LIST_REGEX = /^(\s*)[-*+]\s(\[(\s|x)\])\s/i;
+const STRICT_CHECK_LIST: ElementTransformer = {
+  ...CHECK_LIST,
+  regExp: STRICT_CHECK_LIST_REGEX,
+};
+const CELL_AWARE_LIST_TRANSFORMERS = [STRICT_CHECK_LIST, UNORDERED_LIST, ORDERED_LIST].map(
+  cellAware,
+);
 const NON_LIST_DEFAULTS = TRANSFORMERS.filter(
   (t) => t !== UNORDERED_LIST && t !== ORDERED_LIST && t !== CHECK_LIST,
 );

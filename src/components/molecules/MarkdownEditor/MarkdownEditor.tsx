@@ -3,6 +3,7 @@ import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown";
 import { AutoLinkPlugin, createLinkMatcherWithRegExp } from "@lexical/react/LexicalAutoLinkPlugin";
+import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
@@ -20,6 +21,9 @@ import { clsx } from "clsx";
 import type { EditorState, EditorThemeClasses } from "lexical";
 import { forwardRef, useCallback } from "react";
 
+import { CheckListIndentPlugin } from "./CheckListIndentPlugin";
+import { CheckListOutdentPlugin } from "./CheckListOutdentPlugin";
+import { CheckListShortcutPlugin } from "./CheckListShortcutPlugin";
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
 import { FloatingLinkEditorPlugin } from "./FloatingLinkEditorPlugin";
@@ -62,8 +66,29 @@ const theme: EditorThemeClasses = {
   // `cursor-pointer` signals that a click follows the link (LinkOpenPlugin).
   link: "cursor-pointer text-cork-accent underline underline-offset-2 hover:text-cork-accent-hover",
   list: {
+    // `checklist` is added by Lexical (in addition to `ul`) when the list's
+    // type is "check" — it overrides `ul`'s `list-disc pl-6` so the disc
+    // doesn't show next to the checkbox and the items align flush left
+    // (the checkbox itself reserves the indent via `cork-checklist-item`'s
+    // padding-left). See style.css for the visual rules.
+    checklist: "cork-checklist",
     listitem: "mb-1",
-    nested: { listitem: "list-none" },
+    // `listitemChecked` / `listitemUnchecked` are toggled by Lexical on each
+    // leaf check item (a check-list item that doesn't *contain* a nested
+    // list). The base class draws the empty box; -checked adds the fill +
+    // checkmark + strikethrough.
+    listitemChecked: "cork-checklist-item cork-checklist-item-checked",
+    listitemUnchecked: "cork-checklist-item",
+    // `nested.listitem` lands on a list item that contains a nested list —
+    // Lexical applies it uniformly to bullet / ordered / check parents
+    // (NOT just check). GitHub-style checklists put no checkbox on a parent
+    // task (only leaves are checkable), so `cork-checklist-nested-parent`
+    // gates the ::before suppression to nested check parents only via the
+    // compound selector `.cork-checklist-item.cork-checklist-nested-parent`
+    // in style.css. The name encodes the actual scope (checklist-specific)
+    // even though Lexical paints the class on every nested-parent LI; the
+    // compound CSS selector handles the gating.
+    nested: { listitem: "list-none cork-checklist-nested-parent" },
     ol: "my-2 list-decimal pl-6",
     ul: "my-2 list-disc pl-6",
   },
@@ -215,6 +240,52 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
           {/* Registers the empty-list-item Enter handler so lists can be exited,
             plus the list insert/remove commands. */}
           <ListPlugin />
+          {/* Wires up GitHub-style task lists: click the checkbox to toggle,
+            Space toggles when a check item is focused, Arrow keys nav between
+            check items, INSERT_CHECK_LIST_COMMAND converts the current
+            paragraph / list into a check list. The plugin's pointer handlers
+            are zone-gated (they read getComputedStyle(li, '::before').width
+            and only toggle when the click X is inside the checkbox's
+            pseudo-element), so they don't interfere with link clicks or
+            normal caret placement inside a check item. The corresponding
+            transformer (STRICT_CHECK_LIST in transformers.ts, ordered ahead
+            of UNORDERED_LIST so `- [ ] task` reads as a check list, not a
+            bullet item with text `[ ] task`) handles round-trip with the
+            Markdown file. */}
+          <CheckListPlugin />
+          {/* Live convert from `- ` (bullet) + `[ ] ` typed in the listitem
+            into a check list. Upstream's MarkdownShortcutPlugin only runs
+            element transformers at the document root (bails when grandparent
+            isn't root), so a `[ ] ` typed INSIDE an already-created bullet
+            item never reaches the CHECK_LIST regex. Without this plugin the
+            typed text would stay literal `[ ] foo` in the bullet item but
+            round-trip through the file as a check list — silently flipping
+            the rendered shape across save/reload. Hooks
+            `registerUpdateListener` to catch the post-state `[ ] ` (with
+            trailing space) shape, then re-emits the rewrite via
+            `editor.update(..., { tag: HISTORY_MERGE_TAG, discrete: true })`
+            so the convert is merged into the typing run's history entry —
+            Ctrl+Z reverts the merged entry in one step, never landing on
+            the `[ ] ` intermediate state that would serialize as `- [ ] `
+            and re-import as a check item on reload. */}
+          <CheckListShortcutPlugin />
+          {/* Upstream's `$handleOutdent` moves an outdented item to its
+            great-grandparent ListNode without adjusting `__listType`, so a
+            check item Shift+Tab'd through a bullet wrapper becomes a child
+            of the outer bullet ListNode and ListItemNode's $transform
+            clears `__checked`. This plugin reroutes type-mismatch outdents
+            to lift the item OUT of the outer list into a fresh ListNode of
+            the original type at the outer list's parent level — preserving
+            the check semantic on Shift+Tab. */}
+          <CheckListOutdentPlugin />
+          {/* Symmetric to CheckListOutdentPlugin: upstream's `$handleIndent`
+            unconditionally appends an indented item into the prev sibling's
+            nested ListNode without checking its type, so a bullet item
+            Tab'd next to a check-containing wrapper silently becomes a
+            check item. This plugin reroutes type-mismatch indents to build
+            a new wrapping LI containing a fresh nested ListNode of the
+            item's own type, sitting next to the prev wrapping LI. */}
+          <CheckListIndentPlugin />
           {/* Backward delete (Backspace / Cmd+Backspace / Option+Backspace) at
             the start of a list item exits the list — empty items dispatch
             INSERT_PARAGRAPH_COMMAND so ListPlugin's Enter listener handles
