@@ -110,15 +110,21 @@ function $getCodeNodeAtCursor(): CodeNode | null {
   return null;
 }
 
-// A "line" is a span between newlines. Those newlines may be stored two ways
-// depending on how the block was produced: as LineBreakNode children (when the
-// user pressed Enter) or as literal "\n" characters inside a single TextNode
-// (how `$convertFromMarkdownString` imports a fenced block — no
-// `registerCodeHighlighting` is wired up to split it). `getTextContent()`
-// normalizes both to "\n", so we resolve the caret's absolute character offset
-// within the block's text and check for a newline before / after it. The cursor
-// is on the first line when none precedes it, and on the last line when none
-// follows it.
+// A "line" is a span between newlines. Those newlines may be stored three ways
+// depending on how the block was produced:
+//   - As LineBreakNode children (when the user pressed Enter), or
+//   - As literal "\n" characters inside a single TextNode (how
+//     `$convertFromMarkdownString` initially imports a fenced block before the
+//     highlight transforms have run), or
+//   - As LineBreakNode children sitting BETWEEN per-token CodeHighlightNode
+//     children (after `CodeBlockHighlightPlugin`'s transforms split the block
+//     into Prism tokens; CodeHighlightNode is a TextNode subclass).
+// `getTextContent()` normalizes all three to "\n", so we resolve the caret's
+// absolute character offset within the block's text and check for a newline
+// before / after it. The walk from the anchor up to a direct child of
+// `codeNode` also terminates correctly for CodeHighlightNode children, since
+// they sit directly under the CodeNode. The cursor is on the first line when
+// no newline precedes it, and on the last line when none follows it.
 function $isOnFirstLineOfCode(codeNode: CodeNode): boolean {
   const offset = $caretOffsetInCode(codeNode);
   if (offset == null) return false;

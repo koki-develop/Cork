@@ -1,4 +1,4 @@
-import { $isCodeNode, CodeNode } from "@lexical/code";
+import { $isCodeNode, CodeHighlightNode, CodeNode } from "@lexical/code";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown";
@@ -25,6 +25,7 @@ import { CheckListIndentPlugin } from "./CheckListIndentPlugin";
 import { CheckListOutdentPlugin } from "./CheckListOutdentPlugin";
 import { CheckListShortcutPlugin } from "./CheckListShortcutPlugin";
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
+import { $highlightAllCodeBlocks, CodeBlockHighlightPlugin } from "./CodeBlockHighlightPlugin";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
 import { FloatingLinkEditorPlugin } from "./FloatingLinkEditorPlugin";
 import { FormatFormattableTextPlugin } from "./FormatFormattableTextPlugin";
@@ -42,6 +43,19 @@ import {
   MARKDOWN_TRANSFORMERS,
 } from "./transformers";
 
+// Per-token color tokens for syntax highlighting. One named constant per
+// visual group so renaming a color is a one-line edit instead of grep-and-
+// replace across the `codeHighlight` record. See
+// `openspec/changes/code-block-syntax-highlight/design.md` Decision 5 for
+// the palette rationale + WCAG / color-overlap notes.
+const TOK_KEYWORD = "text-cork-accent font-semibold";
+const TOK_LITERAL = "text-cork-success-text";
+const TOK_NUMBER = "text-cork-warning-text";
+const TOK_NAME = "text-cork-accent-hover";
+const TOK_MARKUP = "text-cork-danger-text";
+const TOK_GLUE = "text-cork-text/70";
+const TOK_COMMENT = "text-cork-muted italic";
+
 // Maps Lexical node types to Cork's Tailwind tokens so Markdown renders WYSIWYG
 // with the app's typography. Headings/inline-code override the editor box's
 // base `text-sm`.
@@ -49,6 +63,51 @@ const theme: EditorThemeClasses = {
   // Sunken dark well (not the lighter `cork-elevated` used by inputs) so a code
   // block reads as code, not an editable field.
   code: "my-2 block overflow-x-auto whitespace-pre rounded-md border border-cork-border/50 bg-cork-bg p-3 font-mono text-xs leading-relaxed",
+  // Prism token → Tailwind class. `CodeHighlightNode.createDOM` reads
+  // `theme.codeHighlight[token.type]` and applies the class to each
+  // highlighted span. The palette intentionally reuses existing `cork-*`
+  // tokens (no new design tokens added for one feature). Unknown token types
+  // gracefully render with no extra class — inheriting the parent block's
+  // `cork-text` color. See `openspec/changes/code-block-syntax-highlight/
+  // design.md` Decision 5/6 for the rationale and color-overlap notes.
+  codeHighlight: {
+    // High-salience semantics
+    keyword: TOK_KEYWORD,
+    atrule: TOK_KEYWORD,
+    important: TOK_KEYWORD,
+    // String-shaped literals (incl. diff-inserted)
+    string: TOK_LITERAL,
+    char: TOK_LITERAL,
+    "attr-value": TOK_LITERAL,
+    inserted: TOK_LITERAL,
+    // Numeric / boolean literals
+    number: TOK_NUMBER,
+    boolean: TOK_NUMBER,
+    constant: TOK_NUMBER,
+    symbol: TOK_NUMBER,
+    // Names
+    function: TOK_NAME,
+    "class-name": TOK_NAME,
+    selector: TOK_NAME,
+    // Markup-shaped tokens (HTML, regex, diff-deleted)
+    tag: TOK_MARKUP,
+    regex: TOK_MARKUP,
+    deleted: TOK_MARKUP,
+    "attr-name": TOK_NUMBER,
+    property: TOK_NUMBER,
+    variable: TOK_NUMBER,
+    builtin: TOK_NUMBER,
+    // Glue (de-emphasised vs prose default)
+    punctuation: TOK_GLUE,
+    operator: TOK_GLUE,
+    entity: TOK_GLUE,
+    url: `${TOK_GLUE} underline`,
+    // Documentation / metadata
+    comment: TOK_COMMENT,
+    prolog: TOK_COMMENT,
+    doctype: TOK_COMMENT,
+    cdata: TOK_COMMENT,
+  },
   heading: {
     h1: "mt-3 mb-2 text-2xl font-bold tracking-tight first:mt-0",
     h2: "mt-3 mb-2 text-xl font-bold tracking-tight first:mt-0",
@@ -131,13 +190,16 @@ const theme: EditorThemeClasses = {
 
 // Registered once. The default Markdown transformers require all but
 // AutoLinkNode (which AutoLinkPlugin needs to wrap bare URLs); the Table* nodes
-// back the custom TABLE transformer in transformers.ts.
+// back the custom TABLE transformer in transformers.ts. `CodeHighlightNode` is
+// the leaf node produced by `CodeBlockHighlightPlugin`'s Prism transforms —
+// it must be registered here so the transforms can create instances.
 const NODES = [
   HeadingNode,
   QuoteNode,
   ListNode,
   ListItemNode,
   CodeNode,
+  CodeHighlightNode,
   LinkNode,
   AutoLinkNode,
   HorizontalRuleNode,
@@ -192,8 +254,18 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
       nodes: NODES,
       // Function form runs inside an editor.update() tagged history-merge, so it
       // never fires OnChangePlugin — body stays equal to the raw initial value
-      // until the user actually edits (see design Decision 3).
-      editorState: () => $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS),
+      // until the user actually edits (see design Decision 3 +
+      // `organisms/board/AGENTS.md:18`'s "no normalization churn"
+      // invariant). $highlightAllCodeBlocks pre-tokenizes every CodeNode
+      // before CodeBlockHighlightPlugin's useEffect-time transform sweep so
+      // the post-mount sweep finds an empty diff and never dirty-flags the
+      // tree — without it, opening a task containing any ``` fence would
+      // splice highlight children outside this HISTORY_MERGE context and
+      // fire a phantom onChange → autosave on every open.
+      editorState: () => {
+        $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS);
+        $highlightAllCodeBlocks();
+      },
       onError: (error: Error) => {
         throw error;
       },
@@ -322,6 +394,14 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             Shift+Enter and the boundary arrow keys; click-to-open for links. */}
           <ListTabIndentationPlugin />
           <CodeBlockEscapePlugin />
+          {/* Three-rule Prism highlighting on fenced code blocks: language
+            specified+bundled = that grammar; language specified+unbundled =
+            the editor's DEFAULT_CODE_LANGUAGE as "auto"; language absent
+            (or one of the `plain` aliases) = no highlight. Never rewrites
+            the stored info string, so the on-disk fence round-trips
+            verbatim. Registered after CodeBlockEscapePlugin so the file
+            reads as "code-block plugins, grouped". */}
+          <CodeBlockHighlightPlugin />
           {/* Owns ranged FORMAT_TEXT_COMMAND: keeps inline formatting off
             code-block text (which the Markdown serializer would silently drop)
             and makes a mixed selection always enable rather than toggle off the

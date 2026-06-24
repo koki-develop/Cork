@@ -1,11 +1,14 @@
 import { $isCodeNode } from "@lexical/code";
 import { $isTextNode, type LexicalNode, type RangeSelection, type TextNode } from "lexical";
 
-// Whether `node` sits within a fenced code block. The block's text is a plain
-// `TextNode` (this editor doesn't register syntax highlighting, so it never
-// becomes a `CodeHighlightNode`), so `canHaveFormat()` reports `true` for it and
-// can't be used to tell code from prose — the only reliable signal is the
-// structural one: an ancestor `CodeNode`.
+// Whether `node` sits within a fenced code block. Code-block text can live in
+// the tree as either a plain `TextNode` (rule 3 — no info string / a `plain`
+// alias, see `CodeBlockHighlightPlugin`) or as a `CodeHighlightNode` per Prism
+// token (rules 1+2 — bundled grammar or auto fallback). `CodeHighlightNode`
+// is a `TextNode` subclass whose `canHaveFormat()` is `false`, but plain
+// `TextNode` under a `CodeNode` still reports `true` for `canHaveFormat()` —
+// so the only signal that works for BOTH representations is the structural
+// one: an ancestor `CodeNode`.
 export function $isInsideCodeBlock(node: LexicalNode): boolean {
   for (let n: LexicalNode | null = node; n != null; n = n.getParent()) {
     if ($isCodeNode(n)) return true;
