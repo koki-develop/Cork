@@ -13,6 +13,7 @@ import {
   TagEditor,
 } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
+import { isImeKeyEvent } from "@/lib/keyboard";
 import type { StatusEntry, Task, TaskUpdates } from "@/types";
 
 import { DeleteTaskConfirmDialog } from "../DeleteTaskConfirmDialog";
@@ -118,6 +119,7 @@ export function TaskDetailDialog({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onKeyDown={(e) => {
+                  if (isImeKeyEvent(e)) return;
                   if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
                     e.preventDefault();
                     bodyRef.current?.focus();

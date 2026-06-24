@@ -14,6 +14,7 @@ import {
 import { Modal } from "@/components/organisms/shell";
 import { useDialogError } from "@/hooks/ui/useDialogError";
 import { useTagEditorController } from "@/hooks/ui/useTagEditorController";
+import { isImeKeyEvent } from "@/lib/keyboard";
 import type { StatusEntry } from "@/types";
 
 export type CreateTaskDialogProps = {
@@ -128,6 +129,7 @@ export function CreateTaskDialog({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onKeyDown={(e) => {
+                    if (isImeKeyEvent(e)) return;
                     if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
                       e.preventDefault();
                       bodyRef.current?.focus();
