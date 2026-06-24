@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.15.0](https://github.com/koki-develop/Cork/compare/v0.14.0...v0.15.0) (2026-06-24)
+
+
+### Features
+
+* **ui:** support GitHub-style task lists in the task body editor ([e1a2982](https://github.com/koki-develop/Cork/commit/e1a2982a14f464f84e8a1a1be1226132f6b65ac7))
+* **ui:** syntax-highlight fenced code blocks in the task body editor ([3c6973e](https://github.com/koki-develop/Cork/commit/3c6973efe35bc52626e6abcb74f22ca326f3e640))
+
+
+### Bug Fixes
+
+* **ui:** ignore IME-confirm Enter when shifting focus from title to body ([6a147e0](https://github.com/koki-develop/Cork/commit/6a147e0fada291c2b0f6b22afc9d3f1a4793fe51))
+
 ## [0.14.0](https://github.com/koki-develop/Cork/compare/v0.13.1...v0.14.0) (2026-06-20)
 
 
