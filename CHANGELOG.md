@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/koki-develop/Cork/compare/v0.15.0...v0.16.0) (2026-06-25)
+
+
+### Features
+
+* **updater:** add in-app updater via tauri-plugin-updater ([#33](https://github.com/koki-develop/Cork/issues/33)) ([c57fdba](https://github.com/koki-develop/Cork/commit/c57fdbad2f688c3c50ab343eb3ecef649a968710))
+
 ## [0.15.0](https://github.com/koki-develop/Cork/compare/v0.14.0...v0.15.0) (2026-06-24)
 
 
