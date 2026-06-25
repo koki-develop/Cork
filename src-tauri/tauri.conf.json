@@ -17,7 +17,17 @@
   "bundle": {
     "active": true,
     "targets": "dmg",
+    "createUpdaterArtifacts": true,
     "externalBin": ["binaries/cork-cli"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns"]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns"],
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/koki-develop/Cork/releases/latest/download/latest.json"],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZBMTU4Q0NFN0QyMTcwOEQKUldTTmNDRjl6b3dWK2hNdG1TQ1M5MVUvUEQ3YXVUS3VkTllCUVg1RlhuSDZKV2JwaTJxclpCQloK"
+    }
   }
 }

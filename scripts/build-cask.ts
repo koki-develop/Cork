@@ -29,6 +29,8 @@ cask "cork" do
   desc "Kanban board for local Markdown files"
   homepage "https://github.com/${REPO_OWNER}/${REPO_NAME}"
 
+  auto_updates true
+
   depends_on arch: :arm64
 
   app "Cork.app"
