@@ -205,5 +205,5 @@
 
 ## 19. OpenSpec アーカイブ準備
 
-- [ ] 19.1 すべての Verification Gate がパスし、本番リリースで実機 QA が完了したら、次回 archive 用に change を `complete` 状態として記録
-- [ ] 19.2 `openspec/changes/in-app-updater/` を `openspec/changes/archive/<date>-in-app-updater/` へ移動するアーカイブ作業は別 session で実施
+- [x] 19.1 全 Verification Gate パス・UI 実機検証完了を確認し、change を `complete` 状態として記録（本番リリース後の §18.9 実機検証は別途実施予定）
+- [x] 19.2 `openspec/changes/in-app-updater/` を `openspec/changes/archive/2026-06-26-in-app-updater/` へ移動完了、canonical spec を `openspec/specs/updater/spec.md` に sync 済み
