@@ -16,3 +16,6 @@ export const onOpenSettings = (callback: () => void): Promise<UnlistenFn> =>
 
 export const onOpenCreateTask = (callback: () => void): Promise<UnlistenFn> =>
   getCurrentWebviewWindow().listen("menu:open-create-task", () => callback());
+
+export const onCheckForUpdates = (callback: () => void): Promise<UnlistenFn> =>
+  getCurrentWebviewWindow().listen("menu:check-for-updates", () => callback());

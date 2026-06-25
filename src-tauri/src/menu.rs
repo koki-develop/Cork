@@ -15,6 +15,9 @@ fn focused_webview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWindow
 }
 
 pub fn setup(app: &mut App) -> tauri::Result<()> {
+    let check_for_updates_item =
+        MenuItemBuilder::with_id("check_for_updates", "Check for Updates...").build(app)?;
+
     let settings_item = MenuItemBuilder::with_id("settings", "Settings...")
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
@@ -33,6 +36,7 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
 
     let app_menu = SubmenuBuilder::new(app, "Cork")
         .about(None)
+        .item(&check_for_updates_item)
         .separator()
         .item(&settings_item)
         .separator()
@@ -77,6 +81,12 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
     app.set_menu(menu)?;
 
     app.on_menu_event(|app, event| match event.id().0.as_str() {
+        "check_for_updates" => {
+            if let Some(window) = focused_webview_window(app) {
+                let target = EventTarget::webview_window(window.label());
+                let _ = app.emit_to(target, "menu:check-for-updates", ());
+            }
+        }
         "settings" => {
             // Multi-window emit scoping. Two ingredients have to cooperate
             // for the notification to land on exactly one window:

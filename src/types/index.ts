@@ -8,3 +8,4 @@ export {
 export type { McpSettings, McpSetupSnippet, McpStatus } from "./mcp";
 export type { EditingEntry, StatusEntry } from "./status";
 export type { Task, TaskUpdates } from "./task";
+export type { UpdaterState } from "./updater";
