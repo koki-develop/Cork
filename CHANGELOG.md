@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.2](https://github.com/koki-develop/Cork/compare/v0.16.1...v0.16.2) (2026-06-26)
+
+
+### Bug Fixes
+
+* **deps:** update react monorepo ([#18](https://github.com/koki-develop/Cork/issues/18)) ([d75d830](https://github.com/koki-develop/Cork/commit/d75d830211e87b885cea04a399fa0fe13c4cc62c))
+
 ## [0.16.1](https://github.com/koki-develop/Cork/compare/v0.16.0...v0.16.1) (2026-06-26)
 
 
