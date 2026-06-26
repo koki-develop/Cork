@@ -17,7 +17,7 @@ function buildManifest(args: { version: string; signature: string; notes: string
     platforms: {
       "darwin-aarch64": {
         signature: args.signature,
-        url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/v${args.version}/Cork_${args.version}_aarch64.app.tar.gz`,
+        url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/v${args.version}/Cork.app.tar.gz`,
       },
     },
   };
