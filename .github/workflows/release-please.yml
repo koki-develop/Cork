@@ -85,6 +85,13 @@ jobs:
           path: artifacts
       - name: Upload DMG and updater bundle
         run: |
+          # Tauri writes the updater bundle as plain `Cork.app.tar.gz` (the
+          # macOS bundler just appends `.tar.gz` to the .app path), so we
+          # rename it to the versioned/arch form to parallel the DMG naming
+          # and to match the URL pattern in `scripts/build-update-manifest.ts`.
+          VERSION="${TAG_NAME#v}"
+          mv artifacts/Cork.app.tar.gz "artifacts/Cork_${VERSION}_aarch64.app.tar.gz"
+          mv artifacts/Cork.app.tar.gz.sig "artifacts/Cork_${VERSION}_aarch64.app.tar.gz.sig"
           gh release upload "$TAG_NAME" \
             artifacts/*.dmg \
             artifacts/*.app.tar.gz \
