@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/koki-develop/Cork/compare/v0.16.0...v0.16.1) (2026-06-26)
+
+
+### Bug Fixes
+
+* **updater:** include app target so updater artifacts are produced ([#35](https://github.com/koki-develop/Cork/issues/35)) ([8cb65a0](https://github.com/koki-develop/Cork/commit/8cb65a0843c2c5654e5aa69834e5613ce8368d87))
+
 ## [0.16.0](https://github.com/koki-develop/Cork/compare/v0.15.0...v0.16.0) (2026-06-25)
 
 
