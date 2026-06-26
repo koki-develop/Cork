@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.3](https://github.com/koki-develop/Cork/compare/v0.16.2...v0.16.3) (2026-06-26)
+
+
+### Bug Fixes
+
+* **updater:** match Tauri's default Cork.app.tar.gz filename in manifest URL ([#40](https://github.com/koki-develop/Cork/issues/40)) ([b42d192](https://github.com/koki-develop/Cork/commit/b42d19287feda27c6ea1552bd81979bc940ccce3))
+
 ## [0.16.2](https://github.com/koki-develop/Cork/compare/v0.16.1...v0.16.2) (2026-06-26)
 
 
