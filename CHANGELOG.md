@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.4](https://github.com/koki-develop/Cork/compare/v0.16.3...v0.16.4) (2026-06-26)
+
+
+### Bug Fixes
+
+* **deps:** update dependency @tauri-apps/api to v2.11.1 ([#42](https://github.com/koki-develop/Cork/issues/42)) ([33d83f1](https://github.com/koki-develop/Cork/commit/33d83f18c8e34da77c6c5864d4e6413f62695bd0))
+
 ## [0.16.3](https://github.com/koki-develop/Cork/compare/v0.16.2...v0.16.3) (2026-06-26)
 
 
