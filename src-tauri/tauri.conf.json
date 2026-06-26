@@ -16,7 +16,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "dmg",
+    "targets": ["app", "dmg"],
     "createUpdaterArtifacts": true,
     "externalBin": ["binaries/cork-cli"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns"],
