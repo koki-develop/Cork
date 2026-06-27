@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/koki-develop/Cork/compare/v0.17.0...v0.17.1) (2026-06-27)
+
+
+### Bug Fixes
+
+* **editor:** match bare `>` blank line so blockquote round-trips cleanly ([2d22256](https://github.com/koki-develop/Cork/commit/2d22256d58e117605de797ecd6cb4a6b65931257))
+
 ## [0.17.0](https://github.com/koki-develop/Cork/compare/v0.16.4...v0.17.0) (2026-06-27)
 
 
