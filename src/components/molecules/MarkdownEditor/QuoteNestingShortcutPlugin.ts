@@ -16,7 +16,11 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 
-import { $createNestedQuoteChain } from "./transformers";
+import {
+  $absorbTrailingQuoteSibling,
+  $createNestedQuoteChain,
+  $mergeIntoQuoteTree,
+} from "./transformers";
 
 /**
  * Live conversion of `> ` (or `> > `, `> > > `, ...) typed at the start of a
@@ -190,7 +194,29 @@ export function QuoteNestingShortcutPlugin(): null {
             }
           }
 
-          paragraph.replace($createNestedQuoteChain(depthIncrement, tailParagraph));
+          // Mirror of the root-level QUOTE transformer's previous-is-quote
+          // branch: when the typed paragraph already has a QuoteNode above it
+          // inside the same parent, splice the new tail into that existing
+          // QuoteNode (via `$mergeIntoQuoteTree`) instead of spawning a
+          // sibling one. Without this the live editor would render two
+          // adjacent same-depth blockquotes, while reopening the saved
+          // Markdown (which round-trips through `$mergeIntoQuoteTree` on the
+          // import side) would collapse them into a single one — see the
+          // `> > bbb` + `> > ccc` case in `QuoteNestingShortcutPlugin.spec`.
+          // `$absorbTrailingQuoteSibling` covers the symmetric case where a
+          // QuoteNode also follows the typed paragraph.
+          const previous = paragraph.getPreviousSibling();
+          if ($isQuoteNode(previous)) {
+            $mergeIntoQuoteTree(previous, tailParagraph, depthIncrement);
+            paragraph.remove();
+            $absorbTrailingQuoteSibling(previous);
+            tailParagraph.selectStart();
+            return;
+          }
+
+          const newChain = $createNestedQuoteChain(depthIncrement, tailParagraph);
+          paragraph.replace(newChain);
+          $absorbTrailingQuoteSibling(newChain);
           tailParagraph.selectStart();
         },
         { tag: HISTORY_MERGE_TAG, discrete: true },

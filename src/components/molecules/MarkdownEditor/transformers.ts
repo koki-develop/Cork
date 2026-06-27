@@ -484,11 +484,18 @@ const QUOTE: ElementTransformer = {
 
 // If `quote`'s next sibling is also a QuoteNode at the same parent level,
 // concatenate that sibling's children onto `quote` and drop the sibling.
-// Used by the QUOTE transformer's live-typing path to bridge a
-// `> ` typed on a spacer paragraph into both surrounding QuoteNodes —
-// without it the merged-into-previous QuoteNode would sit adjacent to the
-// untouched trailing one, requiring a second user action to fuse them.
-function $absorbTrailingQuoteSibling(quote: QuoteNode): void {
+// Two callers, both with the same shape problem (a freshly-created or
+// freshly-merged QuoteNode left sitting next to an untouched same-level
+// QuoteNode that would render as two separate blocks):
+//
+//   - QUOTE transformer's live-typing path: `> ` typed on a spacer paragraph
+//     between two QuoteNodes — fuses both surrounding QuoteNodes into the
+//     merged structure instead of leaving the trailing one dangling.
+//   - QuoteNestingShortcutPlugin: `> ` typed inside an existing QuoteNode
+//     where the original paragraph also had a QuoteNode AFTER it (the
+//     mirror of the previous-is-quote merge), so the new nested chain
+//     doesn't sit adjacent to an untouched trailing nested QuoteNode.
+export function $absorbTrailingQuoteSibling(quote: QuoteNode): void {
   const next = quote.getNextSibling();
   if ($isQuoteNode(next)) {
     quote.append(...next.getChildren());
@@ -610,10 +617,14 @@ function $exportNestedQuote(
   return lines;
 }
 
-// Splice a freshly-imported `> ...` line into the previously-imported
-// QuoteNode tree at its `targetDepth`. The previous QuoteNode's tail is found
-// by walking `getLastChild()` down through nested QuoteNodes; that's the
-// current depth at which subsequent lines would naturally continue.
+// Splice a `> ...` line into an existing QuoteNode tree at `targetDepth`,
+// relative to `outer` (so `outer` itself is depth 1). The tail is found by
+// walking `getLastChild()` down through nested QuoteNodes; that's the current
+// depth at which subsequent lines would naturally continue. Used both by the
+// QUOTE transformer's import path and by `QuoteNestingShortcutPlugin`'s
+// previous-is-quote merge (live typing of `> ` on an outer-quote line below
+// an existing nested QuoteNode must converge to the same tree shape as
+// reloading the saved Markdown).
 //
 //   target === tail  → append paragraph at the same depth (a new quote line)
 //   target  >  tail  → open `target - tail` more nested QuoteNodes via
@@ -621,7 +632,7 @@ function $exportNestedQuote(
 //   target  <  tail  → re-descend the OUTER quote's last-child path only to
 //                      `target`, append paragraph there (the line returned to
 //                      a shallower level)
-function $mergeIntoQuoteTree(
+export function $mergeIntoQuoteTree(
   outer: QuoteNode,
   newParagraph: ParagraphNode,
   targetDepth: number,
