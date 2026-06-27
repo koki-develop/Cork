@@ -52,6 +52,11 @@ export function $readMarkdown(editor: LexicalEditor): string {
 }
 
 type RenderTestEditorOptions = {
+  // Seeds the editor's initial state via `buildInitialConfig`'s `editorState`
+  // initializer — the exact same path production uses when a task dialog opens
+  // with an existing body. Defaults to `""` so live-typing tests start from a
+  // blank document.
+  initialValue?: string;
   plugins?: ReactNode;
 };
 
@@ -76,15 +81,16 @@ function EditorCapture({ onCapture }: { onCapture: (editor: LexicalEditor) => vo
 // Chromium page via `vitest-browser-react`'s async `render`. Always wires the
 // `RichTextPlugin` + `HistoryPlugin` minimum; `options.plugins` adds whatever
 // else the test asserts on so each spec opts in to only the surface it cares
-// about. The empty `""` initial value lets the test seed state via
-// `$setMarkdown` after mount when it needs specific content.
+// about. `options.initialValue` flows through the production `editorState`
+// initializer — pass it to reproduce the "open an existing task" path; leave
+// it unset to start blank and seed via `$setMarkdown` after mount.
 export async function renderTestEditor(
   options?: RenderTestEditorOptions,
 ): Promise<RenderTestEditorResult> {
   let captured: LexicalEditor | undefined;
 
   const screen = await render(
-    <LexicalComposer initialConfig={buildInitialConfig("")}>
+    <LexicalComposer initialConfig={buildInitialConfig(options?.initialValue ?? "")}>
       <EditorCapture
         onCapture={(editor) => {
           captured = editor;
