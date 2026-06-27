@@ -201,7 +201,10 @@ const theme: EditorThemeClasses = {
 // back the custom TABLE transformer in transformers.ts. `CodeHighlightNode` is
 // the leaf node produced by `CodeBlockHighlightPlugin`'s Prism transforms —
 // it must be registered here so the transforms can create instances.
-const NODES = [
+// Exported so `__tests__/utils.tsx` can register the same set in headless +
+// mounted test editors. Mirror is undesirable here — the production tree is
+// the single source of truth for what `MarkdownEditor` can render.
+export const NODES = [
   HeadingNode,
   QuoteNode,
   ListNode,
@@ -215,6 +218,42 @@ const NODES = [
   TableRowNode,
   TableCellNode,
 ];
+
+// Shared between the production component and `renderTestEditor` so the test
+// editor mounts with the same theme, namespace, and pre-mount state seed
+// (`$convertFromMarkdownString` + `$insertSpacersBetweenAdjacentQuotes` +
+// `$highlightAllCodeBlocks`). Passing `initialValue` is the only varying
+// input; everything else is constant across call sites.
+export function buildInitialConfig(initialValue: string) {
+  return {
+    namespace: "task-body",
+    theme,
+    nodes: NODES,
+    // Function form runs inside an editor.update() tagged history-merge, so it
+    // never fires OnChangePlugin — body stays equal to the raw initial value
+    // until the user actually edits (see design Decision 3 +
+    // `organisms/board/AGENTS.md:18`'s "no normalization churn"
+    // invariant). $highlightAllCodeBlocks pre-tokenizes every CodeNode
+    // before CodeBlockHighlightPlugin's useEffect-time transform sweep so
+    // the post-mount sweep finds an empty diff and never dirty-flags the
+    // tree — without it, opening a task containing any ``` fence would
+    // splice highlight children outside this HISTORY_MERGE context and
+    // fire a phantom onChange → autosave on every open.
+    editorState: () => {
+      $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS);
+      // `@lexical/markdown` strips empty paragraphs at root after the
+      // line-by-line pass, which collapses `> aaa\n\n> bbb` into two
+      // adjacent QuoteNodes with no visible gap between them. Restore
+      // the spacer so the post-load shape matches the post-author shape
+      // (see the helper's header for the round-trip rationale).
+      $insertSpacersBetweenAdjacentQuotes();
+      $highlightAllCodeBlocks();
+    },
+    onError: (error: Error) => {
+      throw error;
+    },
+  };
+}
 
 // Auto-links bare `https://` / `http://` URLs so they're clickable without
 // `[text](url)` syntax (GFM-style). The trailing char class drops sentence
@@ -256,38 +295,9 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
       [onChange],
     );
 
-    const initialConfig = {
-      namespace: "task-body",
-      theme,
-      nodes: NODES,
-      // Function form runs inside an editor.update() tagged history-merge, so it
-      // never fires OnChangePlugin — body stays equal to the raw initial value
-      // until the user actually edits (see design Decision 3 +
-      // `organisms/board/AGENTS.md:18`'s "no normalization churn"
-      // invariant). $highlightAllCodeBlocks pre-tokenizes every CodeNode
-      // before CodeBlockHighlightPlugin's useEffect-time transform sweep so
-      // the post-mount sweep finds an empty diff and never dirty-flags the
-      // tree — without it, opening a task containing any ``` fence would
-      // splice highlight children outside this HISTORY_MERGE context and
-      // fire a phantom onChange → autosave on every open.
-      editorState: () => {
-        $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS);
-        // `@lexical/markdown` strips empty paragraphs at root after the
-        // line-by-line pass, which collapses `> aaa\n\n> bbb` into two
-        // adjacent QuoteNodes with no visible gap between them. Restore
-        // the spacer so the post-load shape matches the post-author shape
-        // (see the helper's header for the round-trip rationale).
-        $insertSpacersBetweenAdjacentQuotes();
-        $highlightAllCodeBlocks();
-      },
-      onError: (error: Error) => {
-        throw error;
-      },
-    };
-
     return (
       <div className={clsx("relative flex min-w-0 flex-col", className)}>
-        <LexicalComposer initialConfig={initialConfig}>
+        <LexicalComposer initialConfig={buildInitialConfig(initialValue)}>
           <RichTextPlugin
             contentEditable={
               <ContentEditable

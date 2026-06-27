@@ -22,6 +22,14 @@ jobs:
       - uses: ./.github/actions/setup
       - run: bun run fmt:check
       - run: bun run lint
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+      - run: bunx playwright install --with-deps --only-shell chromium
+      - run: bun run test
 
   build:
     runs-on: macos-latest

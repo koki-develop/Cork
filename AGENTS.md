@@ -18,13 +18,15 @@ Multi-window: a single process can host any number of windows, each with its own
 | Command                 | What it does                                                                                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `bun run dev`           | Vite dev server on port 1420 (frontend only — Tauri APIs error in browser)                                                                                               |
-| `bun run build`         | `tsc && vite build` (full typecheck + bundle)                                                                                                                            |
+| `bun run build`         | `tsc && tsc -p tsconfig.test.json && vite build` (production typecheck + test typecheck + bundle)                                                                        |
 | `bun run build:sidecar` | Build the `cork` CLI and stage it as a Tauri sidecar (`src-tauri/binaries/cork-cli-<triple>`). Run automatically by `tauri dev` / `tauri build` via the before-commands. |
 | `bun run tauri`         | Tauri CLI passthrough (e.g. `bun run tauri dev`, `bun run tauri build`)                                                                                                  |
 | `bun run lint`          | `oxlint` (lint check only)                                                                                                                                               |
 | `bun run lint:fix`      | `oxlint --fix` (lint with autofix)                                                                                                                                       |
 | `bun run fmt`           | `oxfmt` (format only)                                                                                                                                                    |
 | `bun run fmt:check`     | `oxfmt --check` (check formatting)                                                                                                                                       |
+| `bun run test`          | `vitest run` once (browser-mode Playwright Chromium, headless). Used by CI.                                                                                              |
+| `bun run test:watch`    | `vitest` in watch mode (re-runs affected `*.spec.ts(x)` on change).                                                                                                      |
 | `bun run preview`       | `vite preview` (serve production build)                                                                                                                                  |
 
 ## Pre-commit
@@ -34,8 +36,8 @@ Multi-window: a single process can host any number of windows, each with its own
 ## Tests
 
 - **Rust (`src-tauri/`)**: `cargo test` runs unit tests for the testable helpers (frontmatter, security, state, errors, etc.). `#[tauri::command]` bodies and GUI code aren't covered — see `src-tauri/AGENTS.md`.
-- **Frontend (`src/`)**: no test framework. Verification of changes is `bunx tsc --noEmit` + `bun run lint` + `bun run fmt:check` + `bun run tauri dev` for visual smoke tests.
-- **CI**: `.github/workflows/ci.yml` runs `bun run lint` and `bun run tauri build --no-bundle` on push to `main` and on PRs (no test run).
+- **Frontend (`src/`)**: **Vitest 4 in browser mode** driving **Playwright Chromium** (`@vitest/browser-playwright` + `vitest-browser-react`). Spec files are `*.spec.ts` / `*.spec.tsx` colocated next to the source they cover. Shared utilities live next to the source under `__tests__/` (e.g. `src/components/molecules/MarkdownEditor/__tests__/utils.tsx`). Run with `bun run test` (one-shot) or `bun run test:watch`. Currently the only covered surface is `MarkdownEditor` — see `src/components/molecules/MarkdownEditor/AGENTS.md` for the three test-shape recipes.
+- **CI**: `.github/workflows/ci.yml` `lint` job runs `bun run fmt:check` + `bun run lint` + `bunx playwright install --with-deps --only-shell chromium` + `bun run test`. The `build` job runs `bun run tauri build --no-bundle`.
 
 ## Change workflow
 

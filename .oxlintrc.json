@@ -261,6 +261,17 @@
           }
         ]
       }
+    },
+    {
+      "files": [
+        "src/components/molecules/MarkdownEditor/**/*.spec.ts",
+        "src/components/molecules/MarkdownEditor/**/*.spec.tsx",
+        "src/components/molecules/MarkdownEditor/__tests__/**/*.ts",
+        "src/components/molecules/MarkdownEditor/__tests__/**/*.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
     }
   ]
 }
