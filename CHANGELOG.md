@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.17.0](https://github.com/koki-develop/Cork/compare/v0.16.4...v0.17.0) (2026-06-27)
+
+
+### Features
+
+* **test:** add MarkdownEditor heading-render specs for live typing and initial value ([6fc4f1f](https://github.com/koki-develop/Cork/commit/6fc4f1f92360483346d08b6f11d91b8a8cd3faca))
+* **test:** add MarkdownEditor list-system plugin specs ([2dcf353](https://github.com/koki-develop/Cork/commit/2dcf353bc36fb8b808f04ed728462b4923df9b5b))
+* **test:** add MarkdownEditor quote-block keyboard and typing-merge specs ([d19e8ad](https://github.com/koki-develop/Cork/commit/d19e8adcb8db03d32e699d8dbfebcbd8ab3a647b))
+* **test:** introduce Vitest browser-mode test framework for the MarkdownEditor ([b98098f](https://github.com/koki-develop/Cork/commit/b98098f853fe41dd8c59e956b527c92ce7e91f9b))
+* **ui:** support nested blockquotes in the task body editor ([4a1d3e0](https://github.com/koki-develop/Cork/commit/4a1d3e031e8f97f176ff3fff979ba87a95f7acd5))
+
+
+### Bug Fixes
+
+* **editor:** merge live-typed nested quote with adjacent QuoteNode sibling ([d89cf74](https://github.com/koki-develop/Cork/commit/d89cf7480ec880012e8c39fc35a93bd85c03432d))
+
 ## [0.16.4](https://github.com/koki-develop/Cork/compare/v0.16.3...v0.16.4) (2026-06-26)
 
 
