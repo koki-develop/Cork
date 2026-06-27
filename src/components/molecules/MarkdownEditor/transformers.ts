@@ -416,7 +416,18 @@ function cellAware(transformer: ElementTransformer): ElementTransformer {
 // default behavior, no command override required. `QuoteEnterPlugin` then
 // handles only the exit case: empty trailing paragraph + Enter → outdent one
 // level.
-const QUOTE_REGEX = /^(>\s)+/;
+// One `>` followed by ` >` zero-or-more times, with EITHER a final whitespace
+// separating the marker from the content OR end-of-line (a bare `>` / `> >` /
+// `> > >` with no trailing content). The bare-marker branch is the CommonMark
+// "empty blockquote line" — a `>` with nothing after it acts as a blank line
+// inside the blockquote. Without that branch, `@lexical/markdown`'s import
+// fallback (`MarkdownImport.ts` line 265: any non-matching line whose previous
+// sibling is a Paragraph/Quote/List gets appended via softbreak + raw text)
+// folds the bare `>` into the previous QuoteNode as `LineBreakNode + TextNode
+// ">"`, which `$exportNestedQuote`'s defensive branches re-emit as TWO output
+// lines (`> ` for the linebreak and `> >` for the text). Result: opening +
+// saving a file with `> aaa\n>\n> bbb` rewrites it as `> aaa\n> \n> >\n> bbb`.
+const QUOTE_REGEX = /^>(?:\s>)*(?:\s|$)/;
 const QUOTE: ElementTransformer = {
   dependencies: [QuoteNode, ParagraphNode],
   export: (node, exportChildren) => {
@@ -427,10 +438,10 @@ const QUOTE: ElementTransformer = {
   },
   regExp: QUOTE_REGEX,
   replace: (parentNode, children, match, isImport) => {
-    // match[0] is the full `> > > ` prefix at the start of the matched line.
-    // Each level is exactly `>` + one whitespace (regex enforces single `\s`),
-    // so depth is half the prefix length.
-    const depth = match[0].length / 2;
+    // `match[0]` is one of `> `, `> > `, ..., or the bare-marker form `>`,
+    // `> >`, .... Depth equals the number of `>` chars in the prefix —
+    // counting them works for both forms.
+    const depth = (match[0].match(/>/g) ?? []).length;
     const paragraph = $createParagraphNode();
     paragraph.append(...children);
 

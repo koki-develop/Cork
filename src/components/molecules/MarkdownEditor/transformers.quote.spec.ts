@@ -15,6 +15,21 @@ describe("Cork QUOTE transformer", () => {
     expect($readMarkdown(editor)).toBe("> > Hello");
   });
 
+  // Regression for the round-trip mangling reported by beta testers: a bare
+  // `>` inside a multi-paragraph blockquote represents a CommonMark empty
+  // blockquote line. `@lexical/markdown`'s import fallback would otherwise
+  // graft the unmatched `>` onto the previous QuoteNode as a soft-break +
+  // raw TextNode, which `$exportNestedQuote`'s defensive branches re-emit
+  // as two extra output lines (`> ` from the linebreak and `> >` from the
+  // text) — a single save+reopen rewrites the file with phantom `> >` lines.
+  // Our QUOTE regex must claim the bare marker so the line goes through the
+  // standard merge path as an empty paragraph child of the QuoteNode.
+  test("a bare `>` blank line in the middle of a quote round-trips as `> ` (the canonical empty-quote form)", () => {
+    const editor = createTestHeadlessEditor();
+    $setMarkdown(editor, ["> aaa", ">", "> bbb"].join("\n"));
+    expect($readMarkdown(editor)).toBe(["> aaa", "> ", "> bbb"].join("\n"));
+  });
+
   // Asserts the depth-2 tree shape, not just textContent. Both `> Hello`
   // and `> > Hello` produce textContent "Hello", so a string-only assertion
   // would let a flatten-on-import regression slip through.
