@@ -153,3 +153,23 @@ export function dispatchKeyDown(
   );
   return handled;
 }
+
+// Generic command dispatcher for non-keyboard commands (e.g.
+// `INDENT_CONTENT_COMMAND`, `OUTDENT_CONTENT_COMMAND`). Same discrete-update
+// wrapping as `dispatchKeyDown` so the listener's mutations commit
+// synchronously — see the comment on `dispatchKeyDown` above for the
+// microtask-deferred commit race that motivates this.
+export function dispatchCommand<TPayload>(
+  editor: LexicalEditor,
+  command: LexicalCommand<TPayload>,
+  payload: TPayload,
+): boolean {
+  let handled = false;
+  editor.update(
+    () => {
+      handled = editor.dispatchCommand(command, payload);
+    },
+    { discrete: true },
+  );
+  return handled;
+}
