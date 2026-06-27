@@ -238,6 +238,25 @@
     outline-offset: 1px;
   }
 
+  /* Blockquote in the Markdown editor — the nesting-aware QUOTE transformer
+     (see MarkdownEditor/transformers.ts) wraps each quote line in a
+     ParagraphNode child of the QuoteNode so `selection.insertParagraph()`
+     splits the paragraph instead of escaping the block. Multiple sibling
+     paragraphs inside one QuoteNode would otherwise pick up the theme's
+     `mb-2` paragraph margin and render `> foo\n> bar` with a visible gap
+     between the lines — flat consecutive quote lines should read as one
+     continuous block. Zero the margin on every paragraph descendant of a
+     blockquote so the lines flow flush; the nested QuoteNode's own `my-2`
+     still separates a deeper-level block from the surrounding paragraphs.
+
+     Like the checklist rules, this MUST live in @layer utilities so its
+     compound selector (`.cork-quote p`, specificity 0,1,1) beats the
+     paragraph theme's `.mb-2` / `.last\:mb-0` (specificity 0,1,0) which
+     also sit in the utilities layer. */
+  .cork-quote p {
+    margin: 0;
+  }
+
   /* Parent task in a nested checklist: GitHub-style only the leaves carry
      a checkbox (CheckListPlugin's keyboard / pointer handlers also skip
      non-leaf items). Suppress only the box + checkmark; keep the LI's

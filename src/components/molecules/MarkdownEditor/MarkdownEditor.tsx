@@ -36,8 +36,11 @@ import { ListExitPlugin } from "./ListExitPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 import { NoListInTablePlugin } from "./NoListInTablePlugin";
 import { PasteLinkPlugin } from "./PasteLinkPlugin";
+import { QuoteExitPlugin } from "./QuoteExitPlugin";
+import { QuoteNestingShortcutPlugin } from "./QuoteNestingShortcutPlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
 import {
+  $insertSpacersBetweenAdjacentQuotes,
   MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS,
   MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS,
   MARKDOWN_TRANSFORMERS,
@@ -152,7 +155,12 @@ const theme: EditorThemeClasses = {
     ul: "my-2 list-disc pl-6",
   },
   paragraph: "mb-2 last:mb-0",
-  quote: "my-2 border-l-2 border-cork-border pl-3 text-cork-muted",
+  // `cork-quote` zeroes the margin of paragraph children so consecutive quote
+  // lines (`> foo\n> bar` — two ParagraphNodes inside a QuoteNode per the
+  // nesting-aware QUOTE transformer in transformers.ts) read as continuous
+  // lines instead of separated paragraphs. The CSS rule lives in style.css
+  // alongside the other `cork-*` editor styles.
+  quote: "cork-quote my-2 border-l-2 border-cork-border pl-3 text-cork-muted",
   // Minimal grid styling — visual polish (resize handles, selection, etc.) comes
   // later. `tableCell`/`tableCellHeader` stack: a header cell gets both classes.
   // `block` + `w-max` + `max-w-full` + `overflow-x-auto` is the responsive-table
@@ -264,6 +272,12 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
       // fire a phantom onChange → autosave on every open.
       editorState: () => {
         $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS);
+        // `@lexical/markdown` strips empty paragraphs at root after the
+        // line-by-line pass, which collapses `> aaa\n\n> bbb` into two
+        // adjacent QuoteNodes with no visible gap between them. Restore
+        // the spacer so the post-load shape matches the post-author shape
+        // (see the helper's header for the round-trip rationale).
+        $insertSpacersBetweenAdjacentQuotes();
         $highlightAllCodeBlocks();
       },
       onError: (error: Error) => {
@@ -365,6 +379,24 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             non-empty nested items outdent, non-empty top-level items become
             paragraphs splitting the list around the cut. */}
           <ListExitPlugin />
+          {/* Owns the two exit-from-quote channels: Enter on an empty trailing
+            line outdents one level (or exits to root), and Backspace at the
+            start of a quote line either exits downward (empty trailing) or
+            unwraps upward (first child) — sidestepping Lexical's default
+            collapseAtStart re-parenting which silently breaks the live `> `
+            shortcut after a single-paragraph quote is collapsed. The
+            "Enter stays in the quote on a non-empty line" half falls out of
+            the QuoteNode > ParagraphNode tree shape produced by the
+            nesting-aware QUOTE transformer in transformers.ts (no command
+            override needed). */}
+          <QuoteExitPlugin />
+          {/* Live convert `> ` (or `> > `, `> > > `...) typed at the start of
+            a paragraph INSIDE an existing QuoteNode into a deeper-nested
+            QuoteNode. `@lexical/markdown`'s MarkdownShortcutPlugin only runs
+            element transformers at the document root, so without this plugin
+            typing `> ` inside an existing quote would stay as literal text
+            and nesting would only be reachable via file-load / paste. */}
+          <QuoteNestingShortcutPlugin />
           {/* Lists inside table cells are unworkable (Tab/Backspace overlap with
             table cell navigation) and visually noisy. The primary block is in
             transformers.ts (cell-aware UNORDERED_LIST/ORDERED_LIST/CHECK_LIST

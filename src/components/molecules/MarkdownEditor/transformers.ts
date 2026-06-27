@@ -4,6 +4,7 @@ import {
   CHECK_LIST,
   type ElementTransformer,
   ORDERED_LIST,
+  QUOTE as DEFAULT_QUOTE,
   type TextFormatTransformer,
   TRANSFORMERS,
   type Transformer,
@@ -14,6 +15,7 @@ import {
   $isHorizontalRuleNode,
   HorizontalRuleNode,
 } from "@lexical/react/LexicalHorizontalRuleNode";
+import { $createQuoteNode, $isQuoteNode, QuoteNode } from "@lexical/rich-text";
 import {
   $createTableCellNode,
   $createTableNode,
@@ -27,7 +29,17 @@ import {
   TableNode,
   TableRowNode,
 } from "@lexical/table";
-import { $isParagraphNode, $isTextNode, type LexicalNode } from "lexical";
+import {
+  $createParagraphNode,
+  $getRoot,
+  $isElementNode,
+  $isLineBreakNode,
+  $isParagraphNode,
+  $isTextNode,
+  type ElementNode,
+  type LexicalNode,
+  ParagraphNode,
+} from "lexical";
 
 // `@lexical/markdown`'s default TRANSFORMERS have no table support, so we add a
 // GFM-table transformer (adapted from the Lexical playground). It round-trips a
@@ -371,6 +383,303 @@ function cellAware(transformer: ElementTransformer): ElementTransformer {
   };
 }
 
+// Nested-quote support. Upstream `@lexical/markdown` treats each leading `>` as
+// one level but flattens everything into a single `QuoteNode` with inline
+// children — `> foo\n> > bar` round-trips as a single quote whose text reads
+// `foo\n> bar` (the second `>` left as literal text). To render true nesting
+// we model each quote level as a `QuoteNode` and each quote line at that level
+// as a `ParagraphNode` child; deeper levels are nested `QuoteNode` siblings of
+// those paragraphs.
+//
+//   > foo
+//   > > bar
+//   > > > baz
+//
+// becomes
+//
+//   QuoteNode
+//     ParagraphNode "foo"
+//     QuoteNode
+//       ParagraphNode "bar"
+//       QuoteNode
+//         ParagraphNode "baz"
+//
+// The `ParagraphNode` wrapper is the key load-bearing piece for live editing:
+// `selection.insertParagraph()` (the default Enter handler) walks up to the
+// nearest block ancestor (`INTERNAL_$isBlock`) and calls `insertNewAfter` on
+// it. With inline content directly inside the QuoteNode, that ancestor is the
+// QuoteNode itself and the default `QuoteNode.insertNewAfter` exits the
+// block — the long-standing Cork bug where Enter dropped you out of a quote.
+// With a wrapping ParagraphNode the ancestor is the paragraph instead, so
+// Enter splits it and `ParagraphNode.insertNewAfter` appends a sibling
+// paragraph INSIDE the QuoteNode — "stay in the quote" falls out of the
+// default behavior, no command override required. `QuoteEnterPlugin` then
+// handles only the exit case: empty trailing paragraph + Enter → outdent one
+// level.
+const QUOTE_REGEX = /^(>\s)+/;
+const QUOTE: ElementTransformer = {
+  dependencies: [QuoteNode, ParagraphNode],
+  export: (node, exportChildren) => {
+    if (!$isQuoteNode(node)) {
+      return null;
+    }
+    return $exportNestedQuote(node, exportChildren, 1).join("\n");
+  },
+  regExp: QUOTE_REGEX,
+  replace: (parentNode, children, match, isImport) => {
+    // match[0] is the full `> > > ` prefix at the start of the matched line.
+    // Each level is exactly `>` + one whitespace (regex enforces single `\s`),
+    // so depth is half the prefix length.
+    const depth = match[0].length / 2;
+    const paragraph = $createParagraphNode();
+    paragraph.append(...children);
+
+    // Merge into an immediately-adjacent QuoteNode at root level — whether
+    // we got here from a streaming line-by-line import or from the live
+    // typing shortcut firing at root. The import case is the obvious one
+    // (consecutive `> ` lines), but the typing case matters too: after the
+    // user exits a quote (Enter on empty trailing → fresh paragraph after
+    // the QuoteNode) and types `> bbb` on that paragraph, they expect the
+    // new line to join the previous quote (`> aaa\n> bbb`), not start a
+    // second QuoteNode (`> aaa\n\n> bbb`). Same call site handles both.
+    const previous = parentNode.getPreviousSibling();
+    if ($isQuoteNode(previous)) {
+      $mergeIntoQuoteTree(previous, paragraph, depth);
+      parentNode.remove();
+      // Bridge: a `> ` typed on a SPACER paragraph (between two QuoteNodes,
+      // typically restored by `$insertSpacersBetweenAdjacentQuotes` from a
+      // saved `> aaa\n\n> ccc`) should fold the trailing QuoteNode into
+      // the same merged structure, not leave it dangling as a separate
+      // block. Gated on `!isImport && depth === 1` because (a) the import
+      // path's previous-merge already runs line-by-line so the spacer case
+      // is only reachable via live typing, and (b) depth>1 live shortcut
+      // never fires (anchor's grandparent has to be root for `> ` to
+      // trigger, and that gate fails inside an existing QuoteNode).
+      if (!isImport && depth === 1) {
+        $absorbTrailingQuoteSibling(previous);
+      }
+      if (!isImport) {
+        paragraph.select(0, 0);
+      }
+      return;
+    }
+
+    parentNode.replace($createNestedQuoteChain(depth, paragraph));
+    if (!isImport && depth === 1) {
+      // Same bridge as above for the case where the previous sibling
+      // ISN'T a QuoteNode — typing `> bbb` between `hello\n|\n> ccc` still
+      // wants `bbb` to fold the trailing `> ccc` into its new QuoteNode.
+      const newRoot = paragraph.getParent();
+      if ($isQuoteNode(newRoot)) {
+        $absorbTrailingQuoteSibling(newRoot);
+      }
+    }
+    if (!isImport) {
+      paragraph.select(0, 0);
+    }
+  },
+  triggerOnEnter: true,
+  type: "element",
+};
+
+// If `quote`'s next sibling is also a QuoteNode at the same parent level,
+// concatenate that sibling's children onto `quote` and drop the sibling.
+// Used by the QUOTE transformer's live-typing path to bridge a
+// `> ` typed on a spacer paragraph into both surrounding QuoteNodes —
+// without it the merged-into-previous QuoteNode would sit adjacent to the
+// untouched trailing one, requiring a second user action to fuse them.
+function $absorbTrailingQuoteSibling(quote: QuoteNode): void {
+  const next = quote.getNextSibling();
+  if ($isQuoteNode(next)) {
+    quote.append(...next.getChildren());
+    next.remove();
+  }
+}
+
+// Re-insert an empty paragraph between every pair of adjacent root-level
+// QuoteNodes. `@lexical/markdown`'s import strips empty paragraphs after the
+// line-by-line pass (the `isEmptyParagraph` cleanup loop in
+// `createMarkdownImport`), so `> aaa\n\n> bbb` — which the line walker
+// initially built as `[QuoteNode "aaa", emptyParagraph, QuoteNode "bbb"]` —
+// collapses to `[QuoteNode "aaa", QuoteNode "bbb"]` on load. The two
+// adjacent blockquotes then render flush against each other, while the live
+// editor (where the user authored them with an Enter-exit + blank line +
+// `> bbb`) had the empty paragraph in between as a visible gap. Run this
+// after `$convertFromMarkdownString` to restore that gap so the on-screen
+// shape after open matches the on-screen shape before save, edit by edit.
+//
+// Only fires at root level — adjacent nested QuoteNodes inside another
+// QuoteNode never occur in our tree (consecutive same-depth quote lines
+// merge into one QuoteNode with two paragraphs via `$mergeIntoQuoteTree`),
+// and the `.cork-quote p { margin: 0 }` rule would zero any spacer
+// margin we tried to insert there anyway.
+export function $insertSpacersBetweenAdjacentQuotes(): void {
+  let cur: LexicalNode | null = $getRoot().getFirstChild();
+  while (cur != null) {
+    // Cache the next sibling BEFORE inserting, so the iteration walks the
+    // original linked list rather than landing on the freshly-inserted
+    // spacer (which would be a no-op next iteration but reads as a code
+    // smell).
+    const next: LexicalNode | null = cur.getNextSibling();
+    if ($isQuoteNode(cur) && $isQuoteNode(next)) {
+      cur.insertAfter($createParagraphNode());
+    }
+    cur = next;
+  }
+}
+
+// Build a `depth`-deep chain of nested `QuoteNode`s and place `innermost` at
+// the deepest level. Returns the outermost QuoteNode (i.e. the one to attach
+// to the parent of where the chain should go).
+//
+//   depth=1 → QuoteNode > innermost
+//   depth=2 → QuoteNode > QuoteNode > innermost
+//   ...
+//
+// Shared by the QUOTE transformer's import / typed-shortcut path, the
+// `targetDepth > curDepth` branch of `$mergeIntoQuoteTree`, and
+// `QuoteNestingShortcutPlugin`'s in-quote `> ` shortcut — all three places
+// need the exact same tree shape, so encoding it in one helper keeps any
+// future structural tweak (a marker class, an off-by-one in the loop, etc.)
+// in a single spot.
+export function $createNestedQuoteChain(depth: number, innermost: LexicalNode): QuoteNode {
+  const outer = $createQuoteNode();
+  let cur: QuoteNode = outer;
+  for (let i = 1; i < depth; i++) {
+    const inner = $createQuoteNode();
+    cur.append(inner);
+    cur = inner;
+  }
+  cur.append(innermost);
+  return outer;
+}
+
+// Recursively serialise a nested QuoteNode tree. Each ParagraphNode child is
+// rendered via the standard `exportChildren` callback (so inline format /
+// text-match transformers run and `LineBreakNode`s become `\n`), then each
+// physical line is prefixed with `> ` repeated `depth` times. Nested QuoteNode
+// children recurse with `depth + 1`.
+function $exportNestedQuote(
+  quote: QuoteNode,
+  exportChildren: (node: ElementNode) => string,
+  depth: number,
+): string[] {
+  const prefix = "> ".repeat(depth);
+  const lines: string[] = [];
+
+  for (const child of quote.getChildren()) {
+    if ($isQuoteNode(child)) {
+      lines.push(...$exportNestedQuote(child, exportChildren, depth + 1));
+    } else if ($isElementNode(child)) {
+      // ParagraphNode (or any other element-shaped child). `exportChildren`
+      // walks its inline descendants through the same transformer pipeline as
+      // top-level paragraph export — bold / italic / code / links / autolinks
+      // all serialise correctly without us reimplementing them.
+      const inner = exportChildren(child);
+      for (const line of inner.split("\n")) {
+        lines.push(prefix + line);
+      }
+    } else if ($isLineBreakNode(child)) {
+      // Defensive: a `LineBreakNode` directly inside a QuoteNode (instead of
+      // inside a child ParagraphNode) is upstream's pre-wrapping shape — a
+      // file paste, a node-transform glitch, or any legacy state could land
+      // it here. Treat it as a blank quote line so the boundary survives the
+      // round-trip; without this the for-loop would silently skip it and the
+      // adjacent text would merge across the missing break.
+      lines.push(prefix);
+    } else if ($isTextNode(child)) {
+      // Defensive: a TextNode directly under a QuoteNode (upstream's flat
+      // shape, or a paste path that bypasses our transformer) — emit its raw
+      // text so saved content survives the round-trip. Inline format flags
+      // are lost here (we can't run them through `exportChildren` for a leaf
+      // node), but losing format is strictly better than losing the line of
+      // content entirely.
+      lines.push(prefix + child.getTextContent());
+    }
+  }
+
+  if (lines.length === 0) {
+    // Defensive: a QuoteNode with no children shouldn't occur in practice, but
+    // if it does, emit a single empty quote line at this depth. The trailing
+    // space matters — `QUOTE_REGEX` requires `>\s` per level, so a bare `>`
+    // wouldn't round-trip and the empty line would silently turn into a
+    // literal `>` paragraph on the next load.
+    lines.push(prefix);
+  }
+
+  return lines;
+}
+
+// Splice a freshly-imported `> ...` line into the previously-imported
+// QuoteNode tree at its `targetDepth`. The previous QuoteNode's tail is found
+// by walking `getLastChild()` down through nested QuoteNodes; that's the
+// current depth at which subsequent lines would naturally continue.
+//
+//   target === tail  → append paragraph at the same depth (a new quote line)
+//   target  >  tail  → open `target - tail` more nested QuoteNodes via
+//                      `$createNestedQuoteChain`, attach the chain at tail
+//   target  <  tail  → re-descend the OUTER quote's last-child path only to
+//                      `target`, append paragraph there (the line returned to
+//                      a shallower level)
+function $mergeIntoQuoteTree(
+  outer: QuoteNode,
+  newParagraph: ParagraphNode,
+  targetDepth: number,
+): void {
+  const [tail, tailDepth] = $tailOfQuote(outer);
+
+  if (targetDepth === tailDepth) {
+    tail.append(newParagraph);
+    return;
+  }
+
+  if (targetDepth > tailDepth) {
+    tail.append($createNestedQuoteChain(targetDepth - tailDepth, newParagraph));
+    return;
+  }
+
+  // targetDepth < tailDepth: walk back UP the tail to a shallower level by
+  // re-descending from `outer` to exactly `targetDepth`.
+  $descendQuoteToDepth(outer, targetDepth).append(newParagraph);
+}
+
+// Walk `outer`'s last-child path down through nested QuoteNodes until the
+// last child is no longer a QuoteNode (i.e. it's a ParagraphNode or absent).
+// Returns the deepest QuoteNode and its depth from `outer` (1-based, so
+// `outer` itself is depth 1).
+function $tailOfQuote(outer: QuoteNode): [QuoteNode, number] {
+  let cur: QuoteNode = outer;
+  let depth = 1;
+  while (true) {
+    const last = cur.getLastChild();
+    if (!$isQuoteNode(last)) {
+      return [cur, depth];
+    }
+    cur = last;
+    depth++;
+  }
+}
+
+// Re-descend `outer`'s last-child path exactly `targetDepth - 1` steps and
+// return the QuoteNode at that depth. Callers guarantee the path exists (in
+// practice this is only used when stepping UP from a deeper tail to a known
+// shallower level, so the intermediate QuoteNodes are the ones the same
+// import session just created).
+function $descendQuoteToDepth(outer: QuoteNode, targetDepth: number): QuoteNode {
+  let cur: QuoteNode = outer;
+  for (let i = 1; i < targetDepth; i++) {
+    const last = cur.getLastChild();
+    if (!$isQuoteNode(last)) {
+      // Should never happen for our callers, but if the tree shape unexpect-
+      // edly diverges fall back to `outer` — losing the depth target is
+      // safer than throwing mid-import.
+      return outer;
+    }
+    cur = last;
+  }
+  return cur;
+}
+
 // Tighten upstream CHECK_LIST in two ways:
 //
 //   1. `[-*+]\s` (NOT upstream's `(?:[-*+]\s)?\s?`) requires exactly one marker-and-
@@ -412,22 +721,34 @@ const STRICT_CHECK_LIST: ElementTransformer = {
 const CELL_AWARE_LIST_TRANSFORMERS = [STRICT_CHECK_LIST, UNORDERED_LIST, ORDERED_LIST].map(
   cellAware,
 );
-const NON_LIST_DEFAULTS = TRANSFORMERS.filter(
-  (t) => t !== UNORDERED_LIST && t !== ORDERED_LIST && t !== CHECK_LIST,
+// QUOTE is wrapped the same way: a `> note` typed live in a cell, or a
+// reloaded `| > note |` whose decoded body starts with `> `, must stay
+// literal text. Building a QuoteNode inside a TableCellNode would mix the
+// quote key-surface (Enter / Backspace / our QuoteEnterPlugin) with the
+// cell key-surface (TableKeyboardPlugin's row/column navigation) and the
+// editor's CSS (`.cork-quote p { margin: 0 }`) would also start zeroing
+// margins on cell paragraphs that happen to live under the quote — same
+// rationale as the list cell-aware wrappers.
+const CELL_AWARE_QUOTE = cellAware(QUOTE);
+const NON_LIST_NON_QUOTE_DEFAULTS = TRANSFORMERS.filter(
+  (t) => t !== UNORDERED_LIST && t !== ORDERED_LIST && t !== CHECK_LIST && t !== DEFAULT_QUOTE,
 );
 
 // TABLE leads so its row regExp wins before the default element transformers
 // (e.g. a leading-pipe line is a table row, not a quote). HORIZONTAL_RULE
 // follows so `---`/`***`/`___` lines become a rule before any default element
 // transformer sees them. Both are defined here because the TABLE transformer
-// recurses into this list for cell bodies. The list transformers come from
-// @lexical/markdown but are cell-aware-wrapped so they don't try to build a
-// ListNode inside a cell (which would erase the typed `- ` marker).
+// recurses into this list for cell bodies. QUOTE is our nesting-aware
+// replacement for upstream's flat single-level QUOTE (see comment block on
+// the transformer itself). The list transformers come from @lexical/markdown
+// but are cell-aware-wrapped so they don't try to build a ListNode inside a
+// cell (which would erase the typed `- ` marker).
 export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [
   TABLE,
   HORIZONTAL_RULE,
+  CELL_AWARE_QUOTE,
   ...CELL_AWARE_LIST_TRANSFORMERS,
-  ...NON_LIST_DEFAULTS,
+  ...NON_LIST_NON_QUOTE_DEFAULTS,
 ];
 
 // Split for the shortcut pipeline. `FormatShortcutPlugin` owns text-format
