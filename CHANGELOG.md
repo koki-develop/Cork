@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.17.2](https://github.com/koki-develop/Cork/compare/v0.17.1...v0.17.2) (2026-06-28)
+
+
+### Bug Fixes
+
+* **editor:** align shouldPreserveNewLines between import and export ([c68dada](https://github.com/koki-develop/Cork/commit/c68dadadc7e825dedfe54068b80ccb2c44151f1b))
+* **editor:** show floating toolbar on whitespace-only text selection ([9a18419](https://github.com/koki-develop/Cork/commit/9a184197a1b13bd1869dc014381a3da4d9912bb2))
+* preserve leading blank lines in task body through save/load round-trip ([8609842](https://github.com/koki-develop/Cork/commit/86098421209264f100da1293707b3e67fec1784c))
+* restore macOS traffic-light offset after AppKit relayouts ([eb9ec95](https://github.com/koki-develop/Cork/commit/eb9ec95348ddbc3ca24427c7f9d59b2508520452))
+
 ## [0.17.1](https://github.com/koki-develop/Cork/compare/v0.17.0...v0.17.1) (2026-06-27)
 
 
