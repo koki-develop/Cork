@@ -713,10 +713,13 @@ name = "cork"
 version = "0.0.0"
 dependencies = [
  "axum",
+ "block2",
  "gray_matter",
  "http",
  "nucleo-matcher",
+ "objc2",
  "objc2-app-kit",
+ "objc2-foundation",
  "rand 0.9.4",
  "rayon",
  "rfd",

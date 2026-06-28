@@ -182,6 +182,150 @@ fn apply_macos_window_chrome(window: &WebviewWindow) {
             1.0,
         );
         ns_window.setBackgroundColor(Some(&bg_color));
+
+        // Tauri's `traffic_light_position` only sticks for tao's `drawRect:`
+        // path; AppKit relayouts triggered by window-level screen recording
+        // (the traffic lights are hidden while capturing and re-shown when
+        // it stops) bypass that path, leaving the buttons at AppKit's default
+        // top-left position. Hook NSNotificationCenter to snap them back.
+        unsafe { install_traffic_light_repositioner(ns_window) };
+    }
+}
+
+/// Logical-point offset of the top-left traffic light from the window's
+/// top-left corner. Must mirror the literal passed to `traffic_light_position`
+/// in `build_workspace_window` — Tauri/tao set the initial position; we
+/// restore the same offset on every subsequent relayout.
+const TRAFFIC_LIGHT_X: f64 = 20.0;
+const TRAFFIC_LIGHT_Y: f64 = 28.0;
+/// macOS traffic-light spacing. Hard-coded — the live `miniaturize.x - close.x`
+/// delta is unreliable once close has been moved to our offset (the next
+/// reapply would read a clustered delta and snap the other two buttons in).
+const TRAFFIC_LIGHT_SPACING: f64 = 20.0;
+/// Nominal traffic-light button height. Used to size the private titlebar
+/// container view in `reapply_traffic_light_position`. Reading the live
+/// `close.frame().size.height` returns 0 while AppKit is mid-transition
+/// (notably during recording start), collapsing the container.
+const TRAFFIC_LIGHT_BUTTON_HEIGHT: f64 = 15.0;
+
+/// NSWindow pointers we've installed our notification observer for. The
+/// observer block ignores any other window — necessary because the
+/// notification filter is by raw NSWindow address, and macOS happily reuses a
+/// freed NSWindow's address for unrelated windows (e.g. `rfd`'s open panel).
+/// Without this check the stale observer would mangle their titlebars.
+static OBSERVED_WINDOWS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<usize>>> =
+    std::sync::OnceLock::new();
+
+fn observed_windows() -> &'static std::sync::Mutex<std::collections::HashSet<usize>> {
+    OBSERVED_WINDOWS.get_or_init(|| std::sync::Mutex::new(std::collections::HashSet::new()))
+}
+
+/// Drop the registry entry for a window that's about to be destroyed, so the
+/// observer no longer reacts if the NSWindow's address gets recycled. Called
+/// from `lib.rs::on_window_event` on `WindowEvent::Destroyed`. Best-effort:
+/// `ns_window()` failing means there's nothing to deregister.
+pub(crate) fn deregister_traffic_light_window<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    let Ok(ptr) = window.ns_window() else { return };
+    observed_windows().lock().unwrap().remove(&(ptr as usize));
+}
+
+/// Subscribe to `NSWindowDidUpdateNotification` and re-apply the traffic-light
+/// offset whenever any of the three standard buttons drifts. Post-layout, so
+/// the steady-state path is a single guard check; AppKit isn't fought.
+unsafe fn install_traffic_light_repositioner(ns_window: &objc2_app_kit::NSWindow) {
+    use block2::RcBlock;
+    use objc2::runtime::AnyObject;
+    use objc2_app_kit::{NSWindow, NSWindowDidUpdateNotification};
+    use objc2_foundation::{NSNotification, NSNotificationCenter};
+    use std::ptr::NonNull;
+
+    observed_windows()
+        .lock()
+        .unwrap()
+        .insert(ns_window as *const _ as usize);
+
+    let center = NSNotificationCenter::defaultCenter();
+    let window_filter: &AnyObject =
+        unsafe { &*(ns_window as *const _ as *const AnyObject) };
+
+    let block = RcBlock::new(move |notification: NonNull<NSNotification>| {
+        let notification = unsafe { notification.as_ref() };
+        let Some(obj) = notification.object() else {
+            return;
+        };
+        let posting_window: &NSWindow =
+            unsafe { &*(&*obj as *const AnyObject as *const NSWindow) };
+        if !observed_windows()
+            .lock()
+            .unwrap()
+            .contains(&(posting_window as *const _ as usize))
+        {
+            return;
+        }
+        unsafe { reapply_traffic_lights_if_needed(posting_window) };
+    });
+    // NotificationCenter retains the observer strongly; the token we discard
+    // here only loses our extra reference. Observation continues until app
+    // termination — `deregister_traffic_light_window` short-circuits the
+    // block body for windows that are gone.
+    let _token = unsafe {
+        center.addObserverForName_object_queue_usingBlock(
+            Some(NSWindowDidUpdateNotification),
+            Some(window_filter),
+            None,
+            &block,
+        )
+    };
+}
+
+/// Verify all three traffic lights sit at the offsets we want, and reapply
+/// when they don't. Combines the guard and the apply step so the steady-state
+/// path is three `standardWindowButton` + three `frame` reads — and nothing
+/// else. AppKit's recording-end relayout can reset only one or two buttons,
+/// so the guard must inspect all three.
+///
+/// SAFETY: Caller must pass a live `NSWindow` with a titlebar style.
+/// Missing buttons (`Closable` / `Miniaturizable` stripped from the style
+/// mask) are treated as "no work to do" — no reapply attempt is made.
+unsafe fn reapply_traffic_lights_if_needed(ns_window: &objc2_app_kit::NSWindow) {
+    use objc2_app_kit::NSWindowButton;
+    use objc2_foundation::NSPoint;
+    const EPS: f64 = 0.5;
+
+    let close = ns_window.standardWindowButton(NSWindowButton::CloseButton);
+    let miniaturize = ns_window.standardWindowButton(NSWindowButton::MiniaturizeButton);
+    let zoom = ns_window.standardWindowButton(NSWindowButton::ZoomButton);
+    let (Some(close), Some(miniaturize), Some(zoom)) = (close, miniaturize, zoom) else {
+        return;
+    };
+
+    let buttons = [&close, &miniaturize, &zoom];
+    let at_target = buttons.iter().enumerate().all(|(i, b)| {
+        let want = TRAFFIC_LIGHT_X + (i as f64) * TRAFFIC_LIGHT_SPACING;
+        (b.frame().origin.x - want).abs() < EPS
+    });
+    if at_target {
+        return;
+    }
+
+    // close → its superview → the private titlebar container view (port of
+    // tao's `inset_traffic_lights`).
+    let Some(title_bar_container_view) = (unsafe { close.superview() })
+        .and_then(|sv| unsafe { sv.superview() })
+    else {
+        return;
+    };
+
+    let title_bar_frame_height = TRAFFIC_LIGHT_BUTTON_HEIGHT + TRAFFIC_LIGHT_Y;
+    let mut title_bar_rect = title_bar_container_view.frame();
+    title_bar_rect.size.height = title_bar_frame_height;
+    title_bar_rect.origin.y = ns_window.frame().size.height - title_bar_frame_height;
+    title_bar_container_view.setFrame(title_bar_rect);
+
+    for (i, button) in buttons.iter().enumerate() {
+        let mut origin = button.frame().origin;
+        origin.x = TRAFFIC_LIGHT_X + (i as f64) * TRAFFIC_LIGHT_SPACING;
+        button.setFrameOrigin(NSPoint::new(origin.x, origin.y));
     }
 }
 
@@ -199,7 +343,10 @@ pub(crate) fn build_workspace_window(
 
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .traffic_light_position(tauri::LogicalPosition::new(20.0, 28.0));
+        .traffic_light_position(tauri::LogicalPosition::new(
+            TRAFFIC_LIGHT_X,
+            TRAFFIC_LIGHT_Y,
+        ));
 
     let window = builder.build()?;
 

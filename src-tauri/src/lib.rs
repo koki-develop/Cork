@@ -77,6 +77,8 @@ pub fn run() {
             // fires exactly once and only after the window is really gone.
             if let tauri::WindowEvent::Destroyed = event {
                 window.state::<AppState>().remove_window(window.label());
+                #[cfg(target_os = "macos")]
+                workspace::deregister_traffic_light_window(window);
             }
         })
         .setup(|app| {

@@ -32,7 +32,10 @@ gray_matter = "=0.3.2"
 yaml-rust2 = "=0.10.4"
 rayon = "=1.12.0"
 nucleo-matcher = "=0.3.1"
-objc2-app-kit = { version = "=0.3.2", features = ["NSColor", "NSWindow", "objc2-core-foundation"] }
+objc2-app-kit = { version = "=0.3.2", features = ["NSColor", "NSWindow", "NSView", "NSButton", "NSControl", "NSResponder", "objc2-core-foundation"] }
+objc2-foundation = { version = "=0.3.2", features = ["NSNotification", "NSString", "NSOperation", "block2"] }
+objc2 = "=0.6.4"
+block2 = "=0.6.2"
 rmcp = { version = "=1.7.0", features = [
   "server",
   "transport-streamable-http-server",
