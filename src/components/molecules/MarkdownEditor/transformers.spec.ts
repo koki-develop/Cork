@@ -18,4 +18,22 @@ describe("MARKDOWN_TRANSFORMERS round-trip", () => {
     $setMarkdown(editor, "- one\n- two");
     expect($readMarkdown(editor)).toBe("- one\n- two");
   });
+
+  test("a multi-line body round-trips without phantom blank lines", () => {
+    const editor = createTestHeadlessEditor();
+    $setMarkdown(editor, "aaa\nbbb\nccc");
+    expect($readMarkdown(editor)).toBe("aaa\nbbb\nccc");
+  });
+
+  test("leading blank lines are preserved through round-trip", () => {
+    const editor = createTestHeadlessEditor();
+    $setMarkdown(editor, "\n\nbody");
+    expect($readMarkdown(editor)).toBe("\n\nbody");
+  });
+
+  test("intentional paragraph breaks (empty lines) are preserved", () => {
+    const editor = createTestHeadlessEditor();
+    $setMarkdown(editor, "aaa\n\nbbb");
+    expect($readMarkdown(editor)).toBe("aaa\n\nbbb");
+  });
 });

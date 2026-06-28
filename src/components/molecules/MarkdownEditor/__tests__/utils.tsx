@@ -48,7 +48,9 @@ export function $setMarkdown(editor: LexicalEditor, markdown: string): void {
 }
 
 export function $readMarkdown(editor: LexicalEditor): string {
-  return editor.getEditorState().read(() => $convertToMarkdownString(MARKDOWN_TRANSFORMERS));
+  return editor
+    .getEditorState()
+    .read(() => $convertToMarkdownString(MARKDOWN_TRANSFORMERS, undefined, true));
 }
 
 type RenderTestEditorOptions = {

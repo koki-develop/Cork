@@ -290,7 +290,9 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
   ) {
     const handleChange = useCallback(
       (editorState: EditorState) => {
-        onChange(editorState.read(() => $convertToMarkdownString(MARKDOWN_TRANSFORMERS)));
+        onChange(
+          editorState.read(() => $convertToMarkdownString(MARKDOWN_TRANSFORMERS, undefined, true)),
+        );
       },
       [onChange],
     );
