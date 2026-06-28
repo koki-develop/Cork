@@ -95,8 +95,8 @@ export function FloatingFormatToolbarPlugin(): ReactNode {
     const placement = editor.getEditorState().read((): ToolbarPlacement | null => {
       const selection = $getSelection();
       // Show only for a real, non-empty text range that lives inside this
-      // editor. A collapsed caret, a whitespace-only range, or a selection the
-      // browser left grayed in another element must not surface the toolbar.
+      // editor. A collapsed caret or a selection the browser left grayed in
+      // another element must not surface the toolbar.
       // The toolbar is also hidden when the selection holds NO formattable
       // text — i.e. it sits entirely within fenced code block(s), where inline
       // formats are no-ops (the block serializes its text literally). As long
@@ -105,7 +105,7 @@ export function FloatingFormatToolbarPlugin(): ReactNode {
       if (
         !$isRangeSelection(selection) ||
         selection.isCollapsed() ||
-        selection.getTextContent().trim() === "" ||
+        selection.getTextContent() === "" ||
         nativeSelection == null ||
         rootElement == null ||
         !rootElement.contains(nativeSelection.anchorNode)
