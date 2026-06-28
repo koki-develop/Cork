@@ -41,7 +41,7 @@ export function createTestHeadlessEditor(): LexicalEditor {
 export function $setMarkdown(editor: LexicalEditor, markdown: string): void {
   editor.update(
     () => {
-      $convertFromMarkdownString(markdown, MARKDOWN_TRANSFORMERS);
+      $convertFromMarkdownString(markdown, MARKDOWN_TRANSFORMERS, undefined, true);
     },
     { discrete: true },
   );

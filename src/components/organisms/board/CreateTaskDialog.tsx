@@ -83,7 +83,7 @@ export function CreateTaskDialog({
     }
     clearError();
     const finalTags = tagEditor.flushAndMerge(tags);
-    onCreateTask(trimmed, status, body.trim(), finalTags, date)
+    onCreateTask(trimmed, status, body, finalTags, date)
       .then(() => {
         onClose();
       })

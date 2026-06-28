@@ -4,12 +4,43 @@ use serde::de::DeserializeOwned;
 use yaml_rust2::yaml::Hash as YamlHash;
 use yaml_rust2::{Yaml, YamlEmitter};
 
+/// gray_matter internally strips **all** leading `\n` from the parsed body
+/// via `trim_start_matches('\n')` (see gray_matter's matter.rs:129). The
+/// file convention `---\n\n` provides exactly one blank-line separator
+/// between the frontmatter fence and the body; any `\n` beyond that
+/// first one is user-intentional and must be recovered.
+fn restore_extra_leading_newlines(original: &str, stripped_body: &str) -> String {
+    // The closing fence is the first occurrence of `\n---\n` (the
+    // opening fence starts at position 0 and has no preceding `\n`).
+    if let Some(pos) = original.find("\n---\n") {
+        let body_start = pos + 5;
+        let n = original[body_start..]
+            .chars()
+            .take_while(|&c| c == '\n')
+            .count();
+        // n ≥ 1 because the closing `---\n` is always followed by at
+        // least one `\n` (the separator). Subtract 1 to discount that
+        // standard separator; what remains are user-intentional extras.
+        let extra = n.saturating_sub(1);
+        if extra > 0 {
+            format!("{}{}", "\n".repeat(extra), stripped_body)
+        } else {
+            stripped_body.to_string()
+        }
+    } else {
+        stripped_body.to_string()
+    }
+}
+
 /// Parse YAML frontmatter as `T`, returning the body separately.
 /// On any parse failure returns `(None, content.to_string())`.
 pub fn parse<T: DeserializeOwned>(content: &str) -> (Option<T>, String) {
     let matter = Matter::<YAML>::new();
     match matter.parse::<T>(content) {
-        Ok(entity) => (entity.data, entity.content),
+        Ok(entity) => {
+            let body = restore_extra_leading_newlines(content, &entity.content);
+            (entity.data, body)
+        }
         Err(_) => (None, content.to_string()),
     }
 }
@@ -23,7 +54,7 @@ pub fn update(content: &str, updates: &[(&str, serde_json::Value)]) -> String {
     let matter = Matter::<YAML>::new();
     let result = match matter.parse::<serde_json::Value>(content) {
         Ok(entity) => {
-            let body = entity.content.trim_start_matches(['\n', '\r']);
+            let body = restore_extra_leading_newlines(content, &entity.content);
             let mut data = entity.data.unwrap_or(serde_json::json!({}));
             if let Some(obj) = data.as_object_mut() {
                 for (key, value) in updates {
@@ -59,7 +90,7 @@ pub fn remove_keys(content: &str, keys: &[&str]) -> Result<String, String> {
     let matter = Matter::<YAML>::new();
     match matter.parse::<serde_json::Value>(content) {
         Ok(entity) => {
-            let body = entity.content.trim_start_matches(['\n', '\r']);
+            let body = restore_extra_leading_newlines(content, &entity.content);
             let mut data = entity.data.unwrap_or(serde_json::json!({}));
             if let Some(obj) = data.as_object_mut() {
                 for key in keys {
@@ -558,5 +589,83 @@ mod tests {
         assert_eq!(fm["status"], serde_json::json!("todo"));
         assert!(fm.get("order").is_none());
         assert!(fm.get("label").is_none());
+    }
+
+    // --- leading blank line preservation ------------------------------------
+
+    #[test]
+    fn parse_preserves_one_leading_blank_line() {
+        let content = "---\nstatus: todo\n---\n\n\nbody\n";
+        let (_, body) = parse::<TestFm>(content);
+        assert_eq!(body, "\nbody");
+    }
+
+    #[test]
+    fn parse_preserves_two_leading_blank_lines() {
+        let content = "---\nstatus: todo\n---\n\n\n\nbody\n";
+        let (_, body) = parse::<TestFm>(content);
+        assert_eq!(body, "\n\nbody");
+    }
+
+    #[test]
+    fn parse_no_leading_blank_lines() {
+        let content = "---\nstatus: todo\n---\nbody\n";
+        let (_, body) = parse::<TestFm>(content);
+        assert_eq!(body, "body");
+    }
+
+    #[test]
+    fn parse_body_only_with_leading_blanks() {
+        let content = "---\nstatus: todo\n---\n\n\n";
+        let (_, body) = parse::<TestFm>(content);
+        assert_eq!(body, "\n");
+    }
+
+    #[test]
+    fn update_preserves_one_leading_blank_line() {
+        let content = "---\nstatus: todo\n---\n\n\nbody\n";
+        let updated = update(content, &[("status", serde_json::json!("done"))]);
+        let body_start = updated.find("\n---\n").unwrap() + 5;
+        assert_eq!(&updated[body_start..], "\n\nbody\n");
+    }
+
+    #[test]
+    fn update_preserves_two_leading_blank_lines() {
+        let content = "---\nstatus: todo\n---\n\n\n\nbody\n";
+        let updated = update(content, &[("status", serde_json::json!("done"))]);
+        let body_start = updated.find("\n---\n").unwrap() + 5;
+        assert_eq!(&updated[body_start..], "\n\n\nbody\n");
+    }
+
+    #[test]
+    fn update_no_leading_blank_lines_stays_unchanged() {
+        let content = "---\nstatus: todo\n---\nbody\n";
+        let updated = update(content, &[("status", serde_json::json!("done"))]);
+        let body_start = updated.find("\n---\n").unwrap() + 5;
+        assert_eq!(&updated[body_start..], "\nbody\n");
+    }
+
+    #[test]
+    fn remove_keys_preserves_one_leading_blank_line() {
+        let content = "---\nstatus: todo\ntags:\n  - a\n---\n\n\nbody\n";
+        let stripped = remove_keys(content, &["tags"]).unwrap();
+        let body_start = stripped.find("\n---\n").unwrap() + 5;
+        assert_eq!(&stripped[body_start..], "\n\nbody\n");
+    }
+
+    #[test]
+    fn leading_blank_lines_survive_update_round_trip() {
+        let content = "---\nstatus: todo\n---\n\n\nbody\n";
+        let updated = update(content, &[("status", serde_json::json!("doing"))]);
+        let (_, body) = parse::<TestFm>(&updated);
+        assert_eq!(body, "\nbody");
+    }
+
+    #[test]
+    fn leading_blank_lines_survive_remove_keys_round_trip() {
+        let content = "---\nstatus: todo\ntags:\n  - a\n---\n\n\nbody\n";
+        let stripped = remove_keys(content, &["tags"]).unwrap();
+        let (_, body) = parse::<TestFm>(&stripped);
+        assert_eq!(body, "\nbody");
     }
 }

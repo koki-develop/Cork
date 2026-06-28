@@ -240,7 +240,7 @@ export function buildInitialConfig(initialValue: string) {
     // splice highlight children outside this HISTORY_MERGE context and
     // fire a phantom onChange → autosave on every open.
     editorState: () => {
-      $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS);
+      $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS, undefined, true);
       // `@lexical/markdown` strips empty paragraphs at root after the
       // line-by-line pass, which collapses `> aaa\n\n> bbb` into two
       // adjacent QuoteNodes with no visible gap between them. Restore
