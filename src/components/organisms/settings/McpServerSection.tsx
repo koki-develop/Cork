@@ -115,16 +115,16 @@ export function McpServerSection({
                 />
                 <div className="absolute top-1/2 right-1 -translate-y-1/2">
                   <IconButton
-                    aria-label="Generate new token"
-                    icon={<RefreshCw className="size-3.5" />}
-                    onClick={onGenerateToken}
+                    aria-label="Copy token"
+                    icon={<Copy className="size-3.5" />}
+                    onClick={handleCopyToken}
                   />
                 </div>
               </div>
               <IconButton
-                aria-label="Copy token"
-                icon={<Copy className="size-3.5" />}
-                onClick={handleCopyToken}
+                aria-label="Generate new token"
+                icon={<RefreshCw className="size-3.5" />}
+                onClick={onGenerateToken}
               />
             </div>
             {tokenError && <ErrorBanner className="mt-2">{tokenError}</ErrorBanner>}
