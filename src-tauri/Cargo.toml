@@ -59,7 +59,7 @@ rand = "=0.9.4"
 tokio = { version = "=1.52.3", features = ["sync", "time", "rt", "fs"] }
 tokio-util = "=0.7.18"
 axum = "=0.8.9"
-http = "=1.4.1"
+http = "=1.4.2"
 subtle = "=2.6.1"
 schemars = "=1.2.1"
 
