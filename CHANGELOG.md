@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.3](https://github.com/koki-develop/Cork/compare/v0.17.2...v0.17.3) (2026-06-30)
+
+
+### Bug Fixes
+
+* **editor:** preserve blank lines and fence width in fenced code blocks ([d517bff](https://github.com/koki-develop/Cork/commit/d517bff1bf388b45785ea9acd45519776d8ae44f))
+
 ## [0.17.2](https://github.com/koki-develop/Cork/compare/v0.17.1...v0.17.2) (2026-06-28)
 
 
