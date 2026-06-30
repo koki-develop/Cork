@@ -1,8 +1,11 @@
+import { $createCodeNode, $isCodeNode } from "@lexical/code";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
   CHECK_LIST,
+  CODE as DEFAULT_CODE,
   type ElementTransformer,
+  type MultilineElementTransformer,
   ORDERED_LIST,
   QUOTE as DEFAULT_QUOTE,
   type TextFormatTransformer,
@@ -31,11 +34,15 @@ import {
 } from "@lexical/table";
 import {
   $createParagraphNode,
+  $createTextNode,
   $getRoot,
+  $getState,
   $isElementNode,
   $isLineBreakNode,
   $isParagraphNode,
   $isTextNode,
+  $setState,
+  createState,
   type ElementNode,
   type LexicalNode,
   ParagraphNode,
@@ -752,8 +759,168 @@ const CELL_AWARE_LIST_TRANSFORMERS = [STRICT_CHECK_LIST, UNORDERED_LIST, ORDERED
 // margins on cell paragraphs that happen to live under the quote — same
 // rationale as the list cell-aware wrappers.
 const CELL_AWARE_QUOTE = cellAware(QUOTE);
+
+// Override upstream `CODE` so a fenced code block round-trips byte-identically.
+// Verified against `@lexical/markdown@0.36.x` (see
+// `node_modules/@lexical/markdown/dist/LexicalMarkdown.dev.mjs` lines 306–409
+// at the time of writing). Three independent upstream behaviours conspire to
+// silently rewrite the on-disk shape; we patch all three here:
+//
+//   1. Import drops blank lines around the body.
+//      `CODE.replace`'s multi-line branch runs `linesInBetween.shift()` for one
+//      leading blank line and `while (...pop())` for every trailing blank line,
+//      so `` ```\n\n\naaa\n\n\n``` `` collapses to `` ```\n\naaa\n``` `` after
+//      one round-trip and to `` ```\naaa\n``` `` after the next.
+//
+//   2. Import & export together lose the 0-blank vs 1-blank distinction.
+//      Both `` ```\n``` `` (empty block) and `` ```\n\n``` `` (one blank line)
+//      land in the tree as a CodeNode whose `textContent === ""`, and upstream
+//      `CODE.export` skips the body separator (`textContent ? '\n' + textContent
+//      : ''`) for an empty text — so the single-blank case re-exports as the
+//      empty form. We carry the original "had a body" flag forward in a
+//      lexical state slot (`corkCodeHadBodyState`).
+//
+//   3. Fence width is not preserved.
+//      Upstream stores the literal opening fence in an internal
+//      `codeFenceState` and reads it back on export, but the state isn't
+//      exported from the package's public entry, so a `replace`-only override
+//      can't write it. A `` ```` `` fence (typical when the body contains
+//      triple backticks) silently downgrades to `` ``` ``; we mirror the
+//      slot under `corkCodeFenceState`.
+//
+// `handleImportAfterStartMatch` has to be overridden alongside the
+// representation changes because upstream's implementation closes over the
+// module-local `CODE` symbol and calls `CODE.replace(...)` directly — a
+// `replace`-only override is silently bypassed on the import path that hits
+// `handleImportAfterStartMatch`. The `replace` property is dropped because
+// the only reachable caller (live-typing through `MarkdownShortcutPlugin`)
+// arrives with `children != null`, which is handled by the inherited
+// `DEFAULT_CODE.replace` via the `...DEFAULT_CODE` spread.
+//
+// Upstream is tracked at https://github.com/facebook/lexical/blob/main/packages/lexical-markdown/src/MarkdownTransformers.ts
+// — delete this override when upstream lands a fix that preserves blank lines
+// + fence width + lets the state slot be reused.
+
+const corkCodeFenceState = createState("corkCodeFence", {
+  parse: (val) => (typeof val === "string" && /^`{3,}$/.test(val) ? val : "```"),
+  resetOnCopyNode: true,
+});
+
+const corkCodeHadBodyState = createState("corkCodeHadBody", {
+  parse: (val) => val === true,
+  resetOnCopyNode: true,
+});
+
+const CODE: MultilineElementTransformer = {
+  ...DEFAULT_CODE,
+  handleImportAfterStartMatch: ({ lines, rootNode, startLineIndex, startMatch }) => {
+    const fence = startMatch[1].trim();
+    const fenceLength = fence.length;
+    const currentLine = lines[startLineIndex];
+    const afterFenceIndex = (startMatch.index ?? 0) + startMatch[1].length;
+    const afterFence = currentLine.slice(afterFenceIndex);
+    const language = startMatch[2] || undefined;
+
+    // Single-line case: opening fence and closing fence on the same line
+    // (e.g. `` ```js console.log()``` `` — rare in saved files but the
+    // upstream regex still accepts it and so do we).
+    const singleLineEndRegex = new RegExp(`\`{${fenceLength},}$`);
+    if (singleLineEndRegex.test(afterFence)) {
+      const endMatch = afterFence.match(singleLineEndRegex);
+      const content = afterFence.slice(0, afterFence.lastIndexOf(endMatch![0]));
+      $appendPreservedCodeNode(rootNode, undefined, fence, [content]);
+      return [true, startLineIndex];
+    }
+
+    // Multi-line case: walk forward until we find the closing fence (or
+    // run off the end of the document, mirroring upstream's optional
+    // regExpEnd).
+    const multilineEndRegex = new RegExp(`^[ \\t]*\`{${fenceLength},}$`);
+    for (let i = startLineIndex + 1; i < lines.length; i++) {
+      if (multilineEndRegex.test(lines[i])) {
+        const linesInBetween = $assembleLinesInBetween(
+          lines.slice(startLineIndex + 1, i),
+          currentLine.slice(startMatch[0].length),
+        );
+        $appendPreservedCodeNode(rootNode, language, fence, linesInBetween);
+        return [true, i];
+      }
+    }
+    const linesInBetween = $assembleLinesInBetween(
+      lines.slice(startLineIndex + 1),
+      currentLine.slice(startMatch[0].length),
+    );
+    $appendPreservedCodeNode(rootNode, language, fence, linesInBetween);
+    return [true, lines.length - 1];
+  },
+  export: (node) => {
+    if (!$isCodeNode(node)) {
+      return null;
+    }
+    const textContent = node.getTextContent();
+    let fence = $getState(node, corkCodeFenceState);
+    // Bump fence width if the body itself contains the current fence —
+    // matches upstream's collision handling so a saved block never
+    // accidentally terminates on its own content.
+    if (textContent.indexOf(fence) > -1) {
+      const matches = textContent.match(/`{3,}/g);
+      if (matches) {
+        const maxLength = Math.max(...matches.map((b) => b.length));
+        fence = "`".repeat(maxLength + 1);
+      }
+    }
+    const language = node.getLanguage() || "";
+    // Two cases lead to "the original file had a body separator":
+    //   - imported with at least one line between the fences (state set)
+    //   - live-typed content (textContent grew past empty)
+    // Either way, emit the body so the file shape is stable across saves.
+    const hadBody = $getState(node, corkCodeHadBodyState) || textContent.length > 0;
+    const body = hadBody ? `\n${textContent}` : "";
+    return `${fence}${language}${body}\n${fence}`;
+  },
+};
+
+function $assembleLinesInBetween(
+  innerLines: Array<string>,
+  afterOpenFenceFullMatch: string,
+): Array<string> {
+  // Content typed on the opening-fence line itself (e.g. `` ```js extra ``)
+  // is prepended as the first body line. Upstream also stripped one leading
+  // space here; we keep that strip so authored same-line content round-trips
+  // verbatim (the `[ \t]?` in CODE_START_REGEX has already swallowed up to
+  // one separator).
+  if (afterOpenFenceFullMatch.length > 0) {
+    innerLines.unshift(
+      afterOpenFenceFullMatch.startsWith(" ")
+        ? afterOpenFenceFullMatch.slice(1)
+        : afterOpenFenceFullMatch,
+    );
+  }
+  return innerLines;
+}
+
+function $appendPreservedCodeNode(
+  rootNode: ElementNode,
+  language: string | undefined,
+  fence: string,
+  linesInBetween: Array<string>,
+): void {
+  const codeBlockNode = $createCodeNode(language);
+  $setState(codeBlockNode, corkCodeFenceState, fence);
+  if (linesInBetween.length > 0) {
+    $setState(codeBlockNode, corkCodeHadBodyState, true);
+    codeBlockNode.append($createTextNode(linesInBetween.join("\n")));
+  }
+  rootNode.append(codeBlockNode);
+}
+
 const NON_LIST_NON_QUOTE_DEFAULTS = TRANSFORMERS.filter(
-  (t) => t !== UNORDERED_LIST && t !== ORDERED_LIST && t !== CHECK_LIST && t !== DEFAULT_QUOTE,
+  (t) =>
+    t !== UNORDERED_LIST &&
+    t !== ORDERED_LIST &&
+    t !== CHECK_LIST &&
+    t !== DEFAULT_QUOTE &&
+    t !== DEFAULT_CODE,
 );
 
 // TABLE leads so its row regExp wins before the default element transformers
@@ -769,6 +936,7 @@ export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [
   TABLE,
   HORIZONTAL_RULE,
   CELL_AWARE_QUOTE,
+  CODE,
   ...CELL_AWARE_LIST_TRANSFORMERS,
   ...NON_LIST_NON_QUOTE_DEFAULTS,
 ];
