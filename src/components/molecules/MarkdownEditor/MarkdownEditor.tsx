@@ -68,9 +68,10 @@ const theme: EditorThemeClasses = {
   // Sunken dark well (not the lighter `cork-elevated` used by inputs) so a code
   // block reads as code, not an editable field. `cork-code-block` is the inner
   // `<code>` of the wrapper `CorkCodeNode` renders — the wrapper itself owns
-  // `my-2` (so the chip + code together count as one block visually) while the
-  // inner `<code>` carries the dark well styling. See `CorkCodeNode.ts` and
-  // `.cork-code-block-wrapper` / `.cork-code-block-language` in style.css.
+  // the outer vertical margin (so the chip + code together count as one block
+  // visually) while the inner `<code>` carries the dark well styling. See
+  // `CorkCodeNode.ts` and `.cork-code-block-wrapper` / `.cork-code-block-language`
+  // in style.css.
   code: "cork-code-block block overflow-x-auto whitespace-pre rounded-md border border-cork-border/65 bg-cork-bg p-3 font-mono text-xs leading-relaxed",
   // Prism token → Tailwind class. `CodeHighlightNode.createDOM` reads
   // `theme.codeHighlight[token.type]` and applies the class to each

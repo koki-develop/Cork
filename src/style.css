@@ -274,7 +274,7 @@
      Lives in @layer utilities so its selectors land in the same layer
      cascade as the Tailwind utilities they share elements with. */
   .cork-code-block-wrapper {
-    margin: 0.5rem 0;
+    margin: 0.75rem 0;
   }
 
   /* `display: flex` (block-level, not `inline-flex`) is load-bearing, not a
