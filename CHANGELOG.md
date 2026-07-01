@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.18.0](https://github.com/koki-develop/Cork/compare/v0.17.3...v0.18.0) (2026-07-01)
+
+
+### Features
+
+* **editor:** make fenced code block language editable via clickable tab ([c73435f](https://github.com/koki-develop/Cork/commit/c73435fac8ceb256049bb5ae1b479b085d71042d))
+* **editor:** show normalized language chip fused to fenced code blocks ([0f1ee15](https://github.com/koki-develop/Cork/commit/0f1ee15225e06464ebe888c70649788bf91d490b))
+
+
+### Bug Fixes
+
+* **editor:** widen vertical margin around fenced code blocks ([4a18114](https://github.com/koki-develop/Cork/commit/4a1811477f28862bcb63d7b3e6fc44768b401755))
+* **settings:** swap copy and regenerate button positions in Auth Token input ([b35f0ec](https://github.com/koki-develop/Cork/commit/b35f0ec835fea8ed29e9bbc1854a40559be7783d))
+
 ## [0.17.3](https://github.com/koki-develop/Cork/compare/v0.17.2...v0.17.3) (2026-06-30)
 
 
