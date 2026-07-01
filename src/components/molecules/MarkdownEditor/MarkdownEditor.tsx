@@ -26,6 +26,7 @@ import { CheckListOutdentPlugin } from "./CheckListOutdentPlugin";
 import { CheckListShortcutPlugin } from "./CheckListShortcutPlugin";
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { $highlightAllCodeBlocks, CodeBlockHighlightPlugin } from "./CodeBlockHighlightPlugin";
+import { CorkCodeNode } from "./CorkCodeNode";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
 import { FloatingLinkEditorPlugin } from "./FloatingLinkEditorPlugin";
 import { FormatFormattableTextPlugin } from "./FormatFormattableTextPlugin";
@@ -64,8 +65,12 @@ const TOK_COMMENT = "text-cork-muted italic";
 // base `text-sm`.
 const theme: EditorThemeClasses = {
   // Sunken dark well (not the lighter `cork-elevated` used by inputs) so a code
-  // block reads as code, not an editable field.
-  code: "my-2 block overflow-x-auto whitespace-pre rounded-md border border-cork-border/50 bg-cork-bg p-3 font-mono text-xs leading-relaxed",
+  // block reads as code, not an editable field. `cork-code-block` is the inner
+  // `<code>` of the wrapper `CorkCodeNode` renders — the wrapper itself owns
+  // `my-2` (so the chip + code together count as one block visually) while the
+  // inner `<code>` carries the dark well styling. See `CorkCodeNode.ts` and
+  // `.cork-code-block-wrapper` / `.cork-code-block-language` in style.css.
+  code: "cork-code-block block overflow-x-auto whitespace-pre rounded-md border border-cork-border/65 bg-cork-bg p-3 font-mono text-xs leading-relaxed",
   // Prism token → Tailwind class. `CodeHighlightNode.createDOM` reads
   // `theme.codeHighlight[token.type]` and applies the class to each
   // highlighted span. The palette intentionally reuses existing `cork-*`
@@ -209,7 +214,33 @@ export const NODES = [
   QuoteNode,
   ListNode,
   ListItemNode,
+  // `CodeNode` is replaced by `CorkCodeNode` at construction time so every
+  // `$createCodeNode()` call site (markdown transformers, paste handlers,
+  // commands) materializes the wrapper-rendering subclass. The base
+  // `CodeNode` entry stays so transforms / mutation listeners registered
+  // against `CodeNode` are routed to the replacement via
+  // `resolveRegisteredNodeAfterReplacements` — keeping
+  // `CodeBlockHighlightPlugin`'s `registerNodeTransform(CodeNode, …)` live
+  // without touching it.
   CodeNode,
+  CorkCodeNode,
+  {
+    replace: CodeNode,
+    // `with` is a required field on `LexicalNodeReplacement` but is NOT what
+    // actually constructs a `CorkCodeNode` in this app: every real CodeNode
+    // construction path goes through `$createCodeNode()` → `$create(CodeNode)`,
+    // and `$create`'s own doc comment says it "will directly construct the
+    // final `withKlass` node type, and will ignore the deprecated `with`
+    // functions" — it does `new registeredNode.klass()` (zero-arg) instead,
+    // relying on `$createCodeNode`'s `.setLanguage(language)` call afterward.
+    // This function only exists to satisfy the type and as a defensive
+    // fallback for the (currently unreached) `$applyNodeReplacement(new
+    // CodeNode(...))` path, so it still preserves the language if that path
+    // is ever exercised — e.g. by a future Lexical version or a direct call
+    // site that bypasses `$create`.
+    with: (node: CodeNode) => new CorkCodeNode(node.getLanguage()),
+    withKlass: CorkCodeNode,
+  },
   CodeHighlightNode,
   LinkNode,
   AutoLinkNode,

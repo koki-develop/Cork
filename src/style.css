@@ -257,6 +257,71 @@
     margin: 0;
   }
 
+  /* Fenced code block — the editor renders `<div class="cork-code-block-wrapper">`
+     containing a `<span class="cork-code-block-language">` chip and the inner
+     `<code class="cork-code-block ...">`. The wrapper owns the vertical
+     margin so chip + code together count as one logical block. The chip is
+     fused to the code well — flush, no gap, rounded only on top — so it
+     reads as a tab growing out of the block rather than a separate floating
+     label. The chip is `hidden` when the fence has no info string, and the
+     `:has()` rule below restores the code well's own top-left rounding for
+     that case (no tab → no corner to grow out of). See `CorkCodeNode.ts` for
+     the node-level setup and `MarkdownEditor.tsx` for the inner `<code>`'s
+     utility classes.
+
+     Lives in @layer utilities so its selectors land in the same layer
+     cascade as the Tailwind utilities they share elements with. */
+  .cork-code-block-wrapper {
+    margin: 0.5rem 0;
+  }
+
+  /* Inline-block tab sitting flush-left directly on top of the code well —
+     zero gap, square bottom corners so its base merges into the well's
+     (squared) top-left corner instead of leaving a rounded notch. The
+     following `<code>` block forces its own row (block-level always does),
+     so the tab ends up on its own line with the code directly below.
+     `[hidden]` covers the no-info-string case — `CorkCodeNode` toggles it
+     instead of removing the chip so the wrapper keeps the same DOM shape
+     across reconciles. */
+  .cork-code-block-language {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    background-color: var(--color-cork-elevated);
+    /* Same nominal `border-cork-border/65` as the code well below, but at a
+       lower mix percentage here: the tab's own fill (`cork-elevated`, a
+       mid-tone) composites a semi-transparent border noticeably brighter
+       than the same percentage over the code well's near-black `cork-bg`
+       fill, so an identical percentage reads as visibly darker/more
+       saturated on the tab. Tuned down so the two read as equally subtle
+       side by side rather than matching on the CSS value alone. */
+    border: 1px solid color-mix(in oklab, var(--color-cork-border) 40%, transparent);
+    border-bottom: none;
+    /* `0.375rem` matches the code well's `rounded-md` so the tab's curvature
+       reads as a continuation of the same corner radius family. */
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+    color: var(--color-cork-muted);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .cork-code-block-language[hidden] {
+    display: none;
+  }
+
+  /* Square off the code well's top-left corner so the tab's flat base sits
+     flush against it with no rounded sliver peeking out from underneath.
+     Scoped to "has a visible chip" so a language-less block (chip hidden)
+     keeps its normal all-around rounding. */
+  .cork-code-block-wrapper:has(> .cork-code-block-language:not([hidden])) > .cork-code-block {
+    border-top-left-radius: 0;
+  }
+
   /* Parent task in a nested checklist: GitHub-style only the leaves carry
      a checkbox (CheckListPlugin's keyboard / pointer handlers also skip
      non-leaf items). Suppress only the box + checkmark; keep the LI's

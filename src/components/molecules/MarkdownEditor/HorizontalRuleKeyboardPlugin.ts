@@ -3,6 +3,7 @@ import { $isHorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
 import {
   $createNodeSelection,
   $getSelection,
+  $isElementNode,
   $isRangeSelection,
   $setSelection,
   COMMAND_PRIORITY_LOW,
@@ -104,8 +105,16 @@ function isCaretOnEdgeLine(editor: LexicalEditor, block: LexicalNode, isUp: bool
   if (blockElem == null) {
     return false;
   }
+  // `block.getDOMSlot(blockElem).element` resolves the children-host element
+  // — for most blocks that's the same `blockElem`, but a wrapper block like
+  // `CorkCodeNode` puts a non-content sibling (the language chip) inside the
+  // outer `<div>` and routes children into a nested `<code>`. Using the
+  // children-host element keeps the geometric edge comparison aligned with the
+  // caret's actual line (the chip's height isn't counted as part of the
+  // content area). Non-ElementNode blocks fall through to the outer element.
+  const contentElem = $isElementNode(block) ? block.getDOMSlot(blockElem).element : blockElem;
 
-  const domSelection = blockElem.ownerDocument.defaultView?.getSelection();
+  const domSelection = contentElem.ownerDocument.defaultView?.getSelection();
   if (domSelection == null || domSelection.rangeCount === 0) {
     // No measurable caret (e.g. an empty block) — it's a single line, so either
     // direction is an edge.
@@ -117,7 +126,7 @@ function isCaretOnEdgeLine(editor: LexicalEditor, block: LexicalNode, isUp: bool
     return true;
   }
 
-  const blockRect = blockElem.getBoundingClientRect();
+  const blockRect = contentElem.getBoundingClientRect();
   // Half a line of slack: the caret's height ≈ one line, so a caret within half
   // of that from the block's edge is on the first / last visual line, while one
   // a full line in is excluded so wrapped paragraphs navigate line-by-line.
