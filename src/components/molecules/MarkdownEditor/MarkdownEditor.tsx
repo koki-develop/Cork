@@ -27,6 +27,7 @@ import { CheckListShortcutPlugin } from "./CheckListShortcutPlugin";
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { $highlightAllCodeBlocks, CodeBlockHighlightPlugin } from "./CodeBlockHighlightPlugin";
 import { CorkCodeNode } from "./CorkCodeNode";
+import { FloatingCodeLanguageEditorPlugin } from "./FloatingCodeLanguageEditorPlugin";
 import { FloatingFormatToolbarPlugin } from "./FloatingFormatToolbarPlugin";
 import { FloatingLinkEditorPlugin } from "./FloatingLinkEditorPlugin";
 import { FormatFormattableTextPlugin } from "./FormatFormattableTextPlugin";
@@ -477,6 +478,13 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             verbatim. Registered after CodeBlockEscapePlugin so the file
             reads as "code-block plugins, grouped". */}
           <CodeBlockHighlightPlugin />
+          {/* Click the language tab `CorkCodeNode` renders (the tab IS the
+            button — no separate icon) → a floating combobox to change (or
+            set) that fenced block's language. Registered after
+            CodeBlockHighlightPlugin so a language change it commits
+            re-triggers highlighting through the same registerNodeTransform
+            sweep. */}
+          <FloatingCodeLanguageEditorPlugin />
           {/* Owns ranged FORMAT_TEXT_COMMAND: keeps inline formatting off
             code-block text (which the Markdown serializer would silently drop)
             and makes a mixed selection always enable rather than toggle off the

@@ -258,16 +258,18 @@
   }
 
   /* Fenced code block — the editor renders `<div class="cork-code-block-wrapper">`
-     containing a `<span class="cork-code-block-language">` chip and the inner
-     `<code class="cork-code-block ...">`. The wrapper owns the vertical
-     margin so chip + code together count as one logical block. The chip is
-     fused to the code well — flush, no gap, rounded only on top — so it
-     reads as a tab growing out of the block rather than a separate floating
-     label. The chip is `hidden` when the fence has no info string, and the
-     `:has()` rule below restores the code well's own top-left rounding for
-     that case (no tab → no corner to grow out of). See `CorkCodeNode.ts` for
-     the node-level setup and `MarkdownEditor.tsx` for the inner `<code>`'s
-     utility classes.
+     containing a `<button class="cork-code-block-tab">` (the language label —
+     the tab itself IS the click target for changing the language, no
+     separate pencil icon) and the inner `<code class="cork-code-block ...">`.
+     The wrapper owns the vertical margin so tab + code together count as one
+     logical block. The tab is fused to the code well — flush, no gap,
+     rounded only on top — so it reads as a tab growing out of the block
+     rather than a separate floating label. The tab is ALWAYS present (shows
+     "Plain Text" when the fence has no info string — see `CorkCodeNode.ts`'s
+     `NO_LANGUAGE_LABEL`), so the code well's top-left corner is always
+     squared off to meet it; there's no language-less case to special-case
+     anymore. See `CorkCodeNode.ts` for the node-level setup and
+     `MarkdownEditor.tsx` for the inner `<code>`'s utility classes.
 
      Lives in @layer utilities so its selectors land in the same layer
      cascade as the Tailwind utilities they share elements with. */
@@ -275,16 +277,25 @@
     margin: 0.5rem 0;
   }
 
-  /* Inline-block tab sitting flush-left directly on top of the code well —
-     zero gap, square bottom corners so its base merges into the well's
-     (squared) top-left corner instead of leaving a rounded notch. The
-     following `<code>` block forces its own row (block-level always does),
-     so the tab ends up on its own line with the code directly below.
-     `[hidden]` covers the no-info-string case — `CorkCodeNode` toggles it
-     instead of removing the chip so the wrapper keeps the same DOM shape
-     across reconciles. */
-  .cork-code-block-language {
-    display: inline-block;
+  /* `display: flex` (block-level, not `inline-flex`) is load-bearing, not a
+     styling preference: loose inline content directly followed by a block
+     sibling sits inside the wrapper's inline formatting context, which
+     reserves an invisible line-height "strut" below the line box — read as a
+     stray gap between the tab and the code well beneath it. A single
+     block-level flex container has no such strut; it's sized by its own
+     content + padding, flush against the next block sibling with zero gap.
+     `width: fit-content` keeps it sized to its content instead of
+     stretching to the wrapper's full width (buttons default to shrink-wrap
+     anyway, but the reset below removes that along with the rest of the UA
+     button chrome, so this is asserted explicitly). The reset properties
+     (`appearance`/`font`/`text-align`) exist because `.cork-code-block-tab`
+     is now a real `<button>` — without them the UA stylesheet's default
+     button font and center-aligned text would fight the rest of this rule. */
+  .cork-code-block-tab {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    gap: 0.125rem;
     padding: 0.125rem 0.5rem;
     background-color: var(--color-cork-elevated);
     /* Same nominal `border-cork-border/65` as the code well below, but at a
@@ -300,6 +311,25 @@
        reads as a continuation of the same corner radius family. */
     border-top-left-radius: 0.375rem;
     border-top-right-radius: 0.375rem;
+    appearance: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+
+  /* The only hint that the tab is clickable — no persistent icon — so it
+     reads as a quiet, familiar affordance (like a tab/chip you can click)
+     rather than adding visual clutter to every code block at rest. */
+  .cork-code-block-tab:hover {
+    background-color: color-mix(in oklab, var(--color-cork-text) 8%, var(--color-cork-elevated));
+  }
+
+  /* `pointer-events: none` so a click lands on the parent `.cork-code-block-tab`
+     button itself even when it happens to hit precisely on the text glyphs —
+     there's nothing else stacked at that point, so the hit-test simply
+     passes through to the button. */
+  .cork-code-block-language {
     font-family: var(--font-sans);
     font-size: 0.6875rem;
     font-weight: 600;
@@ -310,15 +340,10 @@
     pointer-events: none;
   }
 
-  .cork-code-block-language[hidden] {
-    display: none;
-  }
-
   /* Square off the code well's top-left corner so the tab's flat base sits
-     flush against it with no rounded sliver peeking out from underneath.
-     Scoped to "has a visible chip" so a language-less block (chip hidden)
-     keeps its normal all-around rounding. */
-  .cork-code-block-wrapper:has(> .cork-code-block-language:not([hidden])) > .cork-code-block {
+     flush against it with no rounded sliver peeking out from underneath. The
+     tab is unconditional now, so this no longer needs a `:has()` guard. */
+  .cork-code-block-wrapper > .cork-code-block {
     border-top-left-radius: 0;
   }
 

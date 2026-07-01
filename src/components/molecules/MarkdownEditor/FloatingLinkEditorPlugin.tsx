@@ -16,6 +16,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useClickOutside } from "@/hooks/ui/useClickOutside";
+import { useReanchorOnScroll } from "@/hooks/ui/useReanchorOnScroll";
 import { isImeKeyEvent } from "@/lib/keyboard";
 
 import { $closestProseLink, isBrowserOpenable } from "./link";
@@ -221,16 +222,7 @@ export function FloatingLinkEditorPlugin({ onOpenLink }: FloatingLinkEditorPlugi
   useEffect(() => () => hide(), [hide]);
 
   const visible = box != null;
-  useEffect(() => {
-    if (!visible) return;
-    const onScrollResize = () => reanchor();
-    window.addEventListener("scroll", onScrollResize, true);
-    window.addEventListener("resize", onScrollResize);
-    return () => {
-      window.removeEventListener("scroll", onScrollResize, true);
-      window.removeEventListener("resize", onScrollResize);
-    };
-  }, [visible]);
+  useReanchorOnScroll(visible, reanchor);
 
   // Focus (and select) the input when entering edit mode so the URL is ready to
   // type over immediately.

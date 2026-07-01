@@ -5,9 +5,11 @@ import { createTestHeadlessEditor, renderTestEditor } from "./__tests__/utils";
 import { CorkCodeNode } from "./CorkCodeNode";
 
 describe("CorkCodeNode (language chip)", () => {
-  // ```js fence → wrapper <div> contains a language <span> showing the
-  // friendly `JavaScript` name, plus the inner <code> holding the text.
-  test("` ```js ` renders a wrapper with a `JavaScript` chip and inner <code>", async () => {
+  // ```js fence → wrapper <div> contains a <button> tab (the tab IS the
+  // click target — no separate pencil icon) holding a language <span>
+  // showing the friendly `JavaScript` name, and the inner <code> holding
+  // the text.
+  test("` ```js ` renders a wrapper with a `JavaScript` tab and inner <code>", async () => {
     const { screen } = await renderTestEditor({
       initialValue: "```js\nconsole.log\n```",
     });
@@ -16,10 +18,13 @@ describe("CorkCodeNode (language chip)", () => {
     const wrapper = textbox.element().querySelector(".cork-code-block-wrapper");
     expect(wrapper).not.toBeNull();
 
-    const chip = wrapper?.querySelector(".cork-code-block-language");
+    const tab = wrapper?.querySelector("button.cork-code-block-tab");
+    expect(tab).not.toBeNull();
+    expect(tab?.getAttribute("aria-label")).toBe("Edit code block language");
+
+    const chip = tab?.querySelector(".cork-code-block-language");
     expect(chip).not.toBeNull();
     expect(chip?.textContent).toBe("JavaScript");
-    expect(chip?.hasAttribute("hidden")).toBe(false);
 
     const code = wrapper?.querySelector("code");
     expect(code).not.toBeNull();
@@ -54,12 +59,30 @@ describe("CorkCodeNode (language chip)", () => {
     expect(chip?.textContent).toBe("go");
   });
 
+  // Upstream `@lexical/code`'s `getLanguageFriendlyName` does an unguarded
+  // `CODE_LANGUAGE_MAP[lang]` lookup against a plain object, so a fence
+  // language that happens to match an `Object.prototype` property name
+  // resolves to a built-in function instead of falling through to the raw
+  // string — and assigning that function to `textContent` would coerce it to
+  // its source text. This isn't reachable by typing through
+  // `FloatingCodeLanguageEditorPlugin` alone (that combobox has its own
+  // guard), but any fence loaded straight from a file must still render its
+  // language verbatim, not a coerced-function-source garbage string.
+  test("a fence language colliding with an Object.prototype property name renders verbatim", async () => {
+    const { screen } = await renderTestEditor({
+      initialValue: "```constructor\nfoo\n```",
+    });
+
+    const textbox = screen.getByRole("textbox");
+    const chip = textbox.element().querySelector(".cork-code-block-language");
+    expect(chip?.textContent).toBe("constructor");
+  });
+
   // No info string after the opening fence → CodeNode's `__language` is
-  // `undefined` → chip is rendered but `hidden`. We keep the chip in the DOM
-  // (rather than removing it on each reconcile) so the wrapper's structure
-  // is stable across reconciles, but `[hidden]` removes it from the
-  // rendering tree per HTML semantics.
-  test("` ``` ` with no info string keeps the chip element but `hidden`", async () => {
+  // `undefined` → the chip falls back to "Plain Text" rather than being
+  // hidden — the tab is always visible so it always has something clickable
+  // to sit in, and so a fence with no language can still be given one.
+  test("` ``` ` with no info string shows the `Plain Text` fallback label", async () => {
     const { screen } = await renderTestEditor({
       initialValue: "```\nplain text\n```",
     });
@@ -68,10 +91,12 @@ describe("CorkCodeNode (language chip)", () => {
     const wrapper = textbox.element().querySelector(".cork-code-block-wrapper");
     expect(wrapper).not.toBeNull();
 
+    const tab = wrapper?.querySelector("button.cork-code-block-tab");
+    expect(tab).not.toBeNull();
+
     const chip = wrapper?.querySelector(".cork-code-block-language");
     expect(chip).not.toBeNull();
-    expect(chip?.hasAttribute("hidden")).toBe(true);
-    expect(chip?.textContent).toBe("");
+    expect(chip?.textContent).toBe("Plain Text");
   });
 });
 
@@ -103,6 +128,11 @@ describe("CorkCodeNode (HTML export)", () => {
 
         const pre = element.querySelector("pre");
         expect(pre).not.toBeNull();
+
+        // The tab exports as a plain <div>, not the live editor's <button> —
+        // a pasted, functionless button would just be confusing chrome in
+        // whatever app it lands in.
+        expect(element.querySelector("button")).toBeNull();
       },
       { discrete: true },
     );
@@ -130,7 +160,7 @@ describe("CorkCodeNode (HTML export)", () => {
         append?.(marker);
 
         expect(pre.contains(marker)).toBe(true);
-        // Chip + <pre> only — the appended child did not land as a third
+        // Tab + <pre> only — the appended child did not land as a third
         // direct child of the wrapper.
         expect(element.children).toHaveLength(2);
       },
@@ -138,7 +168,7 @@ describe("CorkCodeNode (HTML export)", () => {
     );
   });
 
-  test("exportDOM omits the chip entirely when no language is set", () => {
+  test("exportDOM shows the `Plain Text` fallback when no language is set", () => {
     const editor = createTestHeadlessEditor();
 
     editor.update(
@@ -148,7 +178,8 @@ describe("CorkCodeNode (HTML export)", () => {
         if (!(element instanceof HTMLElement)) {
           throw new Error("expected exportDOM to return an HTMLElement");
         }
-        expect(element.querySelector(".cork-code-block-language")).toBeNull();
+        const chip = element.querySelector(".cork-code-block-language");
+        expect(chip?.textContent).toBe("Plain Text");
         expect(element.querySelector("pre")).not.toBeNull();
       },
       { discrete: true },
