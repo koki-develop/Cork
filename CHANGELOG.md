@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/koki-develop/Cork/compare/v0.18.0...v0.18.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* **editor:** stop task dialogs from silently focusing the body editor on open ([0d99705](https://github.com/koki-develop/Cork/commit/0d9970554baaee59c37a25e1cf7aabf66512d750))
+
 ## [0.18.0](https://github.com/koki-develop/Cork/compare/v0.17.3...v0.18.0) (2026-07-01)
 
 
