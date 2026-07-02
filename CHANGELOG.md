@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.19.0](https://github.com/koki-develop/Cork/compare/v0.18.2...v0.19.0) (2026-07-02)
+
+
+### Features
+
+* **editor:** expand fenced code block language support beyond Prism's default 17 ([8f5b746](https://github.com/koki-develop/Cork/commit/8f5b7460da089779653604cace5b15c74c7c597f))
+
+
+### Bug Fixes
+
+* **editor:** import code highlighting helpers from @lexical/code-prism directly ([2c5b292](https://github.com/koki-develop/Cork/commit/2c5b29257d781c786165e2fa290caa9027c47477))
+
 ## [0.18.2](https://github.com/koki-develop/Cork/compare/v0.18.1...v0.18.2) (2026-07-02)
 
 
