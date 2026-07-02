@@ -24,6 +24,7 @@
     "@fontsource-variable/inter": "5.2.8",
     "@fontsource-variable/space-grotesk": "5.2.10",
     "@lexical/code": "0.45.0",
+    "@lexical/code-prism": "0.45.0",
     "@lexical/link": "0.45.0",
     "@lexical/list": "0.45.0",
     "@lexical/markdown": "0.45.0",

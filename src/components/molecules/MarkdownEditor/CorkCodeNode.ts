@@ -1,4 +1,5 @@
-import { CodeNode, getLanguageFriendlyName, type SerializedCodeNode } from "@lexical/code";
+import { CodeNode, type SerializedCodeNode } from "@lexical/code";
+import { getLanguageFriendlyName } from "@lexical/code-prism";
 import {
   type DOMConversionMap,
   type DOMExportOutput,

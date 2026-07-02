@@ -1,10 +1,10 @@
+import { $isCodeNode } from "@lexical/code";
 import {
-  $isCodeNode,
   CODE_LANGUAGE_MAP,
   getCodeLanguageOptions,
   getLanguageFriendlyName,
   normalizeCodeLanguage,
-} from "@lexical/code";
+} from "@lexical/code-prism";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { clsx } from "clsx";
 import { $getNearestNodeFromDOMNode, $getNodeByKey, isDOMNode } from "lexical";

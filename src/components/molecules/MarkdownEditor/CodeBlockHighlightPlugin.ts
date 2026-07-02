@@ -4,11 +4,13 @@ import {
   CodeHighlightNode,
   CodeNode,
   DEFAULT_CODE_LANGUAGE,
+} from "@lexical/code";
+import {
   PrismTokenizer,
   getCodeLanguages,
   normalizeCodeLanguage,
-} from "@lexical/code";
-import type { Tokenizer } from "@lexical/code-prism";
+  type Tokenizer,
+} from "@lexical/code-prism";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $createTextNode,
