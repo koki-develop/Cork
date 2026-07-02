@@ -1,5 +1,4 @@
 import { CodeNode, type SerializedCodeNode } from "@lexical/code";
-import { getLanguageFriendlyName } from "@lexical/code-prism";
 import {
   type DOMConversionMap,
   type DOMExportOutput,
@@ -8,6 +7,8 @@ import {
   type LexicalEditor,
   type NodeKey,
 } from "lexical";
+
+import { getCorkLanguageFriendlyName } from "./prismLanguages";
 
 // Subclass of `@lexical/code`'s `CodeNode` whose rendered DOM is a
 // `<div class="cork-code-block-wrapper">` holding two siblings:
@@ -85,7 +86,7 @@ const LANGUAGE_CHIP_CLASS = "cork-code-block-language";
 // `CodeBlockHighlightPlugin`'s rule 3 treats a blank/`plain` fence as, and
 // the same one `FloatingCodeLanguageEditorPlugin`'s "Plain Text" list entry
 // resolves to) so the wording can never drift out of sync between the two.
-const NO_LANGUAGE_LABEL = getLanguageFriendlyName("plain");
+const NO_LANGUAGE_LABEL = getCorkLanguageFriendlyName("plain");
 
 // Expando cache set once in `createDOM`. `updateDOM`/`getDOMSlot` read these
 // directly instead of re-running `querySelector` on every reconcile — Lexical
@@ -102,24 +103,8 @@ type CorkCodeWrapperElement = HTMLElement & {
   __corkCode?: HTMLElement;
 };
 
-// `getLanguageFriendlyName` (upstream `@lexical/code`, not ours to fix) does
-// an unguarded `CODE_LANGUAGE_MAP[lang]` lookup against a plain object — so a
-// language string that happens to match an `Object.prototype` property name
-// ("constructor", "toString", "hasOwnProperty", ...) resolves to a built-in
-// function instead of falling through to the language string itself.
-// Assigning that function to `textContent` coerces it to its source text
-// (e.g. "function Object() { [native code] }"), silently corrupting the
-// chip label for any stored `__language` that happens to collide — whether
-// it arrived via `FloatingCodeLanguageEditorPlugin`, a hand-edited file, or
-// a paste. Guard at the single place every caller in this file funnels
-// through: only trust the friendly name when it's actually a string.
-function $friendlyLanguageLabel(language: string): string {
-  const friendly = getLanguageFriendlyName(language);
-  return typeof friendly === "string" ? friendly : language;
-}
-
 function $applyChip(chip: HTMLSpanElement, language: string | null | undefined): void {
-  chip.textContent = language ? $friendlyLanguageLabel(language) : NO_LANGUAGE_LABEL;
+  chip.textContent = language ? getCorkLanguageFriendlyName(language) : NO_LANGUAGE_LABEL;
 }
 
 function $findInnerCodeElement(wrapper: HTMLElement): HTMLElement {

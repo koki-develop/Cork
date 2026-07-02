@@ -5,12 +5,7 @@ import {
   CodeNode,
   DEFAULT_CODE_LANGUAGE,
 } from "@lexical/code";
-import {
-  PrismTokenizer,
-  getCodeLanguages,
-  normalizeCodeLanguage,
-  type Tokenizer,
-} from "@lexical/code-prism";
+import { PrismTokenizer, type Tokenizer } from "@lexical/code-prism";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $createTextNode,
@@ -28,6 +23,8 @@ import {
   mergeRegister,
 } from "lexical";
 import { useEffect } from "react";
+
+import { CORK_BUNDLED_LANGUAGES, normalizeCorkCodeLanguage } from "./prismLanguages";
 
 // Why this plugin exists, in two parts:
 //
@@ -78,25 +75,18 @@ import { useEffect } from "react";
 
 const PLAIN_TOKENIZER: Tokenizer = { ...PrismTokenizer, defaultLanguage: null };
 
-// `normalizeCodeLanguage` maps the user-typed aliases `text` / `plaintext` /
-// `plain` all to the canonical `plain`, which is NOT in the bundled Prism
+// `normalizeCorkCodeLanguage` maps the user-typed aliases `text` / `plaintext`
+// / `plain` all to the canonical `plain`, which is NOT in the bundled Prism
 // grammar set. Treating it as rule 3 (no highlight) — instead of letting it
 // fall through to rule 2 (which would highlight `text` blocks as JavaScript)
 // — matches the user's actual expectation for ` ```text `.
 const PLAIN_LANGUAGE_ID = "plain";
 
-// `getCodeLanguages()` re-walks `Object.keys(Prism.languages).filter(...).sort()`
-// on every call. The bundled grammar set is statically imported by
-// `@lexical/code-prism`'s side-effect imports and is frozen at module load,
-// so we snapshot it once into a Set for O(1) membership lookups per
-// keystroke.
-const BUNDLED_LANGUAGES = new Set(getCodeLanguages());
-
 function resolveHighlightLanguage(stored: string | null | undefined): string | null {
   if (!stored) return null; // rule 3
-  const normalized = normalizeCodeLanguage(stored);
+  const normalized = normalizeCorkCodeLanguage(stored);
   if (normalized === PLAIN_LANGUAGE_ID) return null; // rule 3 via `plain` aliases
-  if (BUNDLED_LANGUAGES.has(normalized)) return normalized; // rule 1
+  if (CORK_BUNDLED_LANGUAGES.has(normalized)) return normalized; // rule 1
   return DEFAULT_CODE_LANGUAGE; // rule 2 auto
 }
 

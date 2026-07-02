@@ -80,15 +80,15 @@ describe("FloatingCodeLanguageEditorPlugin", () => {
     const input = screen.getByRole("textbox", { name: "Code block language" });
     await expect.element(input).toHaveFocus();
 
-    await user.keyboard("Kotlin{Enter}");
+    await user.keyboard("Zig{Enter}");
 
     await expect
       .element(
         document.querySelector<HTMLElement>(".cork-code-block-wrapper .cork-code-block-language"),
       )
-      .toHaveTextContent("Kotlin");
+      .toHaveTextContent("Zig");
     const code = document.querySelector("code");
-    expect(code?.getAttribute("data-language")).toBe("Kotlin");
+    expect(code?.getAttribute("data-language")).toBe("Zig");
   });
 
   // `CODE_LANGUAGE_MAP` (the alias table) is a plain object, so a naive
@@ -244,7 +244,7 @@ describe("FloatingCodeLanguageEditorPlugin", () => {
   });
 
   // Arrow-key navigation must keep the highlighted row on screen — the full
-  // unfiltered list (17 languages) overflows the panel's max-height, so
+  // unfiltered list (44 languages) overflows the panel's max-height, so
   // moving the selection down without scrolling would highlight a row the
   // user can't see.
   test("ArrowDown repeatedly scrolls the highlighted row into view", async () => {
@@ -257,16 +257,15 @@ describe("FloatingCodeLanguageEditorPlugin", () => {
     const input = screen.getByRole("textbox", { name: "Code block language" });
     await expect.element(input).toHaveFocus();
 
-    // Alphabetically: C, C++, C-like, CSS, HTML, Java, JavaScript (current,
-    // index 6), Markdown, Objective-C, Plain Text, PowerShell, Python, Rust,
-    // SQL, Swift, TypeScript, XML (index 16) — 10 presses reaches the last row.
-    for (let i = 0; i < 10; i++) {
+    // Alphabetically, "JavaScript" (the current language) sits at index 16 of
+    // the 44-entry list and "YAML" is last (index 43) — 27 presses reaches it.
+    for (let i = 0; i < 27; i++) {
       await user.keyboard("{ArrowDown}");
     }
 
     const list = screen.getByRole("listbox").element();
     const selected = list.querySelector('[role="option"][aria-selected="true"]');
-    expect(selected?.textContent).toContain("XML");
+    expect(selected?.textContent).toContain("YAML");
 
     const listRect = list.getBoundingClientRect();
     const rowRect = selected!.getBoundingClientRect();
@@ -299,18 +298,18 @@ describe("FloatingCodeLanguageEditorPlugin", () => {
       .element()
       .querySelectorAll<HTMLElement>('[role="option"]');
 
-    // Opening pre-selects "JavaScript" (index 6, matching the current
+    // Opening pre-selects "JavaScript" (index 16, matching the current
     // language); keyboard moves it without ever touching the mouse — no real
     // hover has happened yet in this test, so there's nothing to compare a
     // position against; the fix must not depend on a prior baseline.
     await user.keyboard("{ArrowDown}{ArrowDown}");
-    await expect.element(options[8]).toHaveAttribute("aria-selected", "true");
+    await expect.element(options[18]).toHaveAttribute("aria-selected", "true");
 
     // Phantom `mouseover` (the DOM shifted under a stationary cursor) right
     // after the keyboard move — must be ignored on this very first
     // occurrence too.
     options[0].dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    await expect.element(options[8]).toHaveAttribute("aria-selected", "true");
+    await expect.element(options[18]).toHaveAttribute("aria-selected", "true");
     expect(options[0].getAttribute("aria-selected")).toBe("false");
 
     // Only once the mouse genuinely moves does hover-driven selection resume.

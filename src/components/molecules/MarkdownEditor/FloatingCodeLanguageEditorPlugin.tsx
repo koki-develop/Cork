@@ -1,10 +1,4 @@
 import { $isCodeNode } from "@lexical/code";
-import {
-  CODE_LANGUAGE_MAP,
-  getCodeLanguageOptions,
-  getLanguageFriendlyName,
-  normalizeCodeLanguage,
-} from "@lexical/code-prism";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { clsx } from "clsx";
 import { $getNearestNodeFromDOMNode, $getNodeByKey, isDOMNode } from "lexical";
@@ -30,12 +24,19 @@ import { fuzzySubsequenceMatch, fuzzySubsequenceMatchIndices } from "@/lib/tags"
 
 import { LANGUAGE_TAB_CLASS } from "./CorkCodeNode";
 import { anchorsEqual, type Anchor, firstLineAnchor, placeBelowStart } from "./placement";
+import {
+  CORK_LANGUAGE_ALIAS_BY_ID,
+  CORK_LANGUAGE_FRIENDLY_NAME_MAP,
+  getCorkLanguageFriendlyName,
+  normalizeCorkCodeLanguage,
+} from "./prismLanguages";
 
-// Every language `getLanguageFriendlyName` can show a proper label for,
-// sorted alphabetically by that label for a stable, scannable list — the
-// declaration order of `CODE_LANGUAGE_FRIENDLY_NAME_MAP` (this list's
-// upstream source) is grouping-by-nothing-in-particular.
-const LANGUAGE_OPTIONS = getCodeLanguageOptions()
+// Every language `getCorkLanguageFriendlyName` can show a proper label for
+// (upstream's 17 plus everything `prismLanguages.ts` adds — Ruby, Go,
+// Kotlin, ...), sorted alphabetically by that label for a stable, scannable
+// list — the declaration order of `CORK_LANGUAGE_FRIENDLY_NAME_MAP` is
+// grouping-by-nothing-in-particular.
+const LANGUAGE_OPTIONS = Object.entries(CORK_LANGUAGE_FRIENDLY_NAME_MAP)
   .map(([value, label]) => ({ value, label }))
   .sort((a, b) => a.label.localeCompare(b.label));
 
@@ -47,30 +48,25 @@ const LANGUAGE_VALUE_BY_LOWER_LABEL = new Map(
   LANGUAGE_OPTIONS.map((o) => [o.label.toLowerCase(), o.value]),
 );
 
-// A `Map`, not a lowercased bracket lookup directly against `CODE_LANGUAGE_MAP`
-// (a plain object) — that object inherits `Object.prototype`, so typing e.g.
-// "constructor" or "toString" would resolve to a built-in function instead of
-// falling through to the verbatim-text branch, silently corrupting the saved
-// fence language. A `Map` has no prototype chain to leak through.
-const CODE_LANGUAGE_ALIAS_BY_LOWER = new Map(
-  Object.entries(CODE_LANGUAGE_MAP).map(([alias, canonical]) => [alias.toLowerCase(), canonical]),
-);
-
 // Resolves free-typed text to what actually gets stored: an exact (any-case)
 // match against a known friendly label wins first (`"JavaScript"` → `js`);
-// otherwise a known alias is canonicalized the same way Lexical's own
-// `normalizeCodeLanguage` does for typed fence info strings (`"ts"` →
-// `typescript`), just case-insensitively — a convenience this combobox
-// affords that raw Markdown typing doesn't. Anything else (`"kotlin"`,
-// `"go"`) is kept verbatim, in the user's exact casing: fenced code blocks
-// accept arbitrary info strings, and `CodeBlockHighlightPlugin` already
-// falls back gracefully (`DEFAULT_CODE_LANGUAGE` "auto" highlight) for a
-// language it doesn't recognize.
+// otherwise a known alias is canonicalized the same way
+// `normalizeCorkCodeLanguage` does for typed fence info strings (`"ts"` →
+// `typescript`, `"golang"` → `go`), just case-insensitively — a convenience
+// this combobox affords that raw Markdown typing doesn't. Anything else
+// (`"nim"`, `"zig"`) is kept verbatim, in the user's exact casing: fenced
+// code blocks accept arbitrary info strings, and `CodeBlockHighlightPlugin`
+// already falls back gracefully (`DEFAULT_CODE_LANGUAGE` "auto" highlight)
+// for a language it doesn't recognize.
 function resolveTypedLanguage(trimmed: string): string {
   const lower = trimmed.toLowerCase();
   const byLabel = LANGUAGE_VALUE_BY_LOWER_LABEL.get(lower);
   if (byLabel) return byLabel;
-  const alias = CODE_LANGUAGE_ALIAS_BY_LOWER.get(lower);
+  // `CORK_LANGUAGE_ALIAS_BY_ID`'s keys are already lowercase (every entry in
+  // both upstream's `CODE_LANGUAGE_MAP` and `prismLanguages.ts`'s own
+  // `CORK_LANGUAGE_ALIASES` is authored lowercase) — no separate lowercased
+  // copy needed here.
+  const alias = CORK_LANGUAGE_ALIAS_BY_ID.get(lower);
   if (alias) return alias;
   return trimmed;
 }
@@ -90,7 +86,7 @@ function resolveDraftLanguage(draft: string): string | null {
 // at all, silently rewriting the fence and dirtying the document. Normalize
 // the stored side the same way before comparing.
 function normalizeStoredLanguage(language: string | null): string | null {
-  return language == null ? null : normalizeCodeLanguage(language);
+  return language == null ? null : normalizeCorkCodeLanguage(language);
 }
 
 type LanguageRow = { value: string; label: string; custom?: boolean };
@@ -250,10 +246,10 @@ export function FloatingCodeLanguageEditorPlugin(): ReactNode {
       idRef.current += 1;
       keyRef.current = key;
       setBox({ key, language, anchor });
-      setDraft(language ? getLanguageFriendlyName(language) : "");
+      setDraft(language ? getCorkLanguageFriendlyName(language) : "");
       setEdited(false);
       mouseDisabledRef.current = false;
-      const normalized = language ? normalizeCodeLanguage(language) : null;
+      const normalized = language ? normalizeCorkCodeLanguage(language) : null;
       setSelectedIndex(normalized ? LANGUAGE_OPTIONS.findIndex((o) => o.value === normalized) : -1);
     },
     [editor, anchorForKey],
@@ -375,7 +371,7 @@ export function FloatingCodeLanguageEditorPlugin(): ReactNode {
       ?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
-  // The current language can sort anywhere in the 17-language alphabetical
+  // The current language can sort anywhere in the 44-language alphabetical
   // list — for one near the bottom (e.g. "XML"), the panel would otherwise
   // open showing the TOP of the list, with the actual selection scrolled out
   // of view until the user scrolled down to find it. `useLayoutEffect` (not
@@ -443,7 +439,7 @@ export function FloatingCodeLanguageEditorPlugin(): ReactNode {
 
   const pos =
     box == null ? null : placeBelowStart(box.anchor, { width: PANEL_WIDTH, height: panelHeight });
-  const currentValue = box?.language ? normalizeCodeLanguage(box.language) : null;
+  const currentValue = box?.language ? normalizeCorkCodeLanguage(box.language) : null;
 
   return createPortal(
     <AnimatePresence>

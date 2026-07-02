@@ -46,17 +46,35 @@ describe("CorkCodeNode (language chip)", () => {
     expect(chip?.textContent).toBe("JavaScript");
   });
 
-  // `go` is in neither CODE_LANGUAGE_MAP nor CODE_LANGUAGE_FRIENDLY_NAME_MAP,
-  // so `getLanguageFriendlyName` returns the raw fence string. The chip
-  // displays the user-typed identifier verbatim per the task spec.
-  test("` ```go ` shows the raw fence string `go` (unbundled language)", async () => {
+  // `cs` is a shorthand Prism itself dual-registers as a second
+  // `Prism.languages` key pointing at the same `csharp` grammar object (so
+  // highlighting already worked before this test existed) — but
+  // `getCorkLanguageFriendlyName` resolves through `prismLanguages.ts`'s own
+  // `CORK_LANGUAGE_ALIAS_BY_ID`, which never touches `Prism.languages`.
+  // Without a `cs` → `csharp` entry there, the chip would show the raw "cs"
+  // instead of "C#" even though the block highlights correctly underneath.
+  test("` ```cs ` shows the `C#` chip via Cork's own alias table", async () => {
     const { screen } = await renderTestEditor({
-      initialValue: "```go\nfmt.Println\n```",
+      initialValue: "```cs\nConsole.WriteLine\n```",
     });
 
     const textbox = screen.getByRole("textbox");
     const chip = textbox.element().querySelector(".cork-code-block-language");
-    expect(chip?.textContent).toBe("go");
+    expect(chip?.textContent).toBe("C#");
+  });
+
+  // `zig` is in neither `prismLanguages.ts`'s alias/friendly-name tables nor
+  // upstream's, so `getCorkLanguageFriendlyName` returns the raw fence
+  // string. The chip displays the user-typed identifier verbatim per the
+  // task spec.
+  test("` ```zig ` shows the raw fence string `zig` (unbundled language)", async () => {
+    const { screen } = await renderTestEditor({
+      initialValue: "```zig\nstd.debug.print\n```",
+    });
+
+    const textbox = screen.getByRole("textbox");
+    const chip = textbox.element().querySelector(".cork-code-block-language");
+    expect(chip?.textContent).toBe("zig");
   });
 
   // Upstream `@lexical/code`'s `getLanguageFriendlyName` does an unguarded
