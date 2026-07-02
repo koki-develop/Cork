@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["vitest/browser"]
+    "types": ["vite/client", "vitest/browser"]
   },
   "include": [
     "src/**/*.spec.ts",
