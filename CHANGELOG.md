@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/koki-develop/Cork/compare/v0.18.1...v0.18.2) (2026-07-02)
+
+
+### Bug Fixes
+
+* **build:** include vite/client types in tsconfig.test.json ([cb14df4](https://github.com/koki-develop/Cork/commit/cb14df4d00b1fba375ec26262bcad2d5c44f6a5e))
+
 ## [0.18.1](https://github.com/koki-develop/Cork/compare/v0.18.0...v0.18.1) (2026-07-02)
 
 
