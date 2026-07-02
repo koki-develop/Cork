@@ -39,11 +39,12 @@ brew upgrade koki-develop/tap/cork
 Cork has no database. A workspace is just a folder, and every task is a plain Markdown file inside it — so your board lives entirely in version-controllable, editor-friendly text.
 
 - **One task = one `.md` file.** The file name is the task title; the Markdown body is the task description.
-- **Frontmatter holds the metadata.** `status`, `tags`, and `date` live in the YAML frontmatter at the top of each file.
+- **Frontmatter holds the metadata.** `status`, `order`, `tags`, and `date` live in the YAML frontmatter at the top of each file.
 
 ```markdown
 ---
 status: In Progress
+order: 0
 tags:
   - feature
   - urgent
