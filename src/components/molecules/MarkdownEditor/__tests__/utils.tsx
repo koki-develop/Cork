@@ -21,7 +21,7 @@ import { type ReactNode } from "react";
 import { render } from "vitest-browser-react";
 import { userEvent } from "vitest/browser";
 
-import { buildInitialConfig, NODES } from "../MarkdownEditor";
+import { $seedMarkdownEditorState, buildInitialConfig, NODES } from "../MarkdownEditor";
 import { MARKDOWN_TRANSFORMERS } from "../transformers";
 
 // Builds a fenced code block of `lineCount` throwaway statements, for specs
@@ -63,6 +63,17 @@ export function $readMarkdown(editor: LexicalEditor): string {
   return editor
     .getEditorState()
     .read(() => $convertToMarkdownString(MARKDOWN_TRANSFORMERS, undefined, true));
+}
+
+// Runs the production "open this task" state-seed pipeline (import + the
+// quote-spacer restore + code-block spacing normalize + highlight — see
+// `$seedMarkdownEditorState`'s header in MarkdownEditor.tsx) on a headless
+// editor, unlike `$setMarkdown` above which only runs the raw transformer
+// import. Use this whenever a test cares about the POST-MOUNT tree shape
+// (e.g. asserting a save→reopen round trip is stable) rather than the bare
+// transformer's own import/export behavior.
+export function $openMarkdown(editor: LexicalEditor, markdown: string): void {
+  editor.update(() => $seedMarkdownEditorState(markdown), { discrete: true });
 }
 
 type RenderTestEditorOptions = {

@@ -40,6 +40,7 @@ import {
   $isElementNode,
   $isLineBreakNode,
   $isParagraphNode,
+  $isRootNode,
   $isTextNode,
   $setState,
   createState,
@@ -892,9 +893,138 @@ const CODE: MultilineElementTransformer = {
     // Either way, emit the body so the file shape is stable across saves.
     const hadBody = $getState(node, corkCodeHadBodyState) || textContent.length > 0;
     const body = hadBody ? `\n${textContent}` : "";
-    return `${fence}${language}${body}\n${fence}`;
+    const fenced = `${fence}${language}${body}\n${fence}`;
+
+    // File-readability padding: a fence glued directly to prose (single
+    // `\n` join, the root exporter's default) reads poorly on disk even
+    // though it's perfectly valid Markdown. We want the SAVED file to
+    // always show at least one blank line around a top-level code block,
+    // while still letting a deliberately-typed blank line (an explicit
+    // empty ParagraphNode the user created with Enter) read as MORE
+    // pronounced than the auto-inserted minimum — otherwise reloading a
+    // file couldn't tell "the app added this gap" apart from "the user
+    // asked for this gap", and the two would blur together across saves.
+    // `$normalizeCodeBlockSpacing` below is this rule's mirror image on
+    // import: it strips exactly one auto-added blank line back out so a
+    // save/open/save cycle is a fixed point (N adjacent empty paragraphs
+    // in the tree <-> N+1 blank lines on disk, both directions), instead
+    // of the gap growing by one extra blank line on every save.
+    //
+    // Only applies to a TOP-LEVEL code block (direct child of the document
+    // root) — this same `export` runs recursively for a CodeNode that
+    // somehow ends up inside a TABLE cell (via `$createTableCell`'s
+    // `$convertFromMarkdownString` call), where `encodeCell` would escape
+    // any extra `\n` we added into a literal `\n` sequence that our
+    // root-only import cleanup below would never unwind, silently growing
+    // the cell's content on every save.
+    if (!$isRootNode(node.getParent())) {
+      return fenced;
+    }
+
+    // Leading pad: any previous sibling (blank or not) means this fence
+    // isn't the first thing in the document, so it always wants a gap
+    // before it. Skipped at doc start — nothing to separate FROM.
+    const leadingPad = node.getPreviousSibling() != null ? "\n" : "";
+
+    // Trailing pad: skipped when the node on the OTHER side of this fence's
+    // trailing gap is ANOTHER CodeNode. Two adjacent code blocks share one
+    // boundary, not two — the second block's own leading pad (above)
+    // already covers it. Adding a trailing pad here too would double that
+    // shared gap by one extra blank line. Also skipped at doc end for the
+    // same "nothing to separate FROM" reason as the leading case.
+    //
+    // $skipEmptyParagraphs walks PAST any immediately-following empty
+    // paragraphs (an explicit user-authored gap that survived
+    // $normalizeCodeBlockSpacing's "remove only one" rule, e.g. two code
+    // blocks 2+ blank lines apart) to find what's really on the other side —
+    // checking only the immediate next sibling would see the empty
+    // paragraph itself (not code) and pad anyway, double-counting the very
+    // boundary the leading-pad side is about to cover. Deliberately NOT
+    // reused for the leading-pad check above: that check answers a
+    // different question ("does anything precede me at all", true even for
+    // an immediately-adjacent blank paragraph), not "what's past the run".
+    const next = node.getNextSibling();
+    const trailingPad = next != null && !$isCodeNode($skipEmptyParagraphs(next)) ? "\n" : "";
+
+    return `${leadingPad}${fenced}${trailingPad}`;
   },
 };
+
+// Inverse of the export-side padding above: after `$convertFromMarkdownString`
+// naturally turns each on-disk blank line into its own empty ParagraphNode
+// (one node per blank line, verified 1:1 — no cleanup elides these outside
+// the quote-merge case `$insertSpacersBetweenAdjacentQuotes` handles), strip
+// exactly ONE empty paragraph immediately touching each top-level CodeNode's
+// "before" side, and (independently) ONE from its "after" side. That
+// reverses the CODE transformer's "+1" export rule so a save → reopen →
+// save cycle lands on the same on-disk text (0 blank lines in the tree <->
+// 1 blank line on disk; N adjacent empty paragraphs <-> N+1 blank lines) —
+// without this, every reopen would re-import the auto-added blank line as
+// an indistinguishable "real" gap and re-pad it again, growing by one
+// blank line on every save.
+//
+// The "after" side has to look PAST the whole run of adjacent empty
+// paragraphs to see what's really on the other side of the gap, not just
+// the immediate next sibling: two adjacent code blocks share a single
+// boundary (see the export comment above), so when the node beyond the
+// run is ANOTHER CodeNode, this pass defers — that code block's own
+// "before" pass (reached later in the same root-level walk) claims the
+// shared gap instead. Without the defer, a boundary between two code
+// blocks would get decremented from BOTH sides and lose one blank line
+// too many on every round trip.
+export function $normalizeCodeBlockSpacing(): void {
+  let cur: LexicalNode | null = $getRoot().getFirstChild();
+  while (cur != null) {
+    if (!$isCodeNode(cur)) {
+      cur = cur.getNextSibling();
+      continue;
+    }
+
+    const previous = cur.getPreviousSibling();
+    if ($isEmptyParagraph(previous)) {
+      previous.remove();
+    }
+
+    const firstAfter = cur.getNextSibling();
+    if (!$isCodeNode($skipEmptyParagraphs(firstAfter)) && $isEmptyParagraph(firstAfter)) {
+      firstAfter.remove();
+    }
+
+    // Re-read (rather than use a pre-mutation cache): the "before" removal
+    // above only ever touches a sibling BEHIND `cur`, so `cur`'s own
+    // identity and forward-link are untouched — this is the node the next
+    // iteration should continue from either way.
+    cur = cur.getNextSibling();
+  }
+}
+
+// `@lexical/markdown`'s import represents a blank line as a ParagraphNode
+// containing a single empty TextNode (`getChildrenSize() === 1`), not a
+// childless paragraph — only LIVE typing (a bare double-Enter) produces the
+// zero-children shape. Checking `getTextContentSize() === 0` covers both,
+// since neither shape ever holds a LineBreakNode (which itself renders as a
+// non-empty `"\n"` of text content).
+function $isEmptyParagraph(node: LexicalNode | null): node is ParagraphNode {
+  return $isParagraphNode(node) && node.getTextContentSize() === 0;
+}
+
+// Walks forward from `node` past a run of adjacent empty paragraphs,
+// returning the first sibling that isn't one (or `null` at the end of the
+// document). Shared by CODE.export's trailing-pad check and
+// $normalizeCodeBlockSpacing's "after" pass — both need to see past an
+// arbitrarily long user-authored gap to find out what's really on the other
+// side of it (specifically: is it another CodeNode, in which case the two
+// code blocks share one boundary rather than getting padded/stripped from
+// both sides). Deliberately NOT used for the "leading"/"before" checks at
+// either call site — those intentionally look only at the immediate sibling
+// (see the comments there for why).
+function $skipEmptyParagraphs(node: LexicalNode | null): LexicalNode | null {
+  let cur = node;
+  while ($isEmptyParagraph(cur)) {
+    cur = cur.getNextSibling();
+  }
+  return cur;
+}
 
 function $assembleLinesInBetween(
   innerLines: Array<string>,

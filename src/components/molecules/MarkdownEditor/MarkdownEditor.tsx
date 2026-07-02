@@ -43,6 +43,7 @@ import { QuoteNestingShortcutPlugin } from "./QuoteNestingShortcutPlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
 import {
   $insertSpacersBetweenAdjacentQuotes,
+  $normalizeCodeBlockSpacing,
   MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS,
   MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS,
   MARKDOWN_TRANSFORMERS,
@@ -252,11 +253,34 @@ export const NODES = [
   TableCellNode,
 ];
 
+// The full "open this task's body" state-seed pipeline: parse the saved
+// Markdown, then undo the two lossy upstream/export-side transforms so the
+// tree lands in the exact shape it was in right before the last save.
+// Exported (not inlined into `buildInitialConfig`) so `__tests__/utils.tsx`
+// can drive the identical pipeline in a headless round-trip test — mirroring
+// this by hand in the test file would silently drift from production the
+// next time a seeding step is added or reordered here.
+export function $seedMarkdownEditorState(markdown: string): void {
+  $convertFromMarkdownString(markdown, MARKDOWN_TRANSFORMERS, undefined, true);
+  // `@lexical/markdown` strips empty paragraphs at root after the
+  // line-by-line pass, which collapses `> aaa\n\n> bbb` into two
+  // adjacent QuoteNodes with no visible gap between them. Restore
+  // the spacer so the post-load shape matches the post-author shape
+  // (see the helper's header for the round-trip rationale).
+  $insertSpacersBetweenAdjacentQuotes();
+  // Undo the CODE transformer's export-time "+1 blank line" padding
+  // (see that transformer's header in transformers.ts) so a saved file
+  // opens back into the exact pre-save tree shape instead of
+  // re-importing the auto-added blank line as a second, indistinguishable
+  // user-authored gap.
+  $normalizeCodeBlockSpacing();
+  $highlightAllCodeBlocks();
+}
+
 // Shared between the production component and `renderTestEditor` so the test
-// editor mounts with the same theme, namespace, and pre-mount state seed
-// (`$convertFromMarkdownString` + `$insertSpacersBetweenAdjacentQuotes` +
-// `$highlightAllCodeBlocks`). Passing `initialValue` is the only varying
-// input; everything else is constant across call sites.
+// editor mounts with the same theme, namespace, and pre-mount state seed.
+// Passing `initialValue` is the only varying input; everything else is
+// constant across call sites.
 export function buildInitialConfig(initialValue: string) {
   return {
     namespace: "task-body",
@@ -266,22 +290,14 @@ export function buildInitialConfig(initialValue: string) {
     // never fires OnChangePlugin — body stays equal to the raw initial value
     // until the user actually edits (see design Decision 3 +
     // `organisms/board/AGENTS.md:18`'s "no normalization churn"
-    // invariant). $highlightAllCodeBlocks pre-tokenizes every CodeNode
-    // before CodeBlockHighlightPlugin's useEffect-time transform sweep so
-    // the post-mount sweep finds an empty diff and never dirty-flags the
-    // tree — without it, opening a task containing any ``` fence would
-    // splice highlight children outside this HISTORY_MERGE context and
-    // fire a phantom onChange → autosave on every open.
-    editorState: () => {
-      $convertFromMarkdownString(initialValue, MARKDOWN_TRANSFORMERS, undefined, true);
-      // `@lexical/markdown` strips empty paragraphs at root after the
-      // line-by-line pass, which collapses `> aaa\n\n> bbb` into two
-      // adjacent QuoteNodes with no visible gap between them. Restore
-      // the spacer so the post-load shape matches the post-author shape
-      // (see the helper's header for the round-trip rationale).
-      $insertSpacersBetweenAdjacentQuotes();
-      $highlightAllCodeBlocks();
-    },
+    // invariant). $highlightAllCodeBlocks (inside $seedMarkdownEditorState)
+    // pre-tokenizes every CodeNode before CodeBlockHighlightPlugin's
+    // useEffect-time transform sweep so the post-mount sweep finds an empty
+    // diff and never dirty-flags the tree — without it, opening a task
+    // containing any ``` fence would splice highlight children outside this
+    // HISTORY_MERGE context and fire a phantom onChange → autosave on every
+    // open.
+    editorState: () => $seedMarkdownEditorState(initialValue),
     onError: (error: Error) => {
       throw error;
     },
