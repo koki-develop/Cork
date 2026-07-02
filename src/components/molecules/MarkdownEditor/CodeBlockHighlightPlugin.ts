@@ -204,6 +204,21 @@ function $updateAndRetainSelection(nodeKey: NodeKey, updateFn: () => boolean): v
   }
 
   const anchor = selection.anchor;
+  const anchorNode = anchor.getNode();
+  // The anchor's own node for an "element" type IS the container (this code
+  // block, if the anchor is genuinely inside it); for a "text" type it's the
+  // text leaf, so its *parent* is the container. Bail to the no-op path
+  // below when the current selection isn't actually anchored in THIS code
+  // block — otherwise a selection that exists anywhere else in the document
+  // (e.g. left behind by an unrelated node transform) gets its offset
+  // blindly reinterpreted against this block's own children and the caret
+  // gets teleported here.
+  const anchorContainer = anchor.type === "element" ? anchorNode : anchorNode.getParent();
+  if (!node.is(anchorContainer)) {
+    updateFn();
+    return;
+  }
+
   const anchorOffset = anchor.offset;
   const isNewLineAnchor =
     anchor.type === "element" && $isLineBreakNode(node.getChildAtIndex(anchor.offset - 1));
@@ -216,7 +231,7 @@ function $updateAndRetainSelection(nodeKey: NodeKey, updateFn: () => boolean): v
     // `getPreviousSiblings().reduce(...)` pattern would allocate the
     // array per keystroke).
     for (
-      let sib: LexicalNode | null = anchor.getNode().getPreviousSibling();
+      let sib: LexicalNode | null = anchorNode.getPreviousSibling();
       sib != null;
       sib = sib.getPreviousSibling()
     ) {
@@ -228,7 +243,7 @@ function $updateAndRetainSelection(nodeKey: NodeKey, updateFn: () => boolean): v
   if (!hasChanges) return;
 
   if (isNewLineAnchor) {
-    anchor.getNode().select(anchorOffset, anchorOffset);
+    anchorNode.select(anchorOffset, anchorOffset);
     return;
   }
 

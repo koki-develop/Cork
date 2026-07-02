@@ -105,7 +105,16 @@ function ModalContainer({
       aria-modal="true"
       tabIndex={-1}
       inert={!isTop}
-      className="text-cork-text fixed inset-0 z-50 flex h-screen w-screen flex-col items-center px-4 pt-[var(--cork-header-height)] outline-none"
+      // CSS Grid, not flex — this container is focused directly (below) and
+      // deeply contains the task body's Lexical contentEditable. A `display:
+      // flex` ancestor combined with an explicit `.focus()` call anywhere in
+      // the subtree hits the same Chrome/WebKit contenteditable-focus quirk
+      // MarkdownEditor.tsx's own wrapper works around — Grid isn't affected.
+      // `grid-rows-[2fr_auto_3fr]` reproduces the old flex spacer ratio (the
+      // panel row is `auto`-sized, the two empty rows split the remaining
+      // space 2:3) and `justify-items-center` reproduces `items-center`'s
+      // horizontal centering.
+      className="text-cork-text fixed inset-0 z-50 grid h-screen w-screen grid-rows-[2fr_auto_3fr] justify-items-center px-4 pt-[var(--cork-header-height)] outline-none"
     >
       <m.button
         type="button"
@@ -121,14 +130,10 @@ function ModalContainer({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
       />
-      {/* Spacers distribute the free space above/below the panel by ratio
-          (`2 : 3`) rather than a fixed offset. When there's slack the panel
-          sits ~40% down (a touch above center); when the window is short or the
-          body is long the same ratio just shrinks, so the top/bottom gaps stay
-          balanced instead of leaving a fixed gap that reads as bottom-heavy.
-          They sit under the absolute backdrop, so clicking either still closes
-          the modal. */}
-      <div aria-hidden className="flex-[2]" />
+      {/* Spacers occupy the grid's first/last row so the panel (`auto`
+          row) sits between them. They sit under the absolute backdrop, so
+          clicking either still closes the modal. */}
+      <div aria-hidden />
       <m.div
         className={clsx(
           "border-cork-border/60 bg-cork-surface relative max-h-[calc(100vh-var(--cork-header-height)-2rem)] w-full shrink-0 overflow-y-auto rounded-2xl border p-6 shadow-2xl",
@@ -142,7 +147,7 @@ function ModalContainer({
       >
         {children}
       </m.div>
-      <div aria-hidden className="flex-[3]" />
+      <div aria-hidden />
     </div>
   );
 }

@@ -24,6 +24,18 @@ import { userEvent } from "vitest/browser";
 import { buildInitialConfig, NODES } from "../MarkdownEditor";
 import { MARKDOWN_TRANSFORMERS } from "../transformers";
 
+// Builds a fenced code block of `lineCount` throwaway statements, for specs
+// that need a body long/structured enough to force real scroll/selection
+// behavior. Shared so fixture shape (fence style, line content) can't drift
+// between specs that each need "a code block" for unrelated reasons.
+export function fencedCodeBlock(lang: string, lineCount = 20): string {
+  return [
+    `\`\`\`${lang}`,
+    ...Array.from({ length: lineCount }, (_, i) => `const x${i} = ${i};`),
+    "```",
+  ].join("\n");
+}
+
 // Headless editor for pure-helper and transformer round-trip tests — no DOM
 // mount, no React, runs entirely in JS. `onError` throws so silent Lexical
 // errors surface as test failures.

@@ -192,8 +192,17 @@ const TABLE: ElementTransformer = {
     if ($isTableNode(previousSibling) && getTableColumnsSize(previousSibling) === maxCells) {
       previousSibling.append(...table.getChildren());
       parentNode.remove();
-      // Children moved out of `table`; select the table they landed in.
-      previousSibling.selectEnd();
+      // Only park the caret for a live-typed row (the user is actively
+      // building the table). On import this would set a real selection out
+      // of nowhere on every task-open with a table — nothing downstream
+      // expects a selection to exist yet (see the `!isImport` branch below),
+      // and `CodeBlockHighlightPlugin`'s `$updateAndRetainSelection` reads
+      // whatever selection is current without checking it actually belongs
+      // to the code block it's re-tokenizing, so a stray selection here gets
+      // silently teleported into a same-tick code block's first token.
+      if (!isImport) {
+        previousSibling.selectEnd();
+      }
       return;
     }
 
@@ -216,7 +225,9 @@ const TABLE: ElementTransformer = {
       return;
     }
 
-    table.selectEnd();
+    // Import is a quiet "load the document as-is" — no caret should be
+    // conjured for a table that just arrived from disk (see the `!isImport`
+    // guard above for why this used to run unconditionally).
   },
   triggerOnEnter: true,
   type: "element",
@@ -264,7 +275,12 @@ const HORIZONTAL_RULE: ElementTransformer = {
     } else {
       parentNode.insertBefore(rule);
     }
-    rule.selectNext();
+    // Only park the caret for a live-typed rule — import is a quiet "load the
+    // document as-is" and must not conjure a selection out of nowhere (same
+    // reasoning as the TABLE transformer's `!isImport` guards above).
+    if (!isImport) {
+      rule.selectNext();
+    }
   },
   triggerOnEnter: true,
   type: "element",

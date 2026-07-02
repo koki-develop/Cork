@@ -331,18 +331,28 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
     );
 
     return (
-      <div className={clsx("relative flex min-w-0 flex-col", className)}>
+      // CSS Grid, not flex — a `display: flex` ancestor ANYWHERE above the
+      // contentEditable (not just its direct parent) can hit the same
+      // Chrome/WebKit "unwanted focusing behavior" bug Lexical warns about
+      // for the direct-parent case, especially once something up the tree
+      // (e.g. `Modal`'s own container) explicitly calls `.focus()`. Grid
+      // gives the identical "single item grows to fill, scrolls internally"
+      // layout without being flex. See `Modal.tsx`'s container for the other
+      // half of this fix.
+      <div className={clsx("relative grid min-w-0", className)}>
         <LexicalComposer initialConfig={buildInitialConfig(initialValue)}>
           <RichTextPlugin
             contentEditable={
-              <ContentEditable
-                ref={ref}
-                ariaLabel={ariaLabel}
-                onBlur={onBlur}
-                // Borderless writing surface: flat at rest, no hover or focus
-                // fill — the caret alone signals focus (no outline ring).
-                className="text-cork-text min-h-0 flex-1 overflow-y-auto px-3 py-2 text-sm break-words whitespace-pre-wrap focus-visible:outline-none"
-              />
+              <div className="min-h-0 overflow-y-auto">
+                <ContentEditable
+                  ref={ref}
+                  ariaLabel={ariaLabel}
+                  onBlur={onBlur}
+                  // Borderless writing surface: flat at rest, no hover or focus
+                  // fill — the caret alone signals focus (no outline ring).
+                  className="text-cork-text px-3 py-2 text-sm break-words whitespace-pre-wrap focus-visible:outline-none"
+                />
+              </div>
             }
             placeholder={
               placeholder == null ? null : (
