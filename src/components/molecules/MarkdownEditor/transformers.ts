@@ -9,6 +9,7 @@ import {
   ORDERED_LIST,
   QUOTE as DEFAULT_QUOTE,
   type TextFormatTransformer,
+  type TextMatchTransformer,
   TRANSFORMERS,
   type Transformer,
   UNORDERED_LIST,
@@ -48,6 +49,8 @@ import {
   type LexicalNode,
   ParagraphNode,
 } from "lexical";
+
+import { $isFormattableTextNode } from "./codeBlock";
 
 // `@lexical/markdown`'s default TRANSFORMERS have no table support, so we add a
 // GFM-table transformer (adapted from the Lexical playground). It round-trips a
@@ -1060,6 +1063,126 @@ function $appendPreservedCodeNode(
   rootNode.append(codeBlockNode);
 }
 
+// Upstream's generic `text-format` export path (`exportTextFormat` in
+// `@lexical/markdown`, module-private — `TextFormatTransformer` exposes no
+// `export` hook of its own for us to override) extracts leading/trailing
+// whitespace via `/^(\s*)(.*?)(\s*)$/s` before deciding where to place a
+// format's tag, and always keeps that extracted whitespace OUTSIDE the tag
+// (CommonMark's flanking rule: `** foo **` isn't valid bold, so upstream
+// re-homes the spaces around the `**`, not inside it). That rule is correct
+// for bold/italic/strikethrough/highlight, but wrong for `code` — a code
+// span's content is exactly what's between the backticks, with no flanking
+// restriction (CommonMark even special-cases a code span whose content is
+// nothing but spaces — https://spec.commonmark.org/0.31.2/#code-spans —
+// instead of forbidding it). Two symptoms follow from applying the
+// bold/italic rule to `code` anyway:
+//
+//   1. A run that is ENTIRELY whitespace: the greedy leading `\s*` group
+//      swallows the whole run, leaving an empty middle group. Upstream
+//      skips tagging outright for that case on every OTHER format (correct
+//      there — nothing to wrap), but deliberately exempts `code` from that
+//      skip and falls through to the generic formula instead — which still
+//      uses the same leading/trailing split and ends up emitting the tag
+//      OUTSIDE the (now fully-leading) whitespace: toggling inline-code on
+//      a single space serializes as `` ` ``` (a stray leading space plus an
+//      EMPTY, contentless code span) instead of `` `` `` `` (the literal
+//      space preserved as the span's content). Two spaces serialize as
+//      `` `` ` `` for the same reason.
+//
+//   2. A run with real content but leading/trailing whitespace around it:
+//      the split correctly finds non-empty "content" in the middle group,
+//      so the whitespace-only skip doesn't even apply — the generic formula
+//      just runs as designed for every format, placing the tag snug against
+//      the trimmed content and leaving the surrounding whitespace outside
+//      it. Toggling inline-code on `   a   ` (3 spaces each side) serializes
+//      as `   \`a\`   ` instead of `` `   a   ` `` — the backticks
+//      shrink-wrap only the "a", silently dropping the selection's real
+//      whitespace outside the span every time the file is saved.
+//
+// Both corrupt the on-disk task body any time a selection with leading,
+// trailing, or exclusively whitespace content is toggled to inline code
+// from the floating toolbar. Verified against `@lexical/markdown@0.45.0`
+// (see `node_modules/@lexical/markdown/dist/LexicalMarkdown.dev.mjs` lines
+// 843-935 at the time of writing).
+//
+// We can't patch `exportTextFormat` itself (module-private, not part of
+// `@lexical/markdown`'s public surface), so we intercept one layer up: a
+// `TextMatchTransformer`'s `export` runs BEFORE the generic per-text-node
+// path in `$exportChildren` and receives the exact same bound `exportFormat`
+// callback that IS `exportTextFormat`, closed over the real, mutating
+// `unclosedTags` bookkeeping — so calling it lets every OTHER concern
+// (adjacent-sibling tag merging, nesting with a simultaneously-applied
+// bold/italic/etc., unclosed-tag propagation into sibling nodes) run
+// completely unmodified through upstream's own correct logic. We only need
+// to stop the whitespace-splitting regex from extracting ANY of a `code`
+// run's edges as padding: wrapping the real text in a paired zero-width-
+// space sentinel (U+200B — deliberately NOT matched by `\s`) pins both the
+// leading and trailing `\s*` groups in upstream's regex to a zero-width
+// match at the sentinel boundary, so the ENTIRE original run — whitespace
+// anywhere in it, sentinels included — lands in the "content" group instead
+// of being split apart. The tag then gets placed correctly right against
+// the sentinels; stripping the two sentinel characters back out afterward
+// recovers the run exactly as authored, tag hugging its true edges. For a
+// run with no edge whitespace at all this reproduces byte-identical output
+// to the unpatched path (there's nothing for the regex to have extracted
+// either way), so every `code`-formatted node can safely route through
+// here — no need to special-case which runs actually have the bug.
+//
+// Every `code`-formatted `TextNode` is intercepted (`export` returns `null`
+// for anything else, letting the untouched upstream `INLINE_CODE`
+// text-format transformer — folded into `NON_LIST_NON_QUOTE_DEFAULTS` below
+// — handle every other format, including import: this transformer's
+// `regExp` never matches, so `` ` ` `` / `` `   a   ` `` typed or loaded
+// from disk continue to import exactly as upstream already handles them —
+// its backtick-specific import regex already captures the full span
+// content verbatim, edge whitespace included, with no flanking
+// restriction).
+//
+// Upstream is tracked at https://github.com/facebook/lexical/blob/main/packages/lexical-markdown/src/MarkdownExport.ts
+// — delete this override when upstream lands a fix that keeps a code span's
+// whitespace intact inside its backticks.
+const CODE_TEXT_SENTINEL = "\u200b";
+
+// Strips exactly the two `CODE_TEXT_SENTINEL` markers this transformer
+// injected — NOT every occurrence of the sentinel character in the string.
+// A naive `text.split(SENTINEL).join("")` would also delete any U+200B the
+// user's own text legitimately contains (a real zero-width space pasted or
+// typed into a code span), silently corrupting the saved file. The two
+// markers we added are provably the global-FIRST and global-LAST occurrence
+// of the sentinel in `text`: everything `exportFormat` places around our
+// wrapped content (`closingTagsBefore`, `openingTags`, `closingTagsAfter`)
+// is built only from format tag characters (backtick, asterisk, underscore,
+// tilde, equals) that never contain the sentinel, so any REAL sentinel
+// character from the user's own text can only ever land strictly between
+// our two inserted markers — never before the first or after the last.
+// Removing the first occurrence, then the (new) last occurrence of what
+// remains, therefore always removes exactly our two markers and leaves any
+// real embedded U+200B untouched.
+function stripCodeTextSentinelPair(text: string): string {
+  const first = text.indexOf(CODE_TEXT_SENTINEL);
+  const withoutFirst = text.slice(0, first) + text.slice(first + CODE_TEXT_SENTINEL.length);
+  const last = withoutFirst.lastIndexOf(CODE_TEXT_SENTINEL);
+  return withoutFirst.slice(0, last) + withoutFirst.slice(last + CODE_TEXT_SENTINEL.length);
+}
+
+const CODE_TEXT: TextMatchTransformer = {
+  dependencies: [],
+  export: (node, _exportChildren, exportFormat) => {
+    if (!$isFormattableTextNode(node) || !node.hasFormat("code")) {
+      return null;
+    }
+    const textContent = node.getTextContent();
+    const sentineled = exportFormat(
+      node,
+      `${CODE_TEXT_SENTINEL}${textContent}${CODE_TEXT_SENTINEL}`,
+    );
+    return stripCodeTextSentinelPair(sentineled);
+  },
+  // Never matches — this transformer exists purely for its `export` hook.
+  regExp: /(?!)/,
+  type: "text-match",
+};
+
 const NON_LIST_NON_QUOTE_DEFAULTS = TRANSFORMERS.filter(
   (t) =>
     t !== UNORDERED_LIST &&
@@ -1083,6 +1206,7 @@ export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [
   HORIZONTAL_RULE,
   CELL_AWARE_QUOTE,
   CODE,
+  CODE_TEXT,
   ...CELL_AWARE_LIST_TRANSFORMERS,
   ...NON_LIST_NON_QUOTE_DEFAULTS,
 ];

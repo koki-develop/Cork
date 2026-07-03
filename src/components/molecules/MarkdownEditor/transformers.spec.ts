@@ -1,3 +1,4 @@
+import { $createParagraphNode, $createTextNode, $getRoot } from "lexical";
 import { describe, expect, test } from "vitest";
 
 import { $readMarkdown, $setMarkdown, createTestHeadlessEditor } from "./__tests__/utils";
@@ -100,5 +101,214 @@ describe("MARKDOWN_TRANSFORMERS round-trip", () => {
     const source = "`````\nshow ```code```\n`````";
     $setMarkdown(editor, source);
     expect($readMarkdown(editor)).toBe(source);
+  });
+
+  // Reported as a Cork bug: opening a task after applying inline code to a
+  // whitespace-only selection shows a mangled body — the backticks end up
+  // glued together with the whitespace pushed outside them. See `CODE_TEXT`'s
+  // header comment in transformers.ts for the full upstream root cause.
+  describe("inline code applied to a whitespace-only selection", () => {
+    test("a single space round-trips as a one-space code span, not a stray space + empty span", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode(" ").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("` `");
+    });
+
+    test("two spaces round-trip as a two-space code span", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("  ").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`  `");
+    });
+
+    test("re-importing the exported span round-trips to the same markdown", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode(" ").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      const exported = $readMarkdown(editor);
+
+      const reopened = createTestHeadlessEditor();
+      $setMarkdown(reopened, exported);
+      expect($readMarkdown(reopened)).toBe(exported);
+    });
+
+    test("a whitespace-only code span adjacent to bold-only text keeps both tags intact", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const bold = $createTextNode("bold").toggleFormat("bold");
+          const space = $createTextNode(" ").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(bold, space));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("**bold**` `");
+    });
+
+    // A whitespace-only code run sandwiched between two other code-formatted
+    // runs must merge into ONE unbroken span (matching what upstream already
+    // does for adjacent same-format text nodes generally), not re-open/close
+    // the backtick tag around just the middle run. This exercises the
+    // `unclosedTags` adjacency bookkeeping our fix delegates to upstream's
+    // real `exportFormat` — three separate TextNodes here (as toggling
+    // format on a mid-selection produces) must still read as `` `aaa bbb` ``.
+    test("a whitespace-only code run between two code runs merges into one span", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const before = $createTextNode("aaa").toggleFormat("code");
+          const space = $createTextNode(" ").toggleFormat("code");
+          const after = $createTextNode("bbb").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(before, space, after));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`aaa bbb`");
+    });
+  });
+
+  // Follow-up Cork bug report: a selection with real content but padding
+  // spaces (e.g. "   a   ") also had its whitespace escape the backticks on
+  // save. Same upstream root cause as the whitespace-only case above — see
+  // `CODE_TEXT`'s header comment in transformers.ts.
+  describe("inline code applied to a selection with leading/trailing whitespace", () => {
+    test("whitespace on both sides of content stays inside the span", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("   a   ").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`   a   `");
+    });
+
+    test("leading-only whitespace stays inside the span", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("   a").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`   a`");
+    });
+
+    test("trailing-only whitespace stays inside the span", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("a   ").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`a   `");
+    });
+
+    test("content with no edge whitespace is unaffected", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("a").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`a`");
+    });
+
+    test("re-importing the exported span round-trips to the same markdown", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("   a   ").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      const exported = $readMarkdown(editor);
+      expect(exported).toBe("`   a   `");
+
+      const reopened = createTestHeadlessEditor();
+      $setMarkdown(reopened, exported);
+      expect($readMarkdown(reopened)).toBe(exported);
+    });
+
+    test("a padded code span adjacent to bold-only text keeps both tags intact", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const bold = $createTextNode("bold").toggleFormat("bold");
+          const code = $createTextNode("   a   ").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(bold, code));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("**bold**`   a   `");
+    });
+  });
+
+  // `CODE_TEXT` wraps a code-formatted node's content in a paired zero-width-
+  // space (U+200B) sentinel to work around the whitespace-splitting bug
+  // above, then strips its own two markers back out. A naive
+  // `text.split(SENTINEL).join("")` would strip EVERY U+200B in the result,
+  // not just the two it added — silently deleting a real zero-width space
+  // the user's own text legitimately contains (e.g. pasted from a source
+  // that uses ZWSP as a line-wrap hint). Guards against that regression.
+  describe("inline code content containing a real zero-width space", () => {
+    test("a real U+200B inside the content survives export, not just the sentinels", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("foo​bar").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`foo​bar`");
+    });
+
+    test("a real U+200B at the very start of the content survives export", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("​foo").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`​foo`");
+    });
+
+    test("content that is a single real U+200B survives export", () => {
+      const editor = createTestHeadlessEditor();
+      editor.update(
+        () => {
+          const text = $createTextNode("​").toggleFormat("code");
+          $getRoot().append($createParagraphNode().append(text));
+        },
+        { discrete: true },
+      );
+      expect($readMarkdown(editor)).toBe("`​`");
+    });
   });
 });
