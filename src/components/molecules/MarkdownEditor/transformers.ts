@@ -48,6 +48,7 @@ import {
   type ElementNode,
   type LexicalNode,
   ParagraphNode,
+  type TextNode,
 } from "lexical";
 
 import { $isFormattableTextNode } from "./codeBlock";
@@ -1129,40 +1130,190 @@ function $appendPreservedCodeNode(
 // here — no need to special-case which runs actually have the bug.
 //
 // Every `code`-formatted `TextNode` is intercepted (`export` returns `null`
-// for anything else, letting the untouched upstream `INLINE_CODE`
-// text-format transformer — folded into `NON_LIST_NON_QUOTE_DEFAULTS` below
-// — handle every other format, including import: this transformer's
-// `regExp` never matches, so `` ` ` `` / `` `   a   ` `` typed or loaded
-// from disk continue to import exactly as upstream already handles them —
-// its backtick-specific import regex already captures the full span
-// content verbatim, edge whitespace included, with no flanking
-// restriction).
+// for anything else). Import is ALSO owned by this transformer for any span
+// upstream's `INLINE_CODE` can't itself parse (see the backtick-collision
+// block below) — `regExp` still never matches (no live-typing trigger;
+// that stays with upstream `INLINE_CODE`), but `importRegExp` + `replace` +
+// `getEndIndex` parse the variable-width fence this transformer's `export`
+// can produce.
 //
 // Upstream is tracked at https://github.com/facebook/lexical/blob/main/packages/lexical-markdown/src/MarkdownExport.ts
-// — delete this override when upstream lands a fix that keeps a code span's
-// whitespace intact inside its backticks.
+// — delete the sentinel machinery below when upstream lands a fix that keeps
+// a code span's whitespace intact inside its backticks.
 const CODE_TEXT_SENTINEL = "\u200b";
 
-// Strips exactly the two `CODE_TEXT_SENTINEL` markers this transformer
-// injected — NOT every occurrence of the sentinel character in the string.
-// A naive `text.split(SENTINEL).join("")` would also delete any U+200B the
-// user's own text legitimately contains (a real zero-width space pasted or
-// typed into a code span), silently corrupting the saved file. The two
-// markers we added are provably the global-FIRST and global-LAST occurrence
-// of the sentinel in `text`: everything `exportFormat` places around our
-// wrapped content (`closingTagsBefore`, `openingTags`, `closingTagsAfter`)
-// is built only from format tag characters (backtick, asterisk, underscore,
-// tilde, equals) that never contain the sentinel, so any REAL sentinel
-// character from the user's own text can only ever land strictly between
-// our two inserted markers — never before the first or after the last.
-// Removing the first occurrence, then the (new) last occurrence of what
-// remains, therefore always removes exactly our two markers and leaves any
-// real embedded U+200B untouched.
-function stripCodeTextSentinelPair(text: string): string {
-  const first = text.indexOf(CODE_TEXT_SENTINEL);
-  const withoutFirst = text.slice(0, first) + text.slice(first + CODE_TEXT_SENTINEL.length);
-  const last = withoutFirst.lastIndexOf(CODE_TEXT_SENTINEL);
-  return withoutFirst.slice(0, last) + withoutFirst.slice(last + CODE_TEXT_SENTINEL.length);
+// Reported as a second, separate Cork bug on top of the whitespace one
+// above: selecting text that itself CONTAINS a backtick — even a lone
+// `` ` `` — and toggling inline-code on it saved the file with the
+// selection's own backtick glued directly against the format tag's
+// backtick, e.g. a lone `` ` `` round-tripped as three backticks in a row
+// (the format tag's backtick + the content's backtick + the format tag's
+// closing backtick), which reopens as a fenced code block instead of an
+// inline code span. CommonMark's code-span grammar
+// (https://spec.commonmark.org/0.31.2/#code-spans) requires the opening/
+// closing "backtick string" to be LONGER than any backtick run already
+// inside the content (else the content's own backticks would prematurely
+// close the span), and — whenever the fence is widened past one backtick —
+// a single padding space on each side of the content, UNCONDITIONALLY, so
+// the content's own edge characters never fuse with the fence. The padding
+// can't be conditional on whether THIS content's own edge happens to be a
+// backtick: a content that starts/ends with a space but has a backtick in
+// the middle still needs the exact same fixed padding, so import can strip
+// it back off symmetrically without having to guess which edge space is
+// real content and which is fence padding.
+//
+// Neither half of this is handled upstream:
+//   - Export: `INLINE_CODE` (`node_modules/@lexical/markdown/dist/
+//     LexicalMarkdown.dev.mjs`, `createTextFormatTransformersIndex`) is a
+//     fixed-`` ` ``-tag `TextFormatTransformer` — the tag width can't vary
+//     per node. `export` above always wins regardless (text-match
+//     transformers run before the generic per-text-node path in
+//     `$exportChildren`), so this is a non-issue for the export side.
+//   - Import: the same file's tag-length-1 branch hardcodes a
+//     single-backtick regex (`` (^|[^\\`])(`)((?:\\`|[^`])+?)(`)(?!`) ``) --
+//     a `` `` `` `` fence never matches it at all, so re-opening a file
+//     saved with a widened fence would leave it as literal backtick text.
+//
+// `INLINE_CODE` MUST stay in `MARKDOWN_TRANSFORMERS` (do not filter it out
+// — a prior version of this fix did, and it was a real regression):
+// upstream's `findOutermostTextFormatTransformer` uses `INLINE_CODE`'s own
+// presence in the transformer index to build `excludeRanges`, the mechanism
+// that keeps a `*`/`_`/`~`/`=` INSIDE a single-backtick code span from being
+// read as a real emphasis delimiter. Removing `INLINE_CODE` removes that
+// protection for every import, not just widened-fence ones: `*a \`b*c*d\` e*`
+// (italic text whose code span's own content has asterisks) silently loses
+// the outer italic and rewrites the file's bytes on next save. Keeping
+// `INLINE_CODE` in the list costs nothing on export (it never wins there —
+// see above) and costs nothing on import for a single-backtick span either:
+// `importTextTransformers`' containment arbitration hands a tie
+// (`INLINE_CODE` and `CODE_TEXT` matching the identical span, which is what
+// a single-backtick span produces from both) to whichever is
+// `foundTextFormat` — i.e. `INLINE_CODE` — and its own import (verbatim
+// capture, no stripping) is exactly what this file's "preserve edge
+// whitespace" tests already require, so the outcome is identical to
+// `CODE_TEXT` handling it. `CODE_TEXT`'s import path only ever actually
+// WINS the arbitration for a widened (2+) fence, which `INLINE_CODE`'s
+// regex structurally cannot match into (a backtick immediately glued to
+// another backtick can't open ITS single-backtick pattern) — so
+// `CODE_TEXT`'s import path below is exercised exactly for the case it
+// needs to be.
+//
+// A code-formatted span can be split across more than one sibling TextNode
+// (Lexical keeps format-distinct runs as separate nodes — e.g. selecting
+// across a bold/plain boundary and toggling code produces two adjacent
+// TextNodes, one of which also carries `bold`). The fence has to be sized
+// against the FULL run's content, not just one node's own slice of it: a
+// backtick at the very end of one node and one at the very start of the
+// next together form a longer backtick run than either node shows alone.
+// `$codeFormatRunText` walks both directions from `node` to collect it;
+// `$reencodeCodeSpanFence` below only widens the fence / adds padding on
+// the run's actual outer edges (`$isCodeRunSibling` on the previous/next
+// sibling), leaving an interior node's own tag output (which upstream's
+// `exportFormat` already suppresses, since a still-open `code` format on
+// the previous/next sibling means no opening/closing tag is emitted there)
+// untouched.
+function $isCodeRunSibling(node: LexicalNode | null): node is TextNode {
+  return node != null && $isFormattableTextNode(node) && node.hasFormat("code");
+}
+
+function $codeFormatRunText(node: TextNode): string {
+  let text = node.getTextContent();
+  for (
+    let prev = node.getPreviousSibling();
+    $isCodeRunSibling(prev);
+    prev = prev.getPreviousSibling()
+  ) {
+    text = prev.getTextContent() + text;
+  }
+  for (let next = node.getNextSibling(); $isCodeRunSibling(next); next = next.getNextSibling()) {
+    text = text + next.getTextContent();
+  }
+  return text;
+}
+
+// CommonMark code-span grammar: the fence must be longer than the longest
+// backtick run already inside the content, or that run would be read as the
+// closing fence instead. No backticks in the content at all keeps the
+// classic single-backtick fence.
+function codeSpanFenceFor(runText: string): string {
+  const backtickRuns = runText.match(/`+/g);
+  const longestRun = backtickRuns ? Math.max(...backtickRuns.map((run) => run.length)) : 0;
+  return "`".repeat(longestRun + 1);
+}
+
+function countLeadingBackticks(text: string): number {
+  let count = 0;
+  while (text[count] === "`") count++;
+  return count;
+}
+
+function countTrailingBackticks(text: string): number {
+  let count = 0;
+  while (text[text.length - 1 - count] === "`") count++;
+  return count;
+}
+
+// Re-homes the sentinel-wrapped export result's backtick tag(s) into a
+// correctly-sized fence, adding the fixed CommonMark padding space whenever
+// the run's content contains a backtick anywhere (see the header comment
+// above for why the padding can't be conditional on THIS content's own edge
+// character). Only touches the sides of `node` that are the run's actual
+// outer boundary (previous/next sibling not itself a `code`-formatted text
+// node) — an interior node of a multi-node run has no tag of its own on
+// that side to widen. The sentinel positions (still present in
+// `sentineled`) mark exactly where `openingTags`/`closingTagsAfter` end and
+// the real content begins/ends, so `countTrailingBackticks(before)` /
+// `countLeadingBackticks(after)` isolate just the tag characters upstream
+// placed there — never the content's own edge backticks, which sit on the
+// sentinel's OTHER side.
+function $reencodeCodeSpanFence(node: TextNode, sentineled: string): string {
+  const firstSentinel = sentineled.indexOf(CODE_TEXT_SENTINEL);
+  const lastSentinel = sentineled.lastIndexOf(CODE_TEXT_SENTINEL);
+  let before = sentineled.slice(0, firstSentinel);
+  const textContent = sentineled.slice(firstSentinel + CODE_TEXT_SENTINEL.length, lastSentinel);
+  let after = sentineled.slice(lastSentinel + CODE_TEXT_SENTINEL.length);
+
+  const isRunStart = !$isCodeRunSibling(node.getPreviousSibling());
+  const isRunEnd = !$isCodeRunSibling(node.getNextSibling());
+
+  if (!isRunStart && !isRunEnd) {
+    return before + textContent + after;
+  }
+
+  const runText = $codeFormatRunText(node);
+  const fence = codeSpanFenceFor(runText);
+  const needsPadding = fence.length > 1;
+
+  if (isRunStart) {
+    const tagLength = countTrailingBackticks(before);
+    before = before.slice(0, before.length - tagLength) + fence;
+  }
+  if (isRunEnd) {
+    const tagLength = countLeadingBackticks(after);
+    after = fence + after.slice(tagLength);
+  }
+
+  return (
+    before +
+    (isRunStart && needsPadding ? " " : "") +
+    textContent +
+    (isRunEnd && needsPadding ? " " : "") +
+    after
+  );
+}
+
+// A backtick immediately preceded by an ODD number of backslashes is
+// escaped (`` \` ``) and must not act as a real opening OR closing
+// delimiter — mirrors upstream's own single-backtick regex, which folds
+// `` \` `` into literal content rather than letting it end the span (quoted
+// in the header comment above). Counting backslashes (not a lookbehind)
+// keeps this working on engines without lookbehind support, matching the
+// same technique `FormatShortcutPlugin.ts` and upstream's own
+// `isEscaped` already use elsewhere in this codebase / dependency.
+function isEscapedBacktickAt(text: string, index: number): boolean {
+  let backslashCount = 0;
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) backslashCount++;
+  return backslashCount % 2 === 1;
 }
 
 const CODE_TEXT: TextMatchTransformer = {
@@ -1176,10 +1327,76 @@ const CODE_TEXT: TextMatchTransformer = {
       node,
       `${CODE_TEXT_SENTINEL}${textContent}${CODE_TEXT_SENTINEL}`,
     );
-    return stripCodeTextSentinelPair(sentineled);
+    return $reencodeCodeSpanFence(node, sentineled);
   },
-  // Never matches — this transformer exists purely for its `export` hook.
+  // A closing run has to match the OPENING run's length exactly — a shorter
+  // or longer independent backtick run further along is still just literal
+  // content. JS regex greediness alone finds each independent run (a run is
+  // "independent" precisely because it is NOT glued to another backtick —
+  // the same property that makes `` `+ `` always consume the FULL run
+  // rather than stopping partway through it), so no lookaround is needed to
+  // detect the "not glued to a neighboring backtick" half of CommonMark's
+  // "backtick string" definition. Returns `false` (no code span starts
+  // here) when the opening run itself is escaped, or when no equal-length,
+  // non-escaped closing run exists before the text ends — the opening run
+  // is then left as ordinary text, same as any other unmatched delimiter,
+  // which is exactly CommonMark's own fallback for an unclosed backtick
+  // string.
+  getEndIndex: (node, match) => {
+    const text = node.getTextContent();
+    const startIndex = match.index ?? 0;
+    if (isEscapedBacktickAt(text, startIndex)) {
+      return false;
+    }
+    const fenceLength = match[0].length;
+    const closingRunRegExp = /`+/g;
+    closingRunRegExp.lastIndex = startIndex + fenceLength;
+
+    let closingRun = closingRunRegExp.exec(text);
+    while (closingRun !== null) {
+      if (closingRun[0].length === fenceLength && !isEscapedBacktickAt(text, closingRun.index)) {
+        return closingRun.index + fenceLength;
+      }
+      closingRun = closingRunRegExp.exec(text);
+    }
+    return false;
+  },
+  // Matches any independent run of backticks as an opening-fence candidate
+  // — see the `getEndIndex` comment above for why plain `` `+ `` already
+  // captures a full "backtick string" per CommonMark's definition (escape
+  // handling for the opening run itself also lives in `getEndIndex`, since
+  // `importRegExp` alone can't reject a match once found).
+  importRegExp: /`+/,
+  // Never matches for live typing — that trigger stays with upstream's
+  // fixed-tag `INLINE_CODE` (see `MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS`
+  // below). This `regExp` only exists because `TextMatchTransformer` requires
+  // one; file load/save route through `importRegExp` + `getEndIndex` +
+  // `replace` / `export` instead.
   regExp: /(?!)/,
+  // `node` here is already isolated to exactly the matched span (opening
+  // fence + content + closing fence) by `importFoundTextMatchTransformer`'s
+  // `splitText(startIndex, endIndex)` before `replace` is called. Strips the
+  // fence, then — mirroring `$reencodeCodeSpanFence`'s unconditional padding
+  // — unwraps the fixed single space on each side, but ONLY when the
+  // content actually has that exact shape (starts AND ends with a literal
+  // space, and isn't made of spaces alone): `fenceLength > 1` alone is NOT
+  // sufficient evidence that Cork's own padding is present — a widened
+  // fence is also perfectly valid, unpadded CommonMark on its own (e.g. a
+  // hand-authored `` ``code`` `` chosen out of habit, no backtick collision
+  // forcing it), and blindly stripping edge characters there silently
+  // deletes real content. A 1-backtick fence never strips at all, so plain
+  // content (including the CODE_TEXT_SENTINEL round-trip case of pure
+  // whitespace) keeps passing through untouched exactly as before.
+  replace: (node, match) => {
+    const fenceLength = match[0].length;
+    const spanText = node.getTextContent();
+    let content = spanText.slice(fenceLength, spanText.length - fenceLength);
+    if (fenceLength > 1 && content.startsWith(" ") && content.endsWith(" ") && content.trim()) {
+      content = content.slice(1, -1);
+    }
+    node.setTextContent(content);
+    node.toggleFormat("code");
+  },
   type: "text-match",
 };
 
