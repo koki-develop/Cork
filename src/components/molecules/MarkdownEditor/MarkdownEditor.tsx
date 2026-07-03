@@ -37,6 +37,7 @@ import { HorizontalRuleKeyboardPlugin } from "./HorizontalRuleKeyboardPlugin";
 import { LinkOpenPlugin } from "./LinkOpenPlugin";
 import { ListExitPlugin } from "./ListExitPlugin";
 import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
+import { MarkdownPastePlugin } from "./MarkdownPastePlugin";
 import { NoListInTablePlugin } from "./NoListInTablePlugin";
 import { PasteLinkPlugin } from "./PasteLinkPlugin";
 import { QuoteExitPlugin } from "./QuoteExitPlugin";
@@ -539,6 +540,14 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             plugin's EDITOR-priority paste handler (which would otherwise
             replace the selection with the URL as text). */}
           <PasteLinkPlugin />
+          {/* Plain-text paste (no text/html, no Lexical clipboard payload) →
+            run it through the same MARKDOWN_TRANSFORMERS pipeline the
+            file-load path uses, instead of inserting the literal Markdown
+            source as inert text. Also COMMAND_PRIORITY_LOW; registered after
+            PasteLinkPlugin so a bare-URL paste over a selection is still
+            claimed by that plugin first (same-priority listeners run in
+            registration order). */}
+          <MarkdownPastePlugin />
           {/* Selection-triggered floating toolbar: toggles bold / italic /
             strikethrough / inline-code for the highlighted text. */}
           <FloatingFormatToolbarPlugin />

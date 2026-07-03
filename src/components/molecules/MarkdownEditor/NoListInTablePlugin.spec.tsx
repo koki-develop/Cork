@@ -1,18 +1,7 @@
 import { $createListItemNode, $createListNode, $isListNode } from "@lexical/list";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
+import { $isTableNode } from "@lexical/table";
 import {
-  $createTableCellNode,
-  $createTableNode,
-  $createTableRowNode,
-  $isTableCellNode,
-  $isTableNode,
-  $isTableRowNode,
-  TableCellHeaderStates,
-  type TableCellNode,
-  type TableNode,
-} from "@lexical/table";
-import {
-  $createParagraphNode,
   $createTextNode,
   $getRoot,
   $isElementNode,
@@ -21,7 +10,7 @@ import {
 } from "lexical";
 import { describe, expect, test } from "vitest";
 
-import { renderTestEditor } from "./__tests__/utils";
+import { $seedTableWithEmptyCell, getOnlyCell, renderTestEditor } from "./__tests__/utils";
 import { NoListInTablePlugin } from "./NoListInTablePlugin";
 
 // NoListInTablePlugin is the safety net for the "no lists in table cells"
@@ -42,25 +31,9 @@ import { NoListInTablePlugin } from "./NoListInTablePlugin";
 // cell holds none, so even deeply nested lists flatten across passes.
 //
 // Before/After diagrams below show the cell's subtree (the table+row
-// scaffolding is constant across each test).
-
-function $seedTableWithEmptyCell(): TableNode {
-  const table = $createTableNode();
-  const row = $createTableRowNode();
-  const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS);
-  cell.append($createParagraphNode());
-  row.append(cell);
-  table.append(row);
-  return table;
-}
-
-function getOnlyCell(table: TableNode): TableCellNode {
-  const row = table.getFirstChild();
-  if (!$isTableRowNode(row)) throw new Error("expected TableRowNode at table[0]");
-  const cell = row.getFirstChild();
-  if (!$isTableCellNode(cell)) throw new Error("expected TableCellNode at row[0]");
-  return cell;
-}
+// scaffolding is constant across each test). `$seedTableWithEmptyCell` /
+// `getOnlyCell` live in `__tests__/utils.tsx` — shared with any other spec
+// that needs the same "table with one cell" scaffold.
 
 describe("NoListInTablePlugin", () => {
   // A flat bullet ListNode placed into a cell (e.g. via a paste of

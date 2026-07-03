@@ -7,6 +7,17 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import {
+  $createTableCellNode,
+  $createTableNode,
+  $createTableRowNode,
+  $isTableCellNode,
+  $isTableRowNode,
+  TableCellHeaderStates,
+  type TableCellNode,
+  type TableNode,
+} from "@lexical/table";
+import {
+  $createParagraphNode,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
@@ -197,4 +208,42 @@ export function dispatchCommand<TPayload>(
     { discrete: true },
   );
   return handled;
+}
+
+// A one-row, one-cell table with an empty paragraph in the cell — the
+// minimal scaffold shared by every "does X land correctly inside a table
+// cell" spec (list-in-cell safety net, Markdown-paste cell bail, ...).
+export function $seedTableWithEmptyCell(): TableNode {
+  const table = $createTableNode();
+  const row = $createTableRowNode();
+  const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS);
+  cell.append($createParagraphNode());
+  row.append(cell);
+  table.append(row);
+  return table;
+}
+
+export function getOnlyCell(table: TableNode): TableCellNode {
+  const row = table.getFirstChild();
+  if (!$isTableRowNode(row)) throw new Error("expected TableRowNode at table[0]");
+  const cell = row.getFirstChild();
+  if (!$isTableCellNode(cell)) throw new Error("expected TableCellNode at row[0]");
+  return cell;
+}
+
+// Builds a real `ClipboardEvent` carrying the given `text/plain` payload
+// (plus any extra MIME types a test needs to simulate a richer clipboard,
+// e.g. `text/html`) via a real `DataTransfer` — the standard technique for
+// exercising `PASTE_COMMAND` handlers without a real OS clipboard. Pair with
+// `dispatchCommand(editor, PASTE_COMMAND, event)`.
+export function buildPasteEvent(
+  text: string,
+  extraMimeTypes?: Record<string, string>,
+): ClipboardEvent {
+  const dataTransfer = new DataTransfer();
+  dataTransfer.setData("text/plain", text);
+  for (const [type, value] of Object.entries(extraMimeTypes ?? {})) {
+    dataTransfer.setData(type, value);
+  }
+  return new ClipboardEvent("paste", { clipboardData: dataTransfer });
 }
