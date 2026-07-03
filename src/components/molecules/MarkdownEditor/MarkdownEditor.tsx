@@ -21,6 +21,7 @@ import { clsx } from "clsx";
 import type { EditorState, EditorThemeClasses } from "lexical";
 import { forwardRef, useCallback } from "react";
 
+import { BoundaryStrictFormatPlugin } from "./BoundaryStrictFormatPlugin";
 import { CheckListIndentPlugin } from "./CheckListIndentPlugin";
 import { CheckListOutdentPlugin } from "./CheckListOutdentPlugin";
 import { CheckListShortcutPlugin } from "./CheckListShortcutPlugin";
@@ -517,6 +518,15 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             and makes a mixed selection always enable rather than toggle off the
             first node. See the plugin header for the full rationale. */}
           <FormatFormattableTextPlugin />
+          {/* Keeps `RangeSelection.format`'s `code` / `highlight` bits
+            synchronized with whether the caret is actually INSIDE a run of
+            that format, so opening a `` `a` ``- or `==a==`-only task then
+            typing / pressing Enter / deleting all doesn't drag the pending
+            format onto whatever comes next. Bold / italic / strike stay under
+            Lexical's default sticky-format behavior — `code` and `highlight`
+            alone are exact-substring Markdown delimiter pairs and should
+            never extend by boundary typing. */}
+          <BoundaryStrictFormatPlugin />
           {/* Wraps bare URLs in AutoLinkNodes (typed or loaded from file) so
             LinkOpenPlugin's click handler can open them in the system browser. */}
           <AutoLinkPlugin

@@ -22,7 +22,7 @@ export function $isInsideCodeBlock(node: LexicalNode): boolean {
 // is the single discriminator both the floating toolbar (which formats are
 // applied / shown active) and the format command (which nodes get toggled) hang
 // off, so code-block text is treated identically everywhere.
-export function $isFormattableTextNode(node: LexicalNode): node is TextNode {
+export function $isFormattableTextNode(node: LexicalNode | null | undefined): node is TextNode {
   return $isTextNode(node) && !$isInsideCodeBlock(node);
 }
 

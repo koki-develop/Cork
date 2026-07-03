@@ -48,6 +48,7 @@ import {
   type ElementNode,
   type LexicalNode,
   ParagraphNode,
+  type TextFormatType,
   type TextNode,
 } from "lexical";
 
@@ -1437,3 +1438,25 @@ export const MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS: Array<Transformer> =
   MARKDOWN_TRANSFORMERS.filter((t) => t.type !== "text-format");
 export const MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS: Array<TextFormatTransformer> =
   MARKDOWN_TRANSFORMERS.filter((t): t is TextFormatTransformer => t.type === "text-format");
+
+// Text formats whose Markdown serialization is an exact-substring delimiter
+// pair (`` `code` ``, `==highlight==`) rather than a free-flowing typographic
+// decoration (bold `**`, italic `*`, strikethrough `~~`). The span's content
+// is EXACTLY what sits between the two delimiters — nothing about the
+// format's own semantics says "and also whatever gets typed next to one edge
+// of it". Consumed by `BoundaryStrictFormatPlugin`, which stops Lexical's
+// sticky pending-format bit from silently extending one of these spans when
+// the caret merely touches its boundary (see that plugin's header for the
+// full bug derivation).
+//
+// This lives here, next to the transformer definitions, rather than as a
+// standalone literal in the plugin file: `code` (`CODE_TEXT` above) and
+// `highlight` (from upstream `TRANSFORMERS`, merged into
+// `NON_LIST_NON_QUOTE_DEFAULTS`) are NOT structurally distinguishable from
+// bold/italic/strikethrough by anything in `TextFormatTransformer`'s own
+// shape (`format`/`tag`/`intraword` carry no "atomic span" flag) — so there
+// is no way to *derive* this list automatically. Keeping it beside the actual
+// transformer definitions means adding a future atomic delimiter-pair format
+// to this file is the same edit that should extend this array, instead of a
+// silent gap in a separate, easy-to-forget plugin file.
+export const ATOMIC_TEXT_FORMATS: ReadonlyArray<TextFormatType> = ["code", "highlight"];
