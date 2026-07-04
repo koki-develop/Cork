@@ -1,5 +1,6 @@
 import { $isCodeNode, type CodeNode } from "@lexical/code";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $isQuoteNode } from "@lexical/rich-text";
 import {
   $createParagraphNode,
   $getSelection,
@@ -19,14 +20,36 @@ import { useEffect } from "react";
 // block to arrow into. This plugin adds three intuitive exits:
 //
 //   - Shift+Enter (anywhere in the block) inserts a paragraph right after the
-//     block and moves there — a one-press escape.
-//   - ArrowUp on the first line of a block that is the document's first block
-//     inserts an empty paragraph before it and moves up.
-//   - ArrowDown on the last line of a block that is the document's last block
-//     inserts an empty paragraph after it and moves down.
+//     block and moves there — a one-press escape. Lands as a sibling INSIDE
+//     the block's immediate parent (`$escapeAfter`) — for a code block
+//     nested in a QuoteNode (see QUOTE_CODE / QuoteCodeShortcutPlugin), that
+//     means the new paragraph is still a quoted line. This matches vanilla
+//     Lexical's own trailing-Enter exit (`CodeNode.insertNewAfter`, reached
+//     by pressing Enter on two already-blank trailing lines), which is the
+//     same "stay inside whatever the block was nested in" shape — Shift+Enter
+//     is deliberately a faster, one-press version of that SAME exit, not a
+//     different one.
+//   - ArrowUp on the first line of a block that has no previous sibling
+//     inserts an empty paragraph before it and moves up. When the block is
+//     ALSO nested inside one or more QuoteNodes with no previous sibling at
+//     ANY of those levels either, the check escalates through the OUTERMOST
+//     such QuoteNode (`$exitQuotesBefore`) — arrowing up past the very first
+//     line of the very first thing in a quote should leave the quote
+//     entirely (caret lands unindented), the same way arrowing up out of the
+//     quote's own first quoted paragraph already works via QuoteExitPlugin's
+//     Backspace-unwrap sibling behavior. A new blank paragraph is only
+//     inserted when that OUTERMOST level is ALSO the true edge of the
+//     document body — if something already precedes the (possibly-quoted)
+//     block there, this plugin steps aside (`return false`, no
+//     `preventDefault`) and lets the browser's own native ArrowUp move the
+//     caret into that existing content, exactly like the un-nested case
+//     already did before quote-nesting existed.
+//   - ArrowDown is the mirror image via `$exitQuotesAfter`.
 //
 // Plain Enter still inserts code lines, and arrow keys still navigate within /
-// out of the block normally whenever a neighbouring block already exists.
+// out of the block normally whenever a neighbouring block already exists —
+// including "exists just outside every enclosing quote", not only "exists
+// inside the immediate parent".
 export function CodeBlockEscapePlugin(): null {
   const [editor] = useLexicalComposerContext();
 
@@ -52,16 +75,14 @@ export function CodeBlockEscapePlugin(): null {
           // navigation and must be left alone.
           if ($hasNavModifier(event)) return false;
           const codeNode = $getCodeNodeAtCursor();
-          // Only escape upward when the block is the first thing in the
-          // document — otherwise the default ArrowUp already reaches the block
+          // Only escape upward when the block is the first thing at its own
+          // level — otherwise the default ArrowUp already reaches the block
           // above.
           if (codeNode == null || codeNode.getPreviousSibling() != null) return false;
           if (!$isOnFirstLineOfCode(codeNode)) return false;
+          if (!$exitQuotesBefore(codeNode)) return false;
 
           event.preventDefault();
-          const paragraph = $createParagraphNode();
-          codeNode.insertBefore(paragraph);
-          paragraph.select();
           return true;
         },
         COMMAND_PRIORITY_LOW,
@@ -73,9 +94,9 @@ export function CodeBlockEscapePlugin(): null {
           const codeNode = $getCodeNodeAtCursor();
           if (codeNode == null || codeNode.getNextSibling() != null) return false;
           if (!$isOnLastLineOfCode(codeNode)) return false;
+          if (!$exitQuotesAfter(codeNode)) return false;
 
           event.preventDefault();
-          $escapeAfter(codeNode);
           return true;
         },
         COMMAND_PRIORITY_LOW,
@@ -97,6 +118,65 @@ function $escapeAfter(codeNode: CodeNode): void {
   const paragraph = $createParagraphNode();
   codeNode.insertAfter(paragraph);
   paragraph.select();
+}
+
+// Walks upward from `node` through enclosing QuoteNodes, stopping at the
+// OUTERMOST ancestor for which `node` (or the QuoteNode standing in for it
+// at each successive level) is still at the very edge of its own immediate
+// parent per `getEdgeSibling` (`getPreviousSibling` / `getNextSibling`).
+// Escaping a code block that sits at the edge of its quote should land the
+// caret OUTSIDE the quote entirely (mirroring where the caret visually
+// exits, past the closing `>` marker) rather than one level in as another
+// quoted paragraph. Stops as soon as either check fails: a same-level
+// sibling means there's already somewhere natural to arrow into, and a
+// non-QuoteNode parent means we've reached whatever isn't a quote (root, or
+// any other container) — for a code block that was never nested in a quote
+// at all, this returns `node` unchanged on the very first check, so
+// `$exitQuotesBefore` / `$exitQuotesAfter` degrade to plain
+// `insertBefore`/`insertAfter` on the CodeNode itself, identical to the
+// pre-nesting behavior.
+function $outermostQuoteEdge(
+  node: LexicalNode,
+  getEdgeSibling: (node: LexicalNode) => LexicalNode | null,
+): LexicalNode {
+  let current = node;
+  while (true) {
+    const parent = current.getParent();
+    if (!$isQuoteNode(parent) || getEdgeSibling(current) != null) {
+      return current;
+    }
+    current = parent;
+  }
+}
+
+// Returns `false` (and mutates nothing) when the outermost quote-escalated
+// edge ALREADY has a previous sibling — i.e. something precedes the
+// (possibly-quoted) block at the level where escalation stopped, so there's
+// somewhere natural for the browser's own native ArrowUp to land without us
+// conjuring a new blank paragraph. Only inserts when `edge` is truly the
+// first thing at that level, mirroring the pre-nesting top-level behavior
+// ("only escape upward when the block is the first thing in the document").
+function $exitQuotesBefore(codeNode: CodeNode): boolean {
+  const edge = $outermostQuoteEdge(codeNode, (n) => n.getPreviousSibling());
+  if (edge.getPreviousSibling() != null) {
+    return false;
+  }
+  const paragraph = $createParagraphNode();
+  edge.insertBefore(paragraph);
+  paragraph.select();
+  return true;
+}
+
+// Mirror of `$exitQuotesBefore` for the downward direction.
+function $exitQuotesAfter(codeNode: CodeNode): boolean {
+  const edge = $outermostQuoteEdge(codeNode, (n) => n.getNextSibling());
+  if (edge.getNextSibling() != null) {
+    return false;
+  }
+  const paragraph = $createParagraphNode();
+  edge.insertAfter(paragraph);
+  paragraph.select();
+  return true;
 }
 
 function $getCodeNodeAtCursor(): CodeNode | null {

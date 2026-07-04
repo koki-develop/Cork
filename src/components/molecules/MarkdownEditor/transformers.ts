@@ -1,4 +1,4 @@
-import { $createCodeNode, $isCodeNode } from "@lexical/code";
+import { $createCodeNode, $isCodeNode, CodeNode } from "@lexical/code";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
@@ -617,6 +617,35 @@ function $exportNestedQuote(
   for (const child of quote.getChildren()) {
     if ($isQuoteNode(child)) {
       lines.push(...$exportNestedQuote(child, exportChildren, depth + 1));
+    } else if ($isCodeNode(child)) {
+      // A fenced code block nested inside this quote (built by the QUOTE_CODE
+      // transformer below). `exportChildren` only recurses into an
+      // ElementNode's own children as more INLINE content — `@lexical/
+      // markdown`'s `$exportChildren` never re-invokes another element
+      // transformer — so routing a CodeNode through the generic branch below
+      // would silently drop its fences and language, emitting raw code text
+      // as if it were quote prose. Call CODE's own `export` directly instead
+      // (same reasoning as this whole function existing: quote serialization
+      // is already hand-rolled here rather than delegated to upstream's
+      // per-child walk), then prefix every physical line of the result the
+      // same way a paragraph's lines are prefixed below. `child`'s parent is
+      // always `quote` here, never the document root, so CODE.export's
+      // `$isRootNode(node.getParent())` check is always false and its
+      // leading/trailing blank-line padding never applies — exactly right,
+      // since the quote-line prefix is the only separation a quoted code
+      // fence needs.
+      // `CODE.export` never reads its second (`traverseChildren`) argument —
+      // a code block's content is a leaf TextNode, not more block structure
+      // to recurse into — so a no-op stub satisfies the signature. Optional
+      // chaining is required by the (optional) `export?` field on
+      // `MultilineElementTransformer`'s type; CODE always defines it in
+      // practice.
+      const fenced = CODE.export?.(child, () => "");
+      if (fenced != null) {
+        for (const line of fenced.split("\n")) {
+          lines.push(prefix + line);
+        }
+      }
     } else if ($isElementNode(child)) {
       // ParagraphNode (or any other element-shaped child). `exportChildren`
       // walks its inline descendants through the same transformer pipeline as
@@ -657,41 +686,44 @@ function $exportNestedQuote(
   return lines;
 }
 
-// Splice a `> ...` line into an existing QuoteNode tree at `targetDepth`,
-// relative to `outer` (so `outer` itself is depth 1). The tail is found by
-// walking `getLastChild()` down through nested QuoteNodes; that's the current
-// depth at which subsequent lines would naturally continue. Used both by the
-// QUOTE transformer's import path and by `QuoteNestingShortcutPlugin`'s
-// previous-is-quote merge (live typing of `> ` on an outer-quote line below
-// an existing nested QuoteNode must converge to the same tree shape as
-// reloading the saved Markdown).
+// Splice a `> ...` line — or, since QUOTE_CODE reuses this same helper for a
+// quoted fenced code block, a whole CodeNode — into an existing QuoteNode
+// tree at `targetDepth`, relative to `outer` (so `outer` itself is depth 1).
+// The tail is found by walking `getLastChild()` down through nested
+// QuoteNodes; that's the current depth at which subsequent lines would
+// naturally continue. Used by the QUOTE transformer's import path,
+// `QuoteNestingShortcutPlugin`'s previous-is-quote merge (live typing of `> `
+// on an outer-quote line below an existing nested QuoteNode must converge to
+// the same tree shape as reloading the saved Markdown), and QUOTE_CODE's
+// import path (a quoted code fence lands exactly like a quote line would,
+// just with a CodeNode instead of a ParagraphNode as the leaf).
 //
-//   target === tail  → append paragraph at the same depth (a new quote line)
+//   target === tail  → append newNode at the same depth (a new quote line)
 //   target  >  tail  → open `target - tail` more nested QuoteNodes via
 //                      `$createNestedQuoteChain`, attach the chain at tail
 //   target  <  tail  → re-descend the OUTER quote's last-child path only to
-//                      `target`, append paragraph there (the line returned to
+//                      `target`, append newNode there (the line returned to
 //                      a shallower level)
 export function $mergeIntoQuoteTree(
   outer: QuoteNode,
-  newParagraph: ParagraphNode,
+  newNode: LexicalNode,
   targetDepth: number,
 ): void {
   const [tail, tailDepth] = $tailOfQuote(outer);
 
   if (targetDepth === tailDepth) {
-    tail.append(newParagraph);
+    tail.append(newNode);
     return;
   }
 
   if (targetDepth > tailDepth) {
-    tail.append($createNestedQuoteChain(targetDepth - tailDepth, newParagraph));
+    tail.append($createNestedQuoteChain(targetDepth - tailDepth, newNode));
     return;
   }
 
   // targetDepth < tailDepth: walk back UP the tail to a shallower level by
   // re-descending from `outer` to exactly `targetDepth`.
-  $descendQuoteToDepth(outer, targetDepth).append(newParagraph);
+  $descendQuoteToDepth(outer, targetDepth).append(newNode);
 }
 
 // Walk `outer`'s last-child path down through nested QuoteNodes until the
@@ -823,7 +855,13 @@ const CELL_AWARE_QUOTE = cellAware(QUOTE);
 // — delete this override when upstream lands a fix that preserves blank lines
 // + fence width + lets the state slot be reused.
 
-const corkCodeFenceState = createState("corkCodeFence", {
+// Exported so `QuoteCodeShortcutPlugin` can preserve a live-typed quoted
+// code block's fence width too — without it, a widened fence typed inside a
+// quote (`> \`\`\`\` js `, e.g. because the user knows the body will contain
+// literal triple backticks) would silently normalize back down to 3
+// backticks on save, unlike QUOTE_CODE's own file-load path
+// (`$createPreservedCodeNode` below), which does preserve it.
+export const corkCodeFenceState = createState("corkCodeFence", {
   parse: (val) => (typeof val === "string" && /^`{3,}$/.test(val) ? val : "```"),
   resetOnCopyNode: true,
 });
@@ -1050,20 +1088,206 @@ function $assembleLinesInBetween(
   return innerLines;
 }
 
-function $appendPreservedCodeNode(
-  rootNode: ElementNode,
+// Builds exactly the CodeNode a saved fence should reload as — fence width
+// and "had a body" both preserved via the state slots CODE.export reads back
+// (see that transformer's header) — without attaching it anywhere. Split out
+// from `$appendPreservedCodeNode` below so QUOTE_CODE's
+// `handleImportAfterStartMatch` can reuse the exact same node construction
+// while attaching the result into a QuoteNode tree instead of appending it
+// directly to whatever root-like node it was given.
+function $createPreservedCodeNode(
   language: string | undefined,
   fence: string,
   linesInBetween: Array<string>,
-): void {
+): CodeNode {
   const codeBlockNode = $createCodeNode(language);
   $setState(codeBlockNode, corkCodeFenceState, fence);
   if (linesInBetween.length > 0) {
     $setState(codeBlockNode, corkCodeHadBodyState, true);
     codeBlockNode.append($createTextNode(linesInBetween.join("\n")));
   }
-  rootNode.append(codeBlockNode);
+  return codeBlockNode;
 }
+
+function $appendPreservedCodeNode(
+  rootNode: ElementNode,
+  language: string | undefined,
+  fence: string,
+  linesInBetween: Array<string>,
+): void {
+  rootNode.append($createPreservedCodeNode(language, fence, linesInBetween));
+}
+
+// Fenced code block nested inside a blockquote (`> \`\`\`js\n> code\n> \`\`\``).
+// A separate MultilineElementTransformer rather than folded into CODE above,
+// because the two live at different points in `@lexical/markdown`'s import
+// pipeline: `createMarkdownImport` tries every multiline transformer's
+// `regExpStart` against the RAW line *before* CELL_AWARE_QUOTE (a single-line
+// ElementTransformer) ever gets a look at it (see `$importMultiline` in
+// `MarkdownImport.ts`) — so as long as this transformer's `regExpStart`
+// requires the leading quote marker(s), a line like `> \`\`\`js` is claimed
+// HERE first, instead of falling into QUOTE's own single-line regex, which
+// would strip the `> ` and leave `` ```js `` behind as literal paragraph
+// text. That silent misparse is exactly the "can't render a code block
+// inside a quote" bug this transformer exists to fix.
+//
+// Both CODE's import-preservation machinery (fence width, blank-line shape —
+// `$createPreservedCodeNode`) and Cork's nested-quote tree-splicing
+// (`$mergeIntoQuoteTree` / `$createNestedQuoteChain`) are reused rather than
+// reimplemented, so a quoted code fence lands in the exact same tree shape a
+// quote *line* would, just with a CodeNode leaf instead of a ParagraphNode.
+//
+// Export is NOT handled by this transformer's own (omitted, optional)
+// `export` field — a CodeNode nested inside a QuoteNode is never a
+// ROOT-level child, so `$exportTopLevelElements` (which only walks
+// `$getRoot().getChildren()`) would never ask this transformer about it
+// anyway. `$exportNestedQuote` above owns re-serializing a nested CodeNode
+// child directly via CODE's own `export` — see its `$isCodeNode` branch.
+// Group 2 (`[ \t]*`) tolerates indentation between the quote marker(s) and
+// the fence itself (`> ␣␣\`\`\`js`) — valid CommonMark, and something the
+// closing-fence check below (`multilineEndRegExp`) already tolerates on its
+// own stripped line. Without this, an indented quoted fence would fail to
+// match here at all and silently fall through to literal quote text — the
+// exact bug this whole transformer exists to prevent, just for the indented
+// variant. Mirrors upstream's own `CODE_START_REGEX`, which permits the same
+// leading `[ \t]*` before its backticks.
+const QUOTE_CODE_START_REGEX = /^(>(?:\s>)*\s)([ \t]*)(`{3,})([\w-]*)[ \t]?/;
+
+// Builds the depth-specific quote-marker-prefix RegExp `stripQuotePrefix`
+// matches against — mirrors the two shapes `QUOTE_REGEX` itself accepts per
+// level: `> ` (content follows) and a bare trailing `>` (CommonMark's empty
+// blockquote line). Split out so a fenced block's body-line scan loop can
+// build it ONCE per `handleImportAfterStartMatch` call (the depth is fixed
+// for the whole scan) instead of recompiling an identical RegExp on every
+// line, mirroring how `multilineEndRegExp` / `singleLineEndRegExp` are
+// already hoisted above their own loops in this file.
+function quotePrefixRegExpAtDepth(depth: number): RegExp {
+  return new RegExp(`^>(?:\\s>){${depth - 1}}(?:\\s|$)`);
+}
+
+// Strips the quote-marker prefix matched by `prefixRegExp` (see
+// `quotePrefixRegExpAtDepth`) from the start of `line`. Returns `null` when
+// `line` doesn't carry that exact prefix — a shallower prefix, one that
+// keeps going deeper, or no `>` at all — signalling the quoted region ended
+// here. Used to walk a fenced code block's body / closing-fence lines while
+// they stay inside the SAME quote depth the opening fence line established:
+// CommonMark has no "lazy continuation" for a fenced block inside a
+// blockquote (unlike a plain paragraph), so every line genuinely needs its
+// own marker to still be part of the quote.
+function stripQuotePrefix(line: string, prefixRegExp: RegExp): string | null {
+  const match = line.match(prefixRegExp);
+  return match ? line.slice(match[0].length) : null;
+}
+
+// Splice a freshly-built CodeNode into the current quote tree at `depth`,
+// mirroring exactly how the QUOTE transformer's own `replace` places a new
+// paragraph line: merge into an immediately-preceding QuoteNode when one
+// exists (the streaming line-by-line import case — the fence's opening
+// line's own quote context was already built by whatever import step
+// preceded it), otherwise open a fresh `depth`-deep nested-quote chain
+// rooted at `codeNode`.
+function $insertQuotedCodeNode(
+  rootNode: ElementNode,
+  language: string | undefined,
+  fence: string,
+  linesInBetween: Array<string>,
+  depth: number,
+): void {
+  const codeNode = $createPreservedCodeNode(language, fence, linesInBetween);
+  const previous = rootNode.getLastChild();
+  if ($isQuoteNode(previous)) {
+    $mergeIntoQuoteTree(previous, codeNode, depth);
+    return;
+  }
+  rootNode.append($createNestedQuoteChain(depth, codeNode));
+}
+
+const QUOTE_CODE: MultilineElementTransformer = {
+  dependencies: [QuoteNode, CodeNode],
+  handleImportAfterStartMatch: ({ lines, rootNode, startLineIndex, startMatch }) => {
+    // Mirrors the cell-aware wrappers elsewhere in this file: a quoted code
+    // fence typed/reloaded inside a table cell body must stay literal text,
+    // same as CELL_AWARE_QUOTE's own guard for a bare `> ` there. `rootNode`
+    // IS the TableCellNode (or a descendant of it) whenever this fires from
+    // `$createTableCell`'s recursive `$convertFromMarkdownString` call.
+    if ($getTableCellNodeFromLexicalNode(rootNode) != null) {
+      return null;
+    }
+
+    const quotePrefix = startMatch[1];
+    const indentation = startMatch[2];
+    const depth = (quotePrefix.match(/>/g) ?? []).length;
+    const fence = startMatch[3];
+    const fenceLength = fence.length;
+    const language = startMatch[4] || undefined;
+    const currentLine = lines[startLineIndex];
+    const afterFenceIndex =
+      (startMatch.index ?? 0) + quotePrefix.length + indentation.length + fenceLength;
+    const afterFence = currentLine.slice(afterFenceIndex);
+
+    // Single-line case: opening and closing fence on the same quoted line
+    // (`> \`\`\`js code\`\`\` `). Mirrors CODE's own same-line branch above,
+    // including dropping the language on this path — an inherited upstream
+    // quirk (see that transformer's header), not a Cork-specific choice.
+    const singleLineEndRegExp = new RegExp(`\`{${fenceLength},}$`);
+    if (singleLineEndRegExp.test(afterFence)) {
+      const endMatch = afterFence.match(singleLineEndRegExp);
+      const content = afterFence.slice(0, afterFence.lastIndexOf(endMatch![0]));
+      $insertQuotedCodeNode(rootNode, undefined, fence, [content], depth);
+      return [true, startLineIndex];
+    }
+
+    // Multi-line case: walk forward only while each line still carries the
+    // SAME quote-marker depth the opening fence line established. A line
+    // that breaks the prefix means the quote (and so the fenced block inside
+    // it) ended before the fence closed — decline entirely (`null`) so the
+    // opening line falls through to ordinary per-line QUOTE handling instead
+    // of silently swallowing content that was never truly inside the fence.
+    const multilineEndRegExp = new RegExp(`^[ \\t]*\`{${fenceLength},}$`);
+    const quotePrefixRegExp = quotePrefixRegExpAtDepth(depth);
+    const bodyLines: Array<string> = [];
+    for (let i = startLineIndex + 1; i < lines.length; i++) {
+      const stripped = stripQuotePrefix(lines[i], quotePrefixRegExp);
+      if (stripped === null) {
+        return null;
+      }
+      if (multilineEndRegExp.test(stripped)) {
+        const linesInBetween = $assembleLinesInBetween(
+          bodyLines,
+          currentLine.slice(startMatch[0].length),
+        );
+        $insertQuotedCodeNode(rootNode, language, fence, linesInBetween, depth);
+        return [true, i];
+      }
+      bodyLines.push(stripped);
+    }
+
+    // Ran off the end of the document without a closing fence — mirrors
+    // CODE's own tolerant "unterminated fence consumes to EOF" behavior,
+    // bounded here to however far the quote prefix itself kept matching.
+    const linesInBetween = $assembleLinesInBetween(
+      bodyLines,
+      currentLine.slice(startMatch[0].length),
+    );
+    $insertQuotedCodeNode(rootNode, language, fence, linesInBetween, depth);
+    return [true, lines.length - 1];
+  },
+  regExpStart: QUOTE_CODE_START_REGEX,
+  replace: () => {
+    // Unreachable by construction: `handleImportAfterStartMatch` above
+    // always resolves the match itself (a tuple, or `null` to decline), so
+    // `$importMultiline` never falls through to this generic path on
+    // import. Live typing never reaches ANY multiline transformer for a
+    // paragraph nested inside a QuoteNode either — `@lexical/markdown`'s
+    // `runMultilineElementTransformers` requires the paragraph's OWN parent
+    // to be the document root, which a QuoteNode never is (see
+    // `QuoteCodeShortcutPlugin`, which owns that live-typing gesture
+    // instead). Present only because `replace` is a required field of
+    // `MultilineElementTransformer`.
+    return false;
+  },
+  type: "multiline-element",
+};
 
 // Upstream's generic `text-format` export path (`exportTextFormat` in
 // `@lexical/markdown`, module-private — `TextFormatTransformer` exposes no
@@ -1416,13 +1640,20 @@ const NON_LIST_NON_QUOTE_DEFAULTS = TRANSFORMERS.filter(
 // transformer sees them. Both are defined here because the TABLE transformer
 // recurses into this list for cell bodies. QUOTE is our nesting-aware
 // replacement for upstream's flat single-level QUOTE (see comment block on
-// the transformer itself). The list transformers come from @lexical/markdown
-// but are cell-aware-wrapped so they don't try to build a ListNode inside a
-// cell (which would erase the typed `- ` marker).
+// the transformer itself). QUOTE_CODE (a MultilineElementTransformer, unlike
+// CELL_AWARE_QUOTE's single-line ElementTransformer) is what lets a fenced
+// code block render inside a quote — `@lexical/markdown`'s import always
+// tries every multiline transformer against a raw line BEFORE any single-line
+// one, so its position in this combined array doesn't matter relative to
+// CELL_AWARE_QUOTE/CODE (both bucketed separately by type at import time);
+// it's listed here next to them for readability. The list transformers come
+// from @lexical/markdown but are cell-aware-wrapped so they don't try to
+// build a ListNode inside a cell (which would erase the typed `- ` marker).
 export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [
   TABLE,
   HORIZONTAL_RULE,
   CELL_AWARE_QUOTE,
+  QUOTE_CODE,
   CODE,
   CODE_TEXT,
   ...CELL_AWARE_LIST_TRANSFORMERS,

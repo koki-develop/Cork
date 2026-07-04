@@ -40,6 +40,7 @@ import { ListTabIndentationPlugin } from "./ListTabIndentationPlugin";
 import { MarkdownPastePlugin } from "./MarkdownPastePlugin";
 import { NoListInTablePlugin } from "./NoListInTablePlugin";
 import { PasteLinkPlugin } from "./PasteLinkPlugin";
+import { QuoteCodeShortcutPlugin } from "./QuoteCodeShortcutPlugin";
 import { QuoteExitPlugin } from "./QuoteExitPlugin";
 import { QuoteNestingShortcutPlugin } from "./QuoteNestingShortcutPlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
@@ -470,6 +471,16 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             typing `> ` inside an existing quote would stay as literal text
             and nesting would only be reachable via file-load / paste. */}
           <QuoteNestingShortcutPlugin />
+          {/* Live convert a fenced-code opener (```` ``` ````, optionally
+            followed by a language) typed at the start of a paragraph INSIDE
+            an existing QuoteNode into a real CodeNode nested in that same
+            QuoteNode. Same root-cause as QuoteNestingShortcutPlugin above —
+            upstream's MarkdownShortcutPlugin only runs (multiline included)
+            element transformers at the document root — so without this
+            plugin the fence marker would stay literal text until the dialog
+            is closed and reopened (the QUOTE_CODE transformer in
+            transformers.ts handles that reload path). */}
+          <QuoteCodeShortcutPlugin />
           {/* Lists inside table cells are unworkable (Tab/Backspace overlap with
             table cell navigation) and visually noisy. The primary block is in
             transformers.ts (cell-aware UNORDERED_LIST/ORDERED_LIST/CHECK_LIST
