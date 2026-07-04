@@ -31,4 +31,4 @@ Hooks must not import from `@/components` (enforced by `.oxlintrc.json`). Tauri 
 - `useDebouncedCallback.ts` — Trailing-edge debounce for a side-effecting callback. Returns the debounced fn augmented with `flush()` (run the pending call now) and `cancel()` (drop it); reads the callback through a ref so the freshest closure runs while identities stay stable, and cancels (never flushes) a pending timer on unmount. Backs the debounced-while-typing body autosave in `useTaskDialogState`.
 - `useDialogError.ts` — Trivial `{ error, setError, clearError }` state.
 - `useFieldError.ts` — Field-tagged dialog error with a `peek()` ref so async handlers read the latest value without stale closures.
-- `useTagEditorController.ts` — Bridges to `TagEditor`'s imperative `flushPending()` so a parent can commit a pending tag input before saving.
+- `useTagEditorController.ts` — Bridges to `TagEditor`'s imperative `flushPending()` so a parent can commit a pending tag input before saving. Also exposes `flushAndMerge` to fold the pending tag directly into a tags array.

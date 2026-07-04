@@ -12,7 +12,7 @@ Wiring layer. Composes templates + organisms with domain hooks. Local state allo
   - Owns the `Cmd+F` (search focus) global shortcut, gated by `anyDialogOpen` so dialogs swallow it.
   - Coordinates the settings dialog close discipline (`flushStatuses` + previous-error snapshot — see `handleSettingsClose`).
 
-`App.tsx` (one level up) owns only `dir` (via `useCurrentDir`) and routes between `WelcomePage` and `BoardPage`. `BoardPage` is keyed on `dir` so workspace switches remount cleanly.
+`App.tsx` (one level up) owns `dir` (via `useCurrentDir`, workspace routing) and routes between `WelcomePage` and `BoardPage`; it also owns unrelated app-chrome state (`useUpdater`). `BoardPage` is keyed on `dir` so workspace switches remount cleanly.
 
 ## Allowed imports
 

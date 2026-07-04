@@ -93,7 +93,7 @@ Frontend write commands take a `path` argument. They **must** verify the path li
 
 ## Capabilities
 
-Capabilities are declared in `capabilities/default.json`. The `windows` field is `["main", "workspace-*"]` so the same permission set applies to the startup window and every additional window opened via `File > New Window` or the macOS Dock reopen path. Current grants: `core:default`, `core:window:allow-start-dragging`, `opener:default`, `fs:default`, `fs:allow-watch`, `store:default`. Any new Tauri plugin or fs operation likely needs a capability addition here.
+Capabilities are declared in `capabilities/default.json`. The `windows` field is `["main", "workspace-*"]` so the same permission set applies to the startup window and every additional window opened via `File > New Window` or the macOS Dock reopen path. Current grants: `core:default`, `core:window:allow-start-dragging`, `opener:default`, `fs:default`, `fs:allow-watch`, `store:default`, `updater:default`, `process:default`. Any new Tauri plugin or fs operation likely needs a capability addition here.
 
 ## Cargo deps
 

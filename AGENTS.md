@@ -36,7 +36,7 @@ Multi-window: a single process can host any number of windows, each with its own
 ## Tests
 
 - **Rust (`src-tauri/`)**: `cargo test` runs unit tests for the testable helpers (frontmatter, security, state, errors, etc.). `#[tauri::command]` bodies and GUI code aren't covered — see `src-tauri/AGENTS.md`.
-- **Frontend (`src/`)**: **Vitest 4 in browser mode** driving **Playwright Chromium** (`@vitest/browser-playwright` + `vitest-browser-react`). Spec files are `*.spec.ts` / `*.spec.tsx` colocated next to the source they cover. Shared utilities live next to the source under `__tests__/` (e.g. `src/components/molecules/MarkdownEditor/__tests__/utils.tsx`). Run with `bun run test` (one-shot) or `bun run test:watch`. Currently the only covered surface is `MarkdownEditor` — see `src/components/molecules/MarkdownEditor/AGENTS.md` for the three test-shape recipes.
+- **Frontend (`src/`)**: **Vitest 4 in browser mode** driving **Playwright Chromium** (`@vitest/browser-playwright` + `vitest-browser-react`). Spec files are `*.spec.ts` / `*.spec.tsx` colocated next to the source they cover. Shared utilities live next to the source under `__tests__/` (e.g. `src/components/molecules/MarkdownEditor/__tests__/utils.tsx`). Run with `bun run test` (one-shot) or `bun run test:watch`. Currently the only covered surface is `MarkdownEditor` — see `src/components/molecules/MarkdownEditor/AGENTS.md` for the nine test-shape recipes.
 - **CI**: `.github/workflows/ci.yml` `lint` job runs `bun run fmt:check` + `bun run lint` + `bunx playwright install --with-deps --only-shell chromium` + `bun run test`. The `build` job runs `bun run tauri build --no-bundle`.
 
 ## Change workflow

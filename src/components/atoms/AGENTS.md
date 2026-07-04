@@ -12,8 +12,8 @@ External UI libraries (`clsx`, `lucide-react`, ...) and other atoms only. No mol
 - `Input.tsx` — Single-line text input with consistent border / focus styling.
 - `AutoresizeInput.tsx` — `<textarea>` that grows with content. Used by the task title field so wrapping doesn't horizontally scroll.
 - `Heading.tsx` — Semantic + sized heading.
-- `Text.tsx` — Body / muted / label text variants.
+- `Text.tsx` — Body / muted / mono / label text variants.
 - `Badge.tsx` — Numeric / status pill.
-- `TagChip.tsx` — Tag pill with `default` / `dismissible` / `draft` variants.
+- `TagChip.tsx` — Tag pill with `muted` (default) / `accent` variants; `onRemove` renders a dismiss button when passed.
 - `Toggle.tsx` — iOS-style on/off switch. `role="switch"` + `aria-checked`; respects the global `prefers-reduced-motion` rule via the `transition-*` utilities (the duration is squashed by `style.css`'s media query, so no per-component handling needed).
 - `ErrorBanner.tsx` — Inline form error block.

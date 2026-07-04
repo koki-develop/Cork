@@ -15,6 +15,6 @@ Thin wrappers around `invoke()` / `listen()`. The **only** place in `src/` allow
 
 ## Rules
 
-- May only import `@tauri-apps/*` and `@/types`. No React, no `@/components`, no `@/hooks`, no `@/lib` (enforced by `.oxlintrc.json`).
+- May only import `@tauri-apps/*` and `@/types`. No `@/components`, no `@/hooks`, no `@/lib` (enforced by `.oxlintrc.json`).
 - Keep wrappers thin: type the response and shape the payload, but don't add domain logic — that belongs in `@/lib` or `@/hooks`.
 - Tauri command names (snake_case) and the backend's argument shapes live in `src-tauri/`; this directory is the single JS-side source of truth for their names and types.
