@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/koki-develop/Cork/compare/v0.20.0...v0.21.0) (2026-07-04)
+
+
+### Features
+
+* **workspace:** add workspace name field to header ([a1e07e4](https://github.com/koki-develop/Cork/commit/a1e07e4051d9844741542f037685398dbdd940d9))
+
 ## [0.20.0](https://github.com/koki-develop/Cork/compare/v0.19.0...v0.20.0) (2026-07-04)
 
 
