@@ -13,9 +13,11 @@ import {
 // is valid Markdown but reads poorly on disk. The CODE transformer's export
 // (transformers.ts) pads a top-level code block with a blank line on any
 // side that touches another sibling, and the mount-time pipeline
-// ($normalizeCodeBlockSpacing) undoes exactly that padding on the way back
+// ($normalizeBlockSpacing) undoes exactly that padding on the way back
 // in — so the app always SAVES a breathing-room file while the in-editor
-// tree only ever grows a real gap when the user actually asks for one.
+// tree only ever grows a real gap when the user actually asks for one. See
+// blockSpacing.spec.ts for the same feature generalized to quotes, lists,
+// and horizontal rules.
 describe("code block spacing — export padding", () => {
   test("no gap in the editor still saves with one blank line on each side", () => {
     const editor = createTestHeadlessEditor();

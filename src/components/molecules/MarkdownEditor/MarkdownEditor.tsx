@@ -46,7 +46,7 @@ import { QuoteNestingShortcutPlugin } from "./QuoteNestingShortcutPlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
 import {
   $insertSpacersBetweenAdjacentQuotes,
-  $normalizeCodeBlockSpacing,
+  $normalizeBlockSpacing,
   MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS,
   MARKDOWN_TEXT_FORMAT_SHORTCUT_TRANSFORMERS,
   MARKDOWN_TRANSFORMERS,
@@ -271,12 +271,12 @@ export function $seedMarkdownEditorState(markdown: string): void {
   // the spacer so the post-load shape matches the post-author shape
   // (see the helper's header for the round-trip rationale).
   $insertSpacersBetweenAdjacentQuotes();
-  // Undo the CODE transformer's export-time "+1 blank line" padding
-  // (see that transformer's header in transformers.ts) so a saved file
-  // opens back into the exact pre-save tree shape instead of
-  // re-importing the auto-added blank line as a second, indistinguishable
-  // user-authored gap.
-  $normalizeCodeBlockSpacing();
+  // Undo CODE/QUOTE/HORIZONTAL_RULE/the list transformers' export-time
+  // "+1 blank line" padding (see `$leadingSpacingPad`/`$trailingSpacingPad`'s
+  // header in transformers.ts) so a saved file opens back into the exact
+  // pre-save tree shape instead of re-importing the auto-added blank line as
+  // a second, indistinguishable user-authored gap.
+  $normalizeBlockSpacing();
   $highlightAllCodeBlocks();
 }
 

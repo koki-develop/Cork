@@ -1,4 +1,5 @@
 import { $createCodeNode, $isCodeNode, CodeNode } from "@lexical/code";
+import { $isListNode } from "@lexical/list";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
@@ -250,7 +251,12 @@ const HORIZONTAL_RULE_REG_EXP = /^(?:-{3,}|\*{3,}|_{3,})\s*$/;
 
 const HORIZONTAL_RULE: ElementTransformer = {
   dependencies: [HorizontalRuleNode],
-  export: (node: LexicalNode) => ($isHorizontalRuleNode(node) ? "---" : null),
+  // Breathing-room padding — see `$leadingSpacingPad`/`$trailingSpacingPad`'s
+  // header comment for the shared design this participates in.
+  export: (node: LexicalNode) =>
+    $isHorizontalRuleNode(node)
+      ? `${$leadingSpacingPad(node)}---${$trailingSpacingPad(node)}`
+      : null,
   regExp: HORIZONTAL_RULE_REG_EXP,
   replace: (parentNode, children, match, isImport) => {
     // Never build a rule inside a table cell — a cell body that is exactly
@@ -459,11 +465,19 @@ function cellAware(transformer: ElementTransformer): ElementTransformer {
 const QUOTE_REGEX = /^>(?:\s>)*(?:\s|$)/;
 const QUOTE: ElementTransformer = {
   dependencies: [QuoteNode, ParagraphNode],
+  // Breathing-room padding — see `$leadingSpacingPad`/`$trailingSpacingPad`'s
+  // header comment for the shared design this participates in. Only ever
+  // applies to a ROOT-level QuoteNode in practice: a nested QuoteNode's own
+  // lines are serialised by `$exportNestedQuote`'s internal recursion above
+  // (it calls itself directly, never re-invoking this `export` field), so
+  // the pad helpers' own root-only guard is defensive here rather than
+  // load-bearing.
   export: (node, exportChildren) => {
     if (!$isQuoteNode(node)) {
       return null;
     }
-    return $exportNestedQuote(node, exportChildren, 1).join("\n");
+    const quoted = $exportNestedQuote(node, exportChildren, 1).join("\n");
+    return `${$leadingSpacingPad(node)}${quoted}${$trailingSpacingPad(node)}`;
   },
   regExp: QUOTE_REGEX,
   replace: (parentNode, children, match, isImport) => {
@@ -801,9 +815,32 @@ const STRICT_CHECK_LIST: ElementTransformer = {
   ...CHECK_LIST,
   regExp: STRICT_CHECK_LIST_REGEX,
 };
-const CELL_AWARE_LIST_TRANSFORMERS = [STRICT_CHECK_LIST, UNORDERED_LIST, ORDERED_LIST].map(
-  cellAware,
-);
+
+// Adds the same top-level breathing-room padding CODE/QUOTE/HORIZONTAL_RULE
+// get (see `$leadingSpacingPad`/`$trailingSpacingPad`'s header comment) to a
+// list transformer's own `export`, without touching its `regExp`/`replace`/
+// `dependencies`. A nested ListNode (an indented sub-list under a
+// ListItemNode) never reaches this wrapper in practice — upstream's
+// `$listExport` recurses into a nested ListNode via its own internal call,
+// not by re-invoking this transformer's `export` field — but the pad
+// helpers' own root-only guard makes that safe by construction even if that
+// ever changed.
+function $padded(transformer: ElementTransformer): ElementTransformer {
+  return {
+    ...transformer,
+    export: (node, exportChildren, selection) => {
+      const raw = transformer.export(node, exportChildren, selection);
+      if (raw == null) {
+        return null;
+      }
+      return `${$leadingSpacingPad(node)}${raw}${$trailingSpacingPad(node)}`;
+    },
+  };
+}
+
+const CELL_AWARE_LIST_TRANSFORMERS = [STRICT_CHECK_LIST, UNORDERED_LIST, ORDERED_LIST]
+  .map($padded)
+  .map(cellAware);
 // QUOTE is wrapped the same way: a `> note` typed live in a cell, or a
 // reloaded `| > note |` whose decoded body starts with `> `, must stay
 // literal text. Building a QuoteNode inside a TableCellNode would mix the
@@ -938,108 +975,19 @@ const CODE: MultilineElementTransformer = {
     const body = hadBody ? `\n${textContent}` : "";
     const fenced = `${fence}${language}${body}\n${fence}`;
 
-    // File-readability padding: a fence glued directly to prose (single
-    // `\n` join, the root exporter's default) reads poorly on disk even
-    // though it's perfectly valid Markdown. We want the SAVED file to
-    // always show at least one blank line around a top-level code block,
-    // while still letting a deliberately-typed blank line (an explicit
-    // empty ParagraphNode the user created with Enter) read as MORE
-    // pronounced than the auto-inserted minimum — otherwise reloading a
-    // file couldn't tell "the app added this gap" apart from "the user
-    // asked for this gap", and the two would blur together across saves.
-    // `$normalizeCodeBlockSpacing` below is this rule's mirror image on
-    // import: it strips exactly one auto-added blank line back out so a
-    // save/open/save cycle is a fixed point (N adjacent empty paragraphs
-    // in the tree <-> N+1 blank lines on disk, both directions), instead
-    // of the gap growing by one extra blank line on every save.
-    //
-    // Only applies to a TOP-LEVEL code block (direct child of the document
-    // root) — this same `export` runs recursively for a CodeNode that
-    // somehow ends up inside a TABLE cell (via `$createTableCell`'s
-    // `$convertFromMarkdownString` call), where `encodeCell` would escape
-    // any extra `\n` we added into a literal `\n` sequence that our
-    // root-only import cleanup below would never unwind, silently growing
-    // the cell's content on every save.
-    if (!$isRootNode(node.getParent())) {
-      return fenced;
-    }
-
-    // Leading pad: any previous sibling (blank or not) means this fence
-    // isn't the first thing in the document, so it always wants a gap
-    // before it. Skipped at doc start — nothing to separate FROM.
-    const leadingPad = node.getPreviousSibling() != null ? "\n" : "";
-
-    // Trailing pad: skipped when the node on the OTHER side of this fence's
-    // trailing gap is ANOTHER CodeNode. Two adjacent code blocks share one
-    // boundary, not two — the second block's own leading pad (above)
-    // already covers it. Adding a trailing pad here too would double that
-    // shared gap by one extra blank line. Also skipped at doc end for the
-    // same "nothing to separate FROM" reason as the leading case.
-    //
-    // $skipEmptyParagraphs walks PAST any immediately-following empty
-    // paragraphs (an explicit user-authored gap that survived
-    // $normalizeCodeBlockSpacing's "remove only one" rule, e.g. two code
-    // blocks 2+ blank lines apart) to find what's really on the other side —
-    // checking only the immediate next sibling would see the empty
-    // paragraph itself (not code) and pad anyway, double-counting the very
-    // boundary the leading-pad side is about to cover. Deliberately NOT
-    // reused for the leading-pad check above: that check answers a
-    // different question ("does anything precede me at all", true even for
-    // an immediately-adjacent blank paragraph), not "what's past the run".
-    const next = node.getNextSibling();
-    const trailingPad = next != null && !$isCodeNode($skipEmptyParagraphs(next)) ? "\n" : "";
-
-    return `${leadingPad}${fenced}${trailingPad}`;
+    // Breathing-room padding — see `$leadingSpacingPad`/`$trailingSpacingPad`'s
+    // header comment for the shared design this participates in. Their own
+    // root-only guard is load-bearing HERE (unlike QUOTE/HORIZONTAL_RULE/the
+    // list transformers): this same `export` runs recursively for a CodeNode
+    // nested inside a TABLE cell (via `$createTableCell`'s
+    // `$convertFromMarkdownString` call) or inside a QuoteNode (via
+    // `$exportNestedQuote`'s direct call below), where an added `\n` would
+    // either get escaped into a literal sequence by `encodeCell` or double
+    // up the quote-line prefix — neither of which our root-only normalize
+    // pass would ever unwind.
+    return `${$leadingSpacingPad(node)}${fenced}${$trailingSpacingPad(node)}`;
   },
 };
-
-// Inverse of the export-side padding above: after `$convertFromMarkdownString`
-// naturally turns each on-disk blank line into its own empty ParagraphNode
-// (one node per blank line, verified 1:1 — no cleanup elides these outside
-// the quote-merge case `$insertSpacersBetweenAdjacentQuotes` handles), strip
-// exactly ONE empty paragraph immediately touching each top-level CodeNode's
-// "before" side, and (independently) ONE from its "after" side. That
-// reverses the CODE transformer's "+1" export rule so a save → reopen →
-// save cycle lands on the same on-disk text (0 blank lines in the tree <->
-// 1 blank line on disk; N adjacent empty paragraphs <-> N+1 blank lines) —
-// without this, every reopen would re-import the auto-added blank line as
-// an indistinguishable "real" gap and re-pad it again, growing by one
-// blank line on every save.
-//
-// The "after" side has to look PAST the whole run of adjacent empty
-// paragraphs to see what's really on the other side of the gap, not just
-// the immediate next sibling: two adjacent code blocks share a single
-// boundary (see the export comment above), so when the node beyond the
-// run is ANOTHER CodeNode, this pass defers — that code block's own
-// "before" pass (reached later in the same root-level walk) claims the
-// shared gap instead. Without the defer, a boundary between two code
-// blocks would get decremented from BOTH sides and lose one blank line
-// too many on every round trip.
-export function $normalizeCodeBlockSpacing(): void {
-  let cur: LexicalNode | null = $getRoot().getFirstChild();
-  while (cur != null) {
-    if (!$isCodeNode(cur)) {
-      cur = cur.getNextSibling();
-      continue;
-    }
-
-    const previous = cur.getPreviousSibling();
-    if ($isEmptyParagraph(previous)) {
-      previous.remove();
-    }
-
-    const firstAfter = cur.getNextSibling();
-    if (!$isCodeNode($skipEmptyParagraphs(firstAfter)) && $isEmptyParagraph(firstAfter)) {
-      firstAfter.remove();
-    }
-
-    // Re-read (rather than use a pre-mutation cache): the "before" removal
-    // above only ever touches a sibling BEHIND `cur`, so `cur`'s own
-    // identity and forward-link are untouched — this is the node the next
-    // iteration should continue from either way.
-    cur = cur.getNextSibling();
-  }
-}
 
 // `@lexical/markdown`'s import represents a blank line as a ParagraphNode
 // containing a single empty TextNode (`getChildrenSize() === 1`), not a
@@ -1051,22 +999,194 @@ function $isEmptyParagraph(node: LexicalNode | null): node is ParagraphNode {
   return $isParagraphNode(node) && node.getTextContentSize() === 0;
 }
 
+// The four top-level block types that always SAVE with at least one blank
+// line of breathing room on any side that touches something else — see
+// `$leadingSpacingPad`/`$trailingSpacingPad`'s header comment for the full
+// design. A ListNode covers all three list transformers (bullet/ordered/
+// check) uniformly, since the padding rule cares only about "is this a
+// list", never which marker it uses.
+function $isSpacedBlockNode(node: LexicalNode | null): boolean {
+  return (
+    $isCodeNode(node) || $isQuoteNode(node) || $isListNode(node) || $isHorizontalRuleNode(node)
+  );
+}
+
 // Walks forward from `node` past a run of adjacent empty paragraphs,
 // returning the first sibling that isn't one (or `null` at the end of the
-// document). Shared by CODE.export's trailing-pad check and
-// $normalizeCodeBlockSpacing's "after" pass — both need to see past an
-// arbitrarily long user-authored gap to find out what's really on the other
-// side of it (specifically: is it another CodeNode, in which case the two
-// code blocks share one boundary rather than getting padded/stripped from
-// both sides). Deliberately NOT used for the "leading"/"before" checks at
-// either call site — those intentionally look only at the immediate sibling
-// (see the comments there for why).
-function $skipEmptyParagraphs(node: LexicalNode | null): LexicalNode | null {
+// document). Shared by `$trailingSpacingPad` and `$normalizeBlockSpacing`'s
+// "after" pass — both need to see past an arbitrarily long user-authored gap
+// to find out what's really on the other side of it. Deliberately NOT used
+// for the "leading"/"before" side of a TRAILING check (see
+// `$skipEmptyParagraphsBackward` below for that direction's own helper).
+function $skipEmptyParagraphsForward(node: LexicalNode | null): LexicalNode | null {
   let cur = node;
   while ($isEmptyParagraph(cur)) {
     cur = cur.getNextSibling();
   }
   return cur;
+}
+
+// Mirror of `$skipEmptyParagraphsForward`, walking backward instead. Shared
+// by `$leadingSpacingPad` and `$normalizeBlockSpacing`'s "before" pass.
+function $skipEmptyParagraphsBackward(node: LexicalNode | null): LexicalNode | null {
+  let cur = node;
+  while ($isEmptyParagraph(cur)) {
+    cur = cur.getPreviousSibling();
+  }
+  return cur;
+}
+
+// A LIST's leading side is unconditionally exempt from padding whenever the
+// real predecessor is ALSO a list, regardless of marker type — a bullet
+// list immediately followed by an ordered list, or a check list, reads fine
+// glued together on disk (that's how GitHub and every other Markdown
+// viewer render adjacent lists of different marker types). Two SAME-type
+// ListNodes genuinely touching with zero paragraphs between them (which
+// WOULD need the same protection QUOTE gets below, since consecutive
+// same-marker items always continue one list on reimport) is not a shape
+// this codebase needs to defend against: `ListNode`/`ListItemNode`'s own
+// core-level `$transform` (registered by `@lexical/list` independently of
+// any plugin) automatically merges two adjacent same-type lists back into
+// one the moment they become siblings — verified empirically: even
+// constructing two separate same-type `ListNode`s and appending them
+// directly to root inside one `editor.update()` collapses them into a
+// single four-item list before the update even commits. So the only
+// reachable "list touches list" shape is a genuine marker-type mismatch,
+// which is always safe to glue.
+//
+// A QUOTE's leading side is exempt ONLY when a real spacer paragraph
+// already separates it from the previous quote (`previous !== real`
+// below) — preserving whatever gap the user explicitly authored or
+// `$insertSpacersBetweenAdjacentQuotes` restored. Unlike ListNode, QuoteNode
+// has NO such core-level auto-merge guarantee, so two top-level QuoteNodes
+// CAN end up genuinely touching with nothing between them: the Markdown
+// import/typing pipeline itself never produces that shape (consecutive
+// same-depth `> ` lines always merge into one QuoteNode via
+// `$mergeIntoQuoteTree`), but a native HTML clipboard paste of two
+// `<blockquote>` elements builds the Lexical tree directly, bypassing the
+// Markdown transformers (and their merge logic) entirely, and CAN leave
+// this exact shape. Leaving that boundary unpadded would silently fuse two
+// originally-separate blockquotes into one the next time the file is saved
+// and reopened (the same `> ` merge that never lets this shape arise via
+// typing/import would happily re-merge it on the way back in). Padding it
+// instead preserves the distinction. CODE and HORIZONTAL_RULE have no
+// exemption at all: two fenced blocks (or two rules) glued directly
+// together always get padded apart, matching CODE's original, narrower
+// behavior before this helper was generalized to cover the other three
+// block types.
+function $isLeadingPadExempt(node: LexicalNode, previous: LexicalNode): boolean {
+  const real = $skipEmptyParagraphsBackward(previous);
+
+  if ($isListNode(node) && $isListNode(real)) {
+    return true;
+  }
+  if ($isQuoteNode(node) && $isQuoteNode(real)) {
+    return previous !== real;
+  }
+  return false;
+}
+
+// Shared breathing-room padding for every top-level "block-shaped" element
+// (CODE, QUOTE, HORIZONTAL_RULE, and the three list transformers) — a fence,
+// quote, rule, or list glued directly to a sibling on disk is valid Markdown
+// but reads poorly in a plain text editor or on GitHub. Each SAVE always
+// shows at least one blank line on any side that needs one, while a
+// deliberately-typed blank line (an explicit empty ParagraphNode from the
+// user pressing Enter) still reads as MORE pronounced than this auto-
+// inserted minimum — otherwise reloading a file couldn't tell "the app added
+// this gap" apart from "the user asked for this gap", and the two would
+// blur together across saves. `$normalizeBlockSpacing` (run right after
+// import, from `$seedMarkdownEditorState`) is this rule's mirror image: it
+// strips exactly one auto-added blank line back out so a save → reopen →
+// save cycle is a fixed point (N adjacent empty paragraphs in the tree <-> N
+// or N+1 blank lines on disk, depending on the exemptions below), instead of
+// the gap growing by one extra blank line on every save.
+//
+// The two sides are deliberately asymmetric, mirroring CODE's original
+// design: LEADING fires whenever a real predecessor exists at all (subject
+// only to the List/Quote self-adjacency exemptions in
+// `$isLeadingPadExempt`), while TRAILING defers whenever the real successor
+// is ANY OTHER spaced-block node — that node's own leading side already
+// claims the shared boundary, so padding from both sides would double it.
+// This lets exactly ONE side own each boundary: two adjacent spaced blocks
+// (of the same or different kinds) share a single gap, not two, and a
+// spaced block followed by a plain paragraph/heading/table (which has no
+// padding logic of its own to contribute a leading pad) still gets its gap
+// from THIS node's trailing side. Only a top-level (direct child of the
+// document root) node gets padded — this same `export` machinery runs
+// recursively for a CodeNode nested inside a TABLE cell or a QuoteNode (see
+// CODE's own header comment for why that would corrupt the cell/quote
+// body), so both functions no-op there by construction.
+function $leadingSpacingPad(node: LexicalNode): "" | "\n" {
+  if (!$isRootNode(node.getParent())) {
+    return "";
+  }
+  const previous = node.getPreviousSibling();
+  if (previous == null) {
+    return "";
+  }
+  return $isLeadingPadExempt(node, previous) ? "" : "\n";
+}
+
+function $trailingSpacingPad(node: LexicalNode): "" | "\n" {
+  if (!$isRootNode(node.getParent())) {
+    return "";
+  }
+  const next = node.getNextSibling();
+  if (next == null) {
+    return "";
+  }
+  return $isSpacedBlockNode($skipEmptyParagraphsForward(next)) ? "" : "\n";
+}
+
+// Inverse of the export-side padding above: after `$convertFromMarkdownString`
+// naturally turns each on-disk blank line into its own empty ParagraphNode
+// (one node per blank line — production always imports with
+// `shouldPreserveNewLines: true`, so upstream's own empty-paragraph cleanup
+// never runs), strip exactly ONE empty paragraph immediately touching each
+// top-level spaced block's "before" side, and (independently) ONE from its
+// "after" side — mirroring `$leadingSpacingPad`/`$trailingSpacingPad`'s own
+// firing conditions exactly, so a save → reopen → save cycle lands back on
+// the same on-disk text. Without this, every reopen would re-import the
+// auto-added blank line as an indistinguishable "real" gap and re-pad it
+// again, growing by one blank line on every save.
+//
+// The "after" side has to look PAST the whole run of adjacent empty
+// paragraphs to see what's really on the other side of the gap, not just
+// the immediate next sibling: two adjacent spaced blocks share a single
+// boundary (see the export comment above), so when the node beyond the run
+// is ANOTHER spaced block, this pass defers — that block's own "before"
+// pass (reached later in the same root-level walk) claims the shared gap
+// instead. Without the defer, a boundary between two spaced blocks would
+// get decremented from BOTH sides and lose one blank line too many on every
+// round trip.
+export function $normalizeBlockSpacing(): void {
+  let cur: LexicalNode | null = $getRoot().getFirstChild();
+  while (cur != null) {
+    if (!$isSpacedBlockNode(cur)) {
+      cur = cur.getNextSibling();
+      continue;
+    }
+
+    const previous = cur.getPreviousSibling();
+    if ($isEmptyParagraph(previous) && !$isLeadingPadExempt(cur, previous)) {
+      previous.remove();
+    }
+
+    const firstAfter = cur.getNextSibling();
+    if (
+      $isEmptyParagraph(firstAfter) &&
+      !$isSpacedBlockNode($skipEmptyParagraphsForward(firstAfter))
+    ) {
+      firstAfter.remove();
+    }
+
+    // Re-read (rather than use a pre-mutation cache): the "before" removal
+    // above only ever touches a sibling BEHIND `cur`, so `cur`'s own
+    // identity and forward-link are untouched — this is the node the next
+    // iteration should continue from either way.
+    cur = cur.getNextSibling();
+  }
 }
 
 function $assembleLinesInBetween(
