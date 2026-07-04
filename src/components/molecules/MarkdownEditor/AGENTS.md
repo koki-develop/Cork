@@ -15,6 +15,7 @@ WYSIWYG Markdown editor (Lexical) for the task body. **Uncontrolled** — seeded
 One-line summaries — each plugin file's header comment owns the why-this-design rationale.
 
 - **`LinkOpenPlugin`** — click a link → `onOpenLink(url)` to the system browser.
+- **`ClickBelowContentPlugin`** — a click on the scroll wrapper itself (the empty space below the last line, when the field's dialog-imposed `min-h-[...]` outgrows the actual content) focuses the editor with the caret forced to the document's end, instead of silently missing — the contentEditable only grows to fit its content, so that space belongs to the wrapper, not it. Disabled whenever the wrapper's content actually overflows (`scrollHeight > clientHeight`): a real scrollbar then covers that same wrapper, isn't a distinct DOM node, and clicking it is otherwise indistinguishable from a genuine dead-space click — but the dead-space gap this plugin exists for can only occur in the first place when nothing overflows, so the two cases never overlap.
 - **`ListTabIndentationPlugin`** — Tab / Shift+Tab indent inside list items.
 - **`ListExitPlugin`** — Backspace at list-item start exits the list instead of folding into the previous line; Ctrl+A across a leading list clears the doc (snapshot-gated so word-select doesn't trigger).
 - **`NoListInTablePlugin`** — safety net that unwraps any `ListNode` that slips into a `TableCellNode` via a non-transformer path (raw command, paste of pre-built nodes).

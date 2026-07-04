@@ -25,6 +25,7 @@ import { BoundaryStrictFormatPlugin } from "./BoundaryStrictFormatPlugin";
 import { CheckListIndentPlugin } from "./CheckListIndentPlugin";
 import { CheckListOutdentPlugin } from "./CheckListOutdentPlugin";
 import { CheckListShortcutPlugin } from "./CheckListShortcutPlugin";
+import { ClickBelowContentPlugin } from "./ClickBelowContentPlugin";
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { $highlightAllCodeBlocks, CodeBlockHighlightPlugin } from "./CodeBlockHighlightPlugin";
 import { CorkCodeNode } from "./CorkCodeNode";
@@ -362,7 +363,11 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
         <LexicalComposer initialConfig={buildInitialConfig(initialValue)}>
           <RichTextPlugin
             contentEditable={
-              <div className="min-h-0 overflow-y-auto">
+              // `cursor-text` so the whole scroll wrapper (not just the
+              // contentEditable's own content-sized box) previews as
+              // clickable-to-type — matching ClickBelowContentPlugin's actual
+              // click behavior for the empty space below the last line.
+              <div className="min-h-0 cursor-text overflow-y-auto">
                 <ContentEditable
                   ref={ref}
                   ariaLabel={ariaLabel}
@@ -383,6 +388,12 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             ErrorBoundary={LexicalErrorBoundary}
           />
           <HistoryPlugin />
+          {/* Clicking the empty space below the last line (the field's outer
+            grid cell is stretched to a fixed min-height by the dialog, but
+            the contentEditable itself only grows to fit its content) focuses
+            the editor with the caret forced to the document's end, instead
+            of silently missing. */}
+          <ClickBelowContentPlugin />
           {/* Block / link shortcuts (headings, lists, tables, horizontal rules,
             links, etc.) — the upstream MarkdownShortcutPlugin handles these
             correctly. Text-format transformers (**bold**, *italic*, ==hl==,
