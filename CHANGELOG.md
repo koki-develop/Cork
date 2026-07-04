@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.20.0](https://github.com/koki-develop/Cork/compare/v0.19.0...v0.20.0) (2026-07-04)
+
+
+### Features
+
+* **editor:** render fenced code blocks inside blockquotes ([058b5b6](https://github.com/koki-develop/Cork/commit/058b5b6ffc0768551bd240c4e7ada18fbe12054b))
+* **editor:** render pasted plain-text Markdown immediately ([14b2c3a](https://github.com/koki-develop/Cork/commit/14b2c3a2da88b4db3c10cdbcab50f1e1f2a5925a))
+* **editor:** surround saved blockquotes, lists, and horizontal rules with blank lines ([3c2aed5](https://github.com/koki-develop/Cork/commit/3c2aed5cf765da1f471bc9e5ae78b12dea3ab243))
+* **editor:** surround saved fenced code blocks with blank lines ([952e995](https://github.com/koki-develop/Cork/commit/952e995dd687174571961d28d3e69157c8619c10))
+
+
+### Bug Fixes
+
+* **editor:** correctly escape backticks in inline code spans on save ([2a13371](https://github.com/koki-develop/Cork/commit/2a133711ac8d553bf9504f48b832b5b9edc919bd))
+* **editor:** focus the body editor and place the caret at its end when clicking below the last line ([b655c10](https://github.com/koki-develop/Cork/commit/b655c102beba1b03a3b5ab64da49c6fddb8d4d53))
+* **editor:** keep whitespace inside inline code spans on save ([6c9532f](https://github.com/koki-develop/Cork/commit/6c9532fc8b7caa556f7b93c615d2a9d4fd9aaf8b))
+* **editor:** stop code/highlight spans from silently extending past their boundary ([76486f0](https://github.com/koki-develop/Cork/commit/76486f0b7d6ad4532e172d7e295bb90c84a91dcc))
+
 ## [0.19.0](https://github.com/koki-develop/Cork/compare/v0.18.2...v0.19.0) (2026-07-02)
 
 
