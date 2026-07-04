@@ -30,3 +30,4 @@ export {
   setWorkspaceDirectory,
   setWorkspaceFilters,
 } from "./workspace";
+export { getWorkspaceName, setWorkspaceName } from "./workspaceName";

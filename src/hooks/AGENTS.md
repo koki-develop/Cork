@@ -10,8 +10,9 @@ Hooks must not import from `@/components` (enforced by `.oxlintrc.json`). Tauri 
 ## Domain hooks
 
 - `useCurrentDir.ts` — Loads the persisted workspace dir on mount; owned by `App.tsx`.
-- `useWorkspace.ts` — Composite hook called by `BoardPage`. Aggregates `useWorkspaceStatuses`, `useWorkspaceTasks`, `useFilterStore`, and `useWorkspaceWatcher` into the board's data API.
+- `useWorkspace.ts` — Composite hook called by `BoardPage`. Aggregates `useWorkspaceStatuses`, `useWorkspaceName`, `useWorkspaceTasks`, `useFilterStore`, and `useWorkspaceWatcher` into the board's data API.
 - `useWorkspaceStatuses.ts` — Status list state. Seeds the `Todo / Doing / Done` default when the backend has no `.cork.json` yet.
+- `useWorkspaceName.ts` — Workspace name state (`name` / `loadName` / `saveName`). Empty string is the "unnamed" state (matches the backend's `.cork.json` semantics — no distinction between "never set" and "explicitly cleared"). `saveName` writes through and updates local state directly rather than re-fetching, since the caller already knows the value it just persisted.
 - `useWorkspaceTasks.ts` — Task list state. Owns the optimistic create / move / update / delete flow and the `requestIdRef` race-guard against overlapping `listTasks` responses.
 - `useFilterStore.ts` — Tag-filter state. Persists every change immediately (no debounce — Cork is a local-only app and the persistence cost is negligible).
 - `useWorkspaceWatcher.ts` — Wraps `@tauri-apps/plugin-fs` `watch()`. Routes `.cork.json` changes vs `.md` changes to different callbacks.

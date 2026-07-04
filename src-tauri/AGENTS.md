@@ -46,10 +46,12 @@ src-tauri/src/
 ├── error.rs           CommandError + CmdResult<T>
 ├── security.rs        workspace-scope path checks
 ├── frontmatter.rs     YAML frontmatter parse / update / serialize
+├── cork_config.rs     generic `.cork.json` accessors shared by every domain that persists into it: `read_cork_config` (parse the root object, `None` on missing/malformed file) + `write_cork_config_key` (merge one top-level key in, preserving the rest)
 ├── menu.rs            macOS menu (Cork / File > New Task + New Window / Edit / View > Reload / Window) + focused-window settings/create-task emit + focused-window reload
 ├── workspace.rs       workspace commands (pick_directory, set/get_workspace_directory, get/set_workspace_filters, list_workspace_history) + workspace history + open_new_window_impl + build_workspace_window + seed_window_from_history + handle_macos_reopen + CLI invocation (workspace_arg_from_argv / handle_cli_invocation / seed_window_with_workspace + open-or-focus)
 ├── task.rs            Task type + task commands (list/get/create/update/delete/renumber, ...)
-├── status.rs          StatusEntry type + status commands + .cork.json read/write
+├── status.rs          StatusEntry type + status commands, built on `cork_config`'s `statuses` key
+├── workspace_name.rs  get/set_workspace_name commands, built on `cork_config`'s `name` key — empty string means unnamed, covering both a missing key (incl. pre-feature `.cork.json` files) and an explicit empty value
 └── mcp.rs             Embedded MCP server (Streamable HTTP transport, Bearer auth + workspace header middleware, tools: `list_tasks` / `list_statuses` / `list_tags` / `create_task` / `delete_task` / `update_task_title`, settings persistence, lifecycle start/stop)
 ```
 
@@ -110,6 +112,8 @@ Unit tests live inline at the bottom of each module under `#[cfg(test)] mod test
 Covered modules:
 
 - `error.rs` — Display / Serialize / `From<io::Error>` / `CommandError::other`
+- `cork_config.rs` — `read_cork_config` (missing file / malformed JSON → `None`, parses otherwise) and `write_cork_config_key` (creates the file if absent, preserves sibling keys, overwrites the same key on repeat writes)
+- `workspace_name.rs` — `read_workspace_name_from_workspace` (missing file / missing `name` key / non-string value all → `""`) and a write-then-read round trip
 - `state.rs` — `AppState` API + cross-thread sharing via `Arc` + per-window isolation, `remove_window`, `next_window_label` monotonicity / thread safety, `set_workspace` scoping invariant, MCP runtime transitions (`Stopped` / `Failed` / `is_mcp_running` predicate, `with_mcp_handle` non-`Running` no-op)
 - `security.rs` — `canonical_workspace` / `ensure_in_workspace` / `check_in_workspace`, including symlink and `..` escape rejection
 - `frontmatter.rs` — `parse` / `update` / `serialize` and the private `format_yaml_float`
@@ -122,7 +126,7 @@ Not covered: `#[tauri::command]` bodies themselves (they require a Tauri runtime
 
 ## Adding a command
 
-1. Pick the right module (`workspace.rs` / `task.rs` / `status.rs`), or create a new domain file and declare it in `lib.rs`
+1. Pick the right module (`workspace.rs` / `task.rs` / `status.rs` / `workspace_name.rs`), or create a new domain file and declare it in `lib.rs`. A new `.cork.json`-backed domain should go through `cork_config::read_cork_config` / `write_cork_config_key` rather than touching the file directly — see `workspace_name.rs` for the shape
 2. Define `#[tauri::command] pub fn ...` returning `CmdResult<T>` (or a plain value). **Take `window: tauri::WebviewWindow` as a parameter** if the command needs workspace state — every `state.*` call requires a `&str` label, so you'll pass `window.label()` through to keep the scope per-window. The Tauri runtime injects this argument automatically; the frontend wrapper doesn't change
 3. Register it in the `tauri::generate_handler![...]` list in `lib.rs` as `domain::name`
 4. If the command writes to the file system, call `security::ensure_in_workspace` first

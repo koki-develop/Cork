@@ -31,3 +31,4 @@ export {
 } from "./TagOperandInput";
 export { TagSuggestionPopover, type TagSuggestionPopoverProps } from "./TagSuggestionPopover";
 export { WelcomeHero, type WelcomeHeroProps } from "./WelcomeHero";
+export { WorkspaceNameField, type WorkspaceNameFieldProps } from "./WorkspaceNameField";

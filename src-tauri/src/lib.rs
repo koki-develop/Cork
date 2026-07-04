@@ -1,3 +1,4 @@
+mod cork_config;
 mod error;
 mod frontmatter;
 mod mcp;
@@ -7,6 +8,7 @@ mod state;
 mod status;
 mod task;
 mod workspace;
+mod workspace_name;
 
 use state::AppState;
 use tauri::Manager;
@@ -61,6 +63,8 @@ pub fn run() {
             task::reconcile_external_status_changes,
             status::get_statuses,
             status::save_statuses,
+            workspace_name::get_workspace_name,
+            workspace_name::set_workspace_name,
             mcp::get_settings,
             mcp::update_settings,
             mcp::generate_token,

@@ -42,6 +42,7 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
     statuses,
     filters,
     availableTags,
+    workspaceName,
     setQuery,
     setFilters,
     loadTasks,
@@ -52,6 +53,7 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
     moveTask,
     renumberTasks,
     reorderStatuses,
+    saveWorkspaceName,
   } = useWorkspace(dir);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -233,7 +235,13 @@ export function BoardPage({ dir, setDir }: BoardPageProps) {
       >
         <BoardLayout
           header={
-            <AppHeader currentDir={dir} taskCount={tasks.length} onOpenSettings={openSettings} />
+            <AppHeader
+              currentDir={dir}
+              workspaceName={workspaceName}
+              onWorkspaceNameChange={saveWorkspaceName}
+              taskCount={tasks.length}
+              onOpenSettings={openSettings}
+            />
           }
           toolbar={
             <div inert={isDragging} className="flex items-center gap-4 px-6 pt-6 pb-0">

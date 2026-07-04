@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { reconcileExternalStatusChanges } from "@/api";
 import { useFilterStore } from "@/hooks/useFilterStore";
+import { useWorkspaceName } from "@/hooks/useWorkspaceName";
 import { useWorkspaceStatuses } from "@/hooks/useWorkspaceStatuses";
 import { useWorkspaceTasks } from "@/hooks/useWorkspaceTasks";
 import { useWorkspaceWatcher } from "@/hooks/useWorkspaceWatcher";
@@ -11,6 +12,7 @@ export function useWorkspace(dir: string) {
 
   const { filters, setFilters } = useFilterStore(dir);
   const { statuses, loadStatuses, reorderStatuses } = useWorkspaceStatuses(dir);
+  const { name: workspaceName, loadName, saveName: saveWorkspaceName } = useWorkspaceName(dir);
   const {
     tasks,
     availableTags,
@@ -26,6 +28,7 @@ export function useWorkspace(dir: string) {
   useWorkspaceWatcher(dir, {
     onCorkConfigChange: () => {
       loadStatuses();
+      loadName();
       loadTasks().then(loadAvailableTags);
     },
     // External .md edits go through reconciliation first: if the user
@@ -52,6 +55,7 @@ export function useWorkspace(dir: string) {
     statuses,
     filters,
     availableTags,
+    workspaceName,
     setQuery,
     setFilters,
     loadTasks,
@@ -62,5 +66,6 @@ export function useWorkspace(dir: string) {
     moveTask,
     renumberTasks,
     reorderStatuses,
+    saveWorkspaceName,
   };
 }

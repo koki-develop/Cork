@@ -1,3 +1,4 @@
+use crate::cork_config;
 use crate::error::{CmdResult, CommandError};
 use crate::frontmatter;
 use crate::security;
@@ -7,8 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const CORK_CONFIG_FILE: &str = ".cork.json";
 
 #[derive(Serialize, Deserialize)]
 pub struct StatusEntry {
@@ -101,23 +100,8 @@ pub fn save_statuses(
     Ok(())
 }
 
-fn cork_config_path(dir: &Path) -> PathBuf {
-    dir.join(CORK_CONFIG_FILE)
-}
-
 pub(crate) fn read_statuses_from_workspace(dir: &Path) -> Option<Vec<StatusEntry>> {
-    let path = cork_config_path(dir);
-    let content = match fs::read_to_string(&path) {
-        Ok(c) => c,
-        Err(_) => return None,
-    };
-    let value: serde_json::Value = match serde_json::from_str(&content) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("failed to parse {}: {e}", path.display());
-            return None;
-        }
-    };
+    let value = cork_config::read_cork_config(dir)?;
     Some(
         value
             .get("statuses")
@@ -127,18 +111,6 @@ pub(crate) fn read_statuses_from_workspace(dir: &Path) -> Option<Vec<StatusEntry
 }
 
 fn write_statuses_to_workspace(dir: &Path, statuses: &[StatusEntry]) -> CmdResult<()> {
-    let path = cork_config_path(dir);
-    let mut root = fs::read_to_string(&path)
-        .ok()
-        .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
-        .filter(|v| v.is_object())
-        .unwrap_or_else(|| serde_json::json!({}));
     let statuses_value = serde_json::to_value(statuses).map_err(CommandError::other)?;
-    if let Some(obj) = root.as_object_mut() {
-        obj.insert("statuses".to_string(), statuses_value);
-    }
-    let mut serialized = serde_json::to_string_pretty(&root).map_err(CommandError::other)?;
-    serialized.push('\n');
-    fs::write(&path, serialized)?;
-    Ok(())
+    cork_config::write_cork_config_key(dir, "statuses", statuses_value)
 }
