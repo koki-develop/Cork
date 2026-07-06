@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.0](https://github.com/koki-develop/Cork/compare/v0.21.0...v0.22.0) (2026-07-06)
+
+
+### Features
+
+* **editor:** add hover-revealed copy button to fenced code blocks ([afe89ec](https://github.com/koki-develop/Cork/commit/afe89ec20105ce46b9656807d5f5e6000190c609))
+
+
+### Bug Fixes
+
+* **menu:** stop About panel from showing a duplicated version string ([a3453a2](https://github.com/koki-develop/Cork/commit/a3453a2240de8e5da5b4bbef2beb2f64549dfd53))
+
 ## [0.21.0](https://github.com/koki-develop/Cork/compare/v0.20.0...v0.21.0) (2026-07-04)
 
 
