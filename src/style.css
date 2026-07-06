@@ -260,7 +260,10 @@
   /* Fenced code block — the editor renders `<div class="cork-code-block-wrapper">`
      containing a `<button class="cork-code-block-tab">` (the language label —
      the tab itself IS the click target for changing the language, no
-     separate pencil icon) and the inner `<code class="cork-code-block ...">`.
+     separate pencil icon) and a `<div class="cork-code-block-code-area">`
+     holding the inner `<code class="cork-code-block ...">` plus a
+     `<button class="cork-code-block-copy">` overlaid on its top-right corner
+     — inside the dark code well itself, unlike the tab which sits above it.
      The wrapper owns the vertical margin so tab + code together count as one
      logical block. The tab is fused to the code well — flush, no gap,
      rounded only on top — so it reads as a tab growing out of the block
@@ -340,10 +343,86 @@
     pointer-events: none;
   }
 
+  /* `position: relative` anchor for the copy button below — its box exactly
+     matches `<code>`'s own (no padding/border of its own, `<code>` is its
+     only normal-flow content), so the button's `top`/`right` insets land at
+     `<code>`'s own corner with no measured/magic-number offset needed. See
+     `CorkCodeNode.ts`'s file header comment for why this is a wrapper
+     around `<code>` rather than a class applied to `<code>` directly. */
+  .cork-code-block-code-area {
+    position: relative;
+  }
+
+  /* Overlaid INSIDE the dark code well (top-right corner), unlike the tab
+     which sits above it — per the task spec. `position: absolute` keeps it
+     pinned to that corner regardless of `<code>`'s own horizontal scroll
+     offset (an absolutely positioned box is laid out against its containing
+     block's padding box, which doesn't move when the content inside it
+     scrolls). Hidden (`opacity: 0`) until the code block itself is
+     hovered — see `.cork-code-block-code-area:hover` below — or the button
+     is keyboard-focused, so it stays out of the way of reading code at rest
+     and only appears as a hint once the user's attention (mouse or Tab
+     focus) is already on that block. */
+  .cork-code-block-copy {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: 0.25rem;
+    background-color: transparent;
+    color: var(--color-cork-muted);
+    appearance: none;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      opacity 0.15s ease,
+      background-color 0.15s ease,
+      color 0.15s ease;
+  }
+
+  /* Reveals the otherwise-hidden copy button while the pointer is anywhere
+     over the code block — not just over the button's own small hit area,
+     which would be nearly impossible to discover blind. Keyboard focus
+     reveals it independently of hover (below), so Tab-ing to the button
+     never lands on something invisible. */
+  .cork-code-block-code-area:hover .cork-code-block-copy {
+    opacity: 1;
+  }
+
+  /* Tab-focusing the button must reveal it even without a hover — otherwise
+     a keyboard user would activate a control they can't see. */
+  .cork-code-block-copy:focus-visible {
+    opacity: 1;
+  }
+
+  /* Translucent (not opaque) so code text stays faintly visible underneath —
+     a fully solid fill would hide whatever the button happens to sit over.
+     Stronger than the tab's own 8% hover mix (that one sits over its own
+     opaque pill background already; this one needs enough contrast on its
+     own against syntax-highlighted code directly behind it) but still a
+     semi-transparent wash, not a solid chip. */
+  .cork-code-block-copy:hover {
+    background-color: color-mix(in oklab, var(--color-cork-text) 20%, transparent);
+    color: var(--color-cork-text);
+  }
+
+  /* Same `pointer-events: none` rationale as `.cork-code-block-language`
+     above — a click always lands on the button itself, never the icon glyph. */
+  .cork-code-block-copy svg {
+    width: 0.8125rem;
+    height: 0.8125rem;
+    pointer-events: none;
+  }
+
   /* Square off the code well's top-left corner so the tab's flat base sits
      flush against it with no rounded sliver peeking out from underneath. The
      tab is unconditional now, so this no longer needs a `:has()` guard. */
-  .cork-code-block-wrapper > .cork-code-block {
+  .cork-code-block-wrapper > .cork-code-block-code-area > .cork-code-block {
     border-top-left-radius: 0;
   }
 

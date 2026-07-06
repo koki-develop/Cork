@@ -16,11 +16,14 @@ import { getCorkLanguageFriendlyName } from "./prismLanguages";
 //   <button class="cork-code-block-tab">
 //     <span class="cork-code-block-language">JavaScript</span>
 //   </button>
-//   <code class="cork-code-block ...">…CodeHighlightNode children…</code>
+//   <div class="cork-code-block-code-area">
+//     <code class="cork-code-block ...">…CodeHighlightNode children…</code>
+//     <button class="cork-code-block-copy">…copy icon…</button>
+//   </div>
 //
 // The tab lives OUTSIDE the dark `<code>` background so the language label
 // reads as a small tab attached above the block (per the task spec). A
-// CSS-only solution couldn't pull this off cleanly: the inner `<code>` has
+// CSS-only solution couldn't pull THAT off cleanly: the inner `<code>` has
 // `overflow-x: auto` to horizontally scroll long lines, and the CSS spec
 // forces `overflow-y: visible` to compute as `auto` whenever the other axis
 // is non-visible — so anything positioned outside the `<code>` (negative
@@ -28,30 +31,52 @@ import { getCorkLanguageFriendlyName } from "./prismLanguages";
 // horizontal overflow. Wrapping at the node level sidesteps that entirely:
 // the tab is a sibling of the scrollable `<code>`, never inside it.
 //
+// The copy button is the opposite case: it belongs INSIDE the dark code well
+// (top-right corner, per the task spec), not above it like the tab. That's
+// safe precisely because it stays WITHIN `<code>`'s own box — the clipping
+// rule above only bites content that sticks OUT past an overflow:auto box's
+// edges, never content positioned inside them. `.cork-code-block-code-area`
+// is the `position: relative` anchor the button is positioned against
+// (`position: absolute; top; right;`) — it exists as a wrapper AROUND
+// `<code>`, not as a class on `<code>` itself, because `<code>` is the exact
+// DOM element `getDOMSlot` hands the reconciler for CodeHighlightNode/
+// LineBreakNode children (see below); adding an untracked raw `<button>` as
+// an actual DOM child of that element would leave it exposed to Lexical's
+// child-diffing on the next reconcile, which only knows about the node's own
+// Lexical children and could silently reorder/drop it. Making the button a
+// SIBLING of `<code>` (both live inside `.cork-code-block-code-area`, which
+// Lexical never touches) sidesteps that entirely while `position: absolute`
+// still visually overlays it onto `<code>`'s own rendered box — since
+// `.cork-code-block-code-area` has no content of its own besides `<code>`,
+// its box exactly matches `<code>`'s, so `top`/`right` insets land at
+// `<code>`'s own corner with no measurement or magic-number offset needed.
+//
 // The tab IS the click target for changing the language — there is no
 // separate pencil icon. Clicking it is handled entirely by
 // `FloatingCodeLanguageEditorPlugin` (registered in `MarkdownEditor.tsx`),
 // which delegates on the editor root by class name (`LANGUAGE_TAB_CLASS`)
-// rather than attaching a listener here: this file only describes DOM
-// *shape*, plugins own *behavior*, matching every other interactive
-// affordance in this package. Built as a real `<button>` (raw DOM, no React —
-// it's part of a Lexical node's `createDOM`, not a React tree) so it's
-// reachable by click, Tab, and screen readers without any extra affordance
-// glued on. `contenteditable=false` keeps Lexical from treating it as
-// editable text.
+// rather than attaching a listener here. The copy button is handled the same
+// way by `CodeBlockCopyPlugin`, delegating on `COPY_BUTTON_CLASS`: this file
+// only describes DOM *shape*, plugins own *behavior*, matching every other
+// interactive affordance in this package. Both are built as real `<button>`s
+// (raw DOM, no React — they're part of a Lexical node's `createDOM`, not a
+// React tree) so they're reachable by click, Tab, and screen readers without
+// any extra affordance glued on. `contenteditable=false` keeps Lexical from
+// treating them as editable text.
 //
 // The tab is ALWAYS present (never toggled off) — a language-less fence
 // shows the "Plain Text" fallback label rather than an empty/hidden chip.
 // Two reasons: (1) it gives the tab a permanent home to click even when
 // there's no language set yet, instead of nothing being clickable at all;
-// (2) `display: block` on `.cork-code-block-tab` (a flex container, not a
+// (2) `display: flex` on `.cork-code-block-tab` (a flex container, not a
 // run of loose inline siblings) keeps it out of the wrapper's inline
 // formatting context — loose inline content directly followed by a block
-// sibling gets an invisible line-height "strut" below it that reads as a
-// stray gap before the code well; a single block-level tab box has no such
-// strut. `chip.textContent` doubles as the label for both states (see
-// `$applyChip`) rather than a separate hidden/shown element, so
-// `updateDOM`'s dirty-check stays a single string compare.
+// sibling (`.cork-code-block-code-area`) gets an invisible line-height
+// "strut" below it that reads as a stray gap before the code well; a single
+// block-level tab box has no such strut. `chip.textContent` doubles as the
+// label for both states (see `$applyChip`) rather than a separate
+// hidden/shown element, so `updateDOM`'s dirty-check stays a single string
+// compare.
 //
 // `getDOMSlot` redirects Lexical's reconciler to write children into the
 // inner `<code>`, so CodeHighlightNode DOM continues to live where the base
@@ -80,6 +105,52 @@ const WRAPPER_CLASS = "cork-code-block-wrapper";
 // without this file needing to know anything about that plugin.
 export const LANGUAGE_TAB_CLASS = "cork-code-block-tab";
 const LANGUAGE_CHIP_CLASS = "cork-code-block-language";
+// `position: relative` anchor wrapping `<code>` + the copy button — see the
+// file header comment for why the button lives here (a sibling of `<code>`)
+// rather than as an actual DOM child of it.
+const CODE_AREA_CLASS = "cork-code-block-code-area";
+// Exported so `CodeBlockCopyPlugin` can delegate its click handling by this
+// class name, mirroring `LANGUAGE_TAB_CLASS` above.
+export const COPY_BUTTON_CLASS = "cork-code-block-copy";
+
+// Raw-DOM equivalent of `lucide-react`'s `Copy` icon (same viewBox/paths/
+// stroke attrs as its `defaultAttributes` + `__iconNode`) — `createDOM` runs
+// outside React (it's a Lexical node, not a component), so the React icon
+// component itself isn't usable here; this reproduces its exact markup by
+// hand so the button matches every other `lucide-react` icon in the app.
+// Exported (only for `CorkCodeNode.spec.tsx`) so a test can render the real
+// `lucide-react` `Copy` component and assert this hand-transcription still
+// matches its actual rendered `rect`/`path` attributes — catching silent
+// drift if a future `lucide-react` upgrade redraws the icon.
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+export function $createCopyIcon(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  // `pointer-events: none` (set in style.css) keeps clicks landing on the
+  // parent `<button>` even when the cursor is exactly over the glyph —
+  // mirrors `.cork-code-block-language`'s own reasoning below.
+  svg.setAttribute("aria-hidden", "true");
+
+  const rect = document.createElementNS(SVG_NS, "rect");
+  rect.setAttribute("width", "14");
+  rect.setAttribute("height", "14");
+  rect.setAttribute("x", "8");
+  rect.setAttribute("y", "8");
+  rect.setAttribute("rx", "2");
+  rect.setAttribute("ry", "2");
+
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2");
+
+  svg.append(rect, path);
+  return svg;
+}
 
 // The chip's fallback label when no language is set. Reuses the library's
 // own friendly name for the `plain` language id (the same identifier
@@ -110,7 +181,11 @@ function $applyChip(chip: HTMLSpanElement, language: string | null | undefined):
 function $findInnerCodeElement(wrapper: HTMLElement): HTMLElement {
   const cached = (wrapper as CorkCodeWrapperElement).__corkCode;
   if (cached !== undefined) return cached;
-  const code = wrapper.querySelector<HTMLElement>(":scope > code");
+  // Not `:scope > ...` — `<code>` is nested one level inside
+  // `.cork-code-block-code-area`, not a direct child of the wrapper. A plain
+  // descendant selector is fine since there's exactly one `<code>` in the
+  // whole subtree; this only runs once before the result is cached anyway.
+  const code = wrapper.querySelector<HTMLElement>("code");
   if (code === null) {
     throw new Error("CorkCodeNode wrapper is missing its inner <code> element");
   }
@@ -196,8 +271,28 @@ export class CorkCodeNode extends CodeNode {
 
     const code = super.createDOM(config);
 
+    // Wraps `<code>` + the copy button so the button can be positioned
+    // (`position: absolute`, in style.css) against `<code>`'s own box
+    // without becoming an actual DOM child of it — see the file header
+    // comment for why that distinction matters to Lexical's reconciler.
+    const codeArea = document.createElement("div");
+    codeArea.className = CODE_AREA_CLASS;
+
+    // Same "real <button>, no separate icon" shape as the tab — this one is
+    // the click target for `CodeBlockCopyPlugin`, which copies the block's
+    // source text to the clipboard.
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = COPY_BUTTON_CLASS;
+    copyButton.setAttribute("aria-label", "Copy code block");
+    copyButton.setAttribute("contenteditable", "false");
+    copyButton.appendChild($createCopyIcon());
+
+    codeArea.appendChild(code);
+    codeArea.appendChild(copyButton);
+
     wrapper.appendChild(tab);
-    wrapper.appendChild(code);
+    wrapper.appendChild(codeArea);
 
     // Seed the lookup cache immediately — the very first `getDOMSlot`/
     // `updateDOM` call (which Lexical fires as part of the same reconcile
@@ -250,8 +345,13 @@ export class CorkCodeNode extends CodeNode {
   // equivalent of `getDOMSlot`'s live-DOM redirection, "particularly useful
   // if this node's children are not direct ancestors" (its own doc comment)
   // — so CodeHighlightNode children still land inside the inner `<pre>`
-  // instead of becoming siblings of the tab. The edit button is deliberately
-  // excluded — it's an editor-only affordance, not meaningful once pasted.
+  // instead of becoming siblings of the tab. Both the edit button and the
+  // copy button are deliberately excluded — they're editor-only affordances,
+  // not meaningful once pasted (a copy button that can't read this app's
+  // Lexical state, dropped into a random other app, does nothing useful) —
+  // so this mirrors only the tab + `<pre>`, not the live editor's
+  // `.cork-code-block-code-area` wrapper (which exists purely to anchor the
+  // now-omitted copy button).
   exportDOM(editor: LexicalEditor): DOMExportOutput {
     const { element: pre } = super.exportDOM(editor);
     if (!(pre instanceof HTMLElement)) {

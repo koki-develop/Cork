@@ -1,9 +1,9 @@
 import { Copy, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 
 import { ErrorBanner, Input, Text, Toggle } from "@/components/atoms";
 import { CodeBlock, FormField, IconButton, StatusIndicator } from "@/components/molecules";
+import { useCopyToClipboard } from "@/hooks/ui/useCopyToClipboard";
 import type { McpSettings, McpSetupSnippet, McpStatus } from "@/types";
 
 import { McpSetupSnippets } from "./McpSetupSnippets";
@@ -69,12 +69,13 @@ export function McpServerSection({
     }
   };
 
+  const copyToClipboard = useCopyToClipboard();
   const handleCopyToken = () => {
     if (!settings.token) return;
-    navigator.clipboard
-      .writeText(settings.token)
-      .then(() => toast.success("Copied token to clipboard"))
-      .catch(() => toast.error("Failed to copy token to clipboard"));
+    copyToClipboard(settings.token, {
+      success: "Copied token to clipboard",
+      failure: "Failed to copy token to clipboard",
+    });
   };
 
   const sampleEmpty = sampleConfig === "{}" || sampleConfig === "";

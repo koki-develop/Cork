@@ -33,3 +33,4 @@ Hooks must not import from `@/components` (enforced by `.oxlintrc.json`). Tauri 
 - `useDialogError.ts` — Trivial `{ error, setError, clearError }` state.
 - `useFieldError.ts` — Field-tagged dialog error with a `peek()` ref so async handlers read the latest value without stale closures.
 - `useTagEditorController.ts` — Bridges to `TagEditor`'s imperative `flushPending()` so a parent can commit a pending tag input before saving. Also exposes `flushAndMerge` to fold the pending tag directly into a tags array.
+- `useCopyToClipboard.ts` — `navigator.clipboard.writeText` + a success/failure `toast`, shared by every "copy to clipboard" affordance in the app (`CodeBlock`'s copy button, `TaskContextMenu` / `TaskDetailDialog`'s "Copy path", `McpServerSection`'s "Copy token", `CodeBlockCopyPlugin`'s code-block copy button) so the shape lives in exactly one place instead of being hand-rolled at each call site.

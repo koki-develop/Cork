@@ -1,8 +1,10 @@
 import { $createCodeNode } from "@lexical/code";
+import { Copy } from "lucide-react";
 import { describe, expect, test } from "vitest";
+import { render } from "vitest-browser-react";
 
 import { createTestHeadlessEditor, renderTestEditor } from "./__tests__/utils";
-import { CorkCodeNode } from "./CorkCodeNode";
+import { $createCopyIcon, CorkCodeNode } from "./CorkCodeNode";
 
 describe("CorkCodeNode (language chip)", () => {
   // ```js fence → wrapper <div> contains a <button> tab (the tab IS the
@@ -202,5 +204,49 @@ describe("CorkCodeNode (HTML export)", () => {
       },
       { discrete: true },
     );
+  });
+});
+
+// `$createCopyIcon` hand-transcribes `lucide-react`'s `Copy` icon into raw DOM
+// (createDOM runs outside React, so the real component isn't directly usable
+// there) — this pins that transcription against the ACTUAL rendered output of
+// the real `lucide-react` `Copy` component, so a future `lucide-react` upgrade
+// that redraws the icon (changes the rect/path data) fails this test instead
+// of silently drifting the button's shape out of sync with every other
+// lucide-react icon in the app.
+describe("CorkCodeNode (copy icon fidelity)", () => {
+  test("$createCopyIcon's markup matches lucide-react's real Copy icon", async () => {
+    await render(<Copy />);
+    // `render` mounts into `document.body` (cleaned up between tests by
+    // `vitest-browser-react`'s own afterEach) — no other test in this file
+    // renders a bare `lucide-react` icon directly, so this is unambiguous.
+    const reference = document.querySelector("svg.lucide-copy");
+    if (!(reference instanceof SVGSVGElement)) {
+      throw new Error("expected lucide-react's Copy icon to render an <svg>");
+    }
+
+    const built = $createCopyIcon();
+
+    expect(built.getAttribute("viewBox")).toBe(reference.getAttribute("viewBox"));
+
+    const referenceChildren = Array.from(reference.children);
+    const builtChildren = Array.from(built.children);
+    expect(builtChildren).toHaveLength(referenceChildren.length);
+
+    // Only the geometry-defining attributes are compared — `class`,
+    // `aria-hidden`, and sizing (`width`/`height`, controlled by this app's
+    // own CSS rather than SVG attributes) are deliberate, cosmetic
+    // differences from the raw component output, not drift risks. `d` (path)
+    // and `width`/`height`/`x`/`y`/`rx`/`ry` (rect) are exactly what a
+    // lucide-react redraw would change.
+    const GEOMETRY_ATTRS = ["d", "x", "y", "width", "height", "rx", "ry"];
+    for (const [i, referenceChild] of referenceChildren.entries()) {
+      const builtChild = builtChildren[i];
+      expect(builtChild.tagName).toBe(referenceChild.tagName);
+      for (const attr of GEOMETRY_ATTRS) {
+        if (!referenceChild.hasAttribute(attr)) continue;
+        expect(builtChild.getAttribute(attr)).toBe(referenceChild.getAttribute(attr));
+      }
+    }
   });
 });

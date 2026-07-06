@@ -1,6 +1,5 @@
 import { Copy, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { AutoresizeInput, ErrorBanner } from "@/components/atoms";
 import {
@@ -13,6 +12,7 @@ import {
   TagEditor,
 } from "@/components/molecules";
 import { Modal } from "@/components/organisms/shell";
+import { useCopyToClipboard } from "@/hooks/ui/useCopyToClipboard";
 import { isImeKeyEvent } from "@/lib/keyboard";
 import type { StatusEntry, Task, TaskUpdates } from "@/types";
 
@@ -65,13 +65,12 @@ export function TaskDetailDialog({
     onCommitClose: onClose,
   });
 
-  const handleCopyPath = async () => {
-    try {
-      await navigator.clipboard.writeText(task.id);
-      toast.success("Copied path to clipboard");
-    } catch {
-      toast.error("Failed to copy path to clipboard");
-    }
+  const copyToClipboard = useCopyToClipboard();
+  const handleCopyPath = () => {
+    copyToClipboard(task.id, {
+      success: "Copied path to clipboard",
+      failure: "Failed to copy path to clipboard",
+    });
   };
 
   return (

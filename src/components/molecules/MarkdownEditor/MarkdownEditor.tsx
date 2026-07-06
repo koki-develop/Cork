@@ -26,6 +26,7 @@ import { CheckListIndentPlugin } from "./CheckListIndentPlugin";
 import { CheckListOutdentPlugin } from "./CheckListOutdentPlugin";
 import { CheckListShortcutPlugin } from "./CheckListShortcutPlugin";
 import { ClickBelowContentPlugin } from "./ClickBelowContentPlugin";
+import { CodeBlockCopyPlugin } from "./CodeBlockCopyPlugin";
 import { CodeBlockEscapePlugin } from "./CodeBlockEscapePlugin";
 import { $highlightAllCodeBlocks, CodeBlockHighlightPlugin } from "./CodeBlockHighlightPlugin";
 import { CorkCodeNode } from "./CorkCodeNode";
@@ -76,8 +77,21 @@ const theme: EditorThemeClasses = {
   // the outer vertical margin (so the chip + code together count as one block
   // visually) while the inner `<code>` carries the dark well styling. See
   // `CorkCodeNode.ts` and `.cork-code-block-wrapper` / `.cork-code-block-language`
-  // in style.css.
-  code: "cork-code-block block overflow-x-auto whitespace-pre rounded-md border border-cork-border/65 bg-cork-bg p-3 font-mono text-xs leading-relaxed",
+  // in style.css. `pr-9` (overriding `p-3`'s right side — Tailwind resolves the
+  // longhand/shorthand conflict by property specificity, not class-string order,
+  // the same idiom the read-only `CodeBlock` molecule's `pr-12` already relies
+  // on) reserves a gutter for `.cork-code-block-copy`'s overlay: a line that
+  // fits within the block's visible width (the common case, and the only case
+  // for any line no wider than the block itself) never renders underneath the
+  // button, at rest or scrolled to its own end. It does NOT prevent every
+  // possible overlap — `whitespace-pre` means a line can be arbitrarily wide,
+  // and while the user scrolls such a line to a position OTHER than its start
+  // or end, the pinned button (positioned against the non-scrolling
+  // `.cork-code-block-code-area`, so it never moves with `<code>`'s own
+  // scroll offset) can briefly sit over whatever content is currently
+  // scrolled beneath it — the same accepted trade-off every comparable
+  // pinned copy-button-over-scrollable-code UI (GitHub, VS Code) makes.
+  code: "cork-code-block block overflow-x-auto whitespace-pre rounded-md border border-cork-border/65 bg-cork-bg p-3 pr-9 font-mono text-xs leading-relaxed",
   // Prism token → Tailwind class. `CodeHighlightNode.createDOM` reads
   // `theme.codeHighlight[token.type]` and applies the class to each
   // highlighted span. The palette intentionally reuses existing `cork-*`
@@ -536,6 +550,14 @@ export const MarkdownEditor = forwardRef<HTMLDivElement, MarkdownEditorProps>(
             re-triggers highlighting through the same registerNodeTransform
             sweep. */}
           <FloatingCodeLanguageEditorPlugin />
+          {/* Click the copy button `CorkCodeNode` overlays inside the dark
+            code well's top-right corner → copies the block's exact source
+            text (real newlines, not the DOM's own textContent) to the
+            clipboard, with a toast for success/failure — matching every
+            other "copy to clipboard" affordance in the app (TaskContextMenu's
+            "Copy Path",
+            CodeBlock's copy button, ...). */}
+          <CodeBlockCopyPlugin />
           {/* Owns ranged FORMAT_TEXT_COMMAND: keeps inline formatting off
             code-block text (which the Markdown serializer would silently drop)
             and makes a mixed selection always enable rather than toggle off the

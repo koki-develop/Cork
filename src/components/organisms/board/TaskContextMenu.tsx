@@ -1,7 +1,7 @@
 import { Copy, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 
 import { ContextMenu } from "@/components/molecules";
+import { useCopyToClipboard } from "@/hooks/ui/useCopyToClipboard";
 
 export type TaskContextMenuState = {
   x: number;
@@ -16,13 +16,12 @@ export type TaskContextMenuProps = {
 };
 
 export function TaskContextMenu({ state, onClose, onDelete }: TaskContextMenuProps) {
-  const handleCopyPath = async (taskId: string) => {
-    try {
-      await navigator.clipboard.writeText(taskId);
-      toast.success("Copied path to clipboard");
-    } catch {
-      toast.error("Failed to copy path to clipboard");
-    }
+  const copyToClipboard = useCopyToClipboard();
+  const handleCopyPath = (taskId: string) => {
+    copyToClipboard(taskId, {
+      success: "Copied path to clipboard",
+      failure: "Failed to copy path to clipboard",
+    });
   };
 
   return (

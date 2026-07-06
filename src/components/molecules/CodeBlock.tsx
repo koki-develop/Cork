@@ -1,6 +1,7 @@
 import { Copy } from "lucide-react";
 import { useCallback } from "react";
-import { toast } from "sonner";
+
+import { useCopyToClipboard } from "@/hooks/ui/useCopyToClipboard";
 
 import { IconButton } from "./IconButton";
 
@@ -17,17 +18,11 @@ export function CodeBlock({
   ariaLabel,
   className,
 }: CodeBlockProps) {
+  const copyToClipboard = useCopyToClipboard();
   const handleCopy = useCallback(() => {
     if (!code) return;
-    navigator.clipboard
-      .writeText(code)
-      .then(() => {
-        toast.success(copyToast);
-      })
-      .catch(() => {
-        toast.error("Failed to copy to clipboard");
-      });
-  }, [code, copyToast]);
+    copyToClipboard(code, { success: copyToast, failure: "Failed to copy to clipboard" });
+  }, [code, copyToast, copyToClipboard]);
 
   return (
     <div className={`relative ${className ?? ""}`}>
