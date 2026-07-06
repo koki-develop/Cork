@@ -1,4 +1,4 @@
-use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{App, Emitter, EventTarget, Manager};
 
 /// Pick the WebviewWindow that currently has keyboard focus, if any. Tauri
@@ -15,6 +15,17 @@ fn focused_webview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWindow
 }
 
 pub fn setup(app: &mut App) -> tauri::Result<()> {
+    // macOS's native About panel shows "Version {ApplicationVersion} ({Version})".
+    // Both keys fall back to the same Info.plist value (Tauri sets
+    // CFBundleShortVersionString and CFBundleVersion identically, since Cork has
+    // no separate build-number concept), which is what produces the duplicated
+    // "Version 0.21.0 (0.21.0)". Passing an explicit empty `short_version` blanks
+    // out the parenthetical instead of falling back to that duplicate value.
+    let about_metadata = AboutMetadataBuilder::new()
+        .version(Some(app.package_info().version.to_string()))
+        .short_version(Some(String::new()))
+        .build();
+
     let check_for_updates_item =
         MenuItemBuilder::with_id("check_for_updates", "Check for Updates...").build(app)?;
 
@@ -35,7 +46,7 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         .build(app)?;
 
     let app_menu = SubmenuBuilder::new(app, "Cork")
-        .about(None)
+        .about(Some(about_metadata))
         .item(&check_for_updates_item)
         .separator()
         .item(&settings_item)
