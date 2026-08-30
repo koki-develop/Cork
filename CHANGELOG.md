@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.1](https://github.com/koki-develop/Cork/compare/v0.22.0...v0.22.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate http to v1.4.2 ([#44](https://github.com/koki-develop/Cork/issues/44)) ([a0e03d4](https://github.com/koki-develop/Cork/commit/a0e03d410bb7e69af5e8efef3d093af941719ca5))
+* **editor:** stop a plain-text paste from bricking the task body editor ([c7184d4](https://github.com/koki-develop/Cork/commit/c7184d4d9431f2d2df8d3f92be4d87d32d02a286))
+
 ## [0.22.0](https://github.com/koki-develop/Cork/compare/v0.21.0...v0.22.0) (2026-07-06)
 
 
