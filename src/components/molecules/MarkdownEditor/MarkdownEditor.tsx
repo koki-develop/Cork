@@ -1,7 +1,7 @@
 import { $isCodeNode, CodeHighlightNode, CodeNode } from "@lexical/code";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
-import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown";
+import { $convertToMarkdownString } from "@lexical/markdown";
 import { AutoLinkPlugin, createLinkMatcherWithRegExp } from "@lexical/react/LexicalAutoLinkPlugin";
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -18,7 +18,7 @@ import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { clsx } from "clsx";
-import type { EditorState, EditorThemeClasses } from "lexical";
+import { $getRoot, type EditorState, type EditorThemeClasses } from "lexical";
 import { forwardRef, useCallback } from "react";
 
 import { BoundaryStrictFormatPlugin } from "./BoundaryStrictFormatPlugin";
@@ -47,6 +47,7 @@ import { QuoteExitPlugin } from "./QuoteExitPlugin";
 import { QuoteNestingShortcutPlugin } from "./QuoteNestingShortcutPlugin";
 import { TableKeyboardPlugin } from "./TableKeyboardPlugin";
 import {
+  $importMarkdownInto,
   $insertSpacersBetweenAdjacentQuotes,
   $normalizeBlockSpacing,
   MARKDOWN_BLOCK_SHORTCUT_TRANSFORMERS,
@@ -279,7 +280,7 @@ export const NODES = [
 // this by hand in the test file would silently drift from production the
 // next time a seeding step is added or reordered here.
 export function $seedMarkdownEditorState(markdown: string): void {
-  $convertFromMarkdownString(markdown, MARKDOWN_TRANSFORMERS, undefined, true);
+  $importMarkdownInto($getRoot(), markdown, { preserveNewLines: true });
   // `@lexical/markdown` strips empty paragraphs at root after the
   // line-by-line pass, which collapses `> aaa\n\n> bbb` into two
   // adjacent QuoteNodes with no visible gap between them. Restore
@@ -316,8 +317,23 @@ export function buildInitialConfig(initialValue: string) {
     // HISTORY_MERGE context and fire a phantom onChange → autosave on every
     // open.
     editorState: () => $seedMarkdownEditorState(initialValue),
+    // Report, never rethrow. Lexical's `$beginUpdate` wraps every update in a
+    // try/catch whose handler calls this callback FIRST and only then rolls
+    // the failed update back — restoring `_pendingEditorState` to the last
+    // committed state, marking a full reconcile, and re-committing. Throwing
+    // from here (the default every Lexical example shows) skips that entire
+    // recovery: the half-mutated pending state survives, every later update
+    // builds on top of it and fails the same way, and the editor is dead —
+    // keystrokes, selection changes, everything — until the dialog unmounts
+    // and remounts it. One bad update must degrade to "that one action did
+    // nothing", not to a bricked editor.
+    //
+    // The test harness (`__tests__/utils.tsx`) overrides this with a
+    // collector that fails the test instead. It deliberately does not throw
+    // either, so tests and production drive the exact same Lexical state
+    // machine and differ only in how the error is surfaced.
     onError: (error: Error) => {
-      throw error;
+      console.error("MarkdownEditor: Lexical update failed", error);
     },
   };
 }

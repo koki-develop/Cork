@@ -159,7 +159,7 @@ function $tokenizeCodeNode(node: CodeNode): boolean {
 }
 
 // Initial sweep entry point — called from the `editorState` initializer in
-// `MarkdownEditor.tsx` AFTER `$convertFromMarkdownString`. The initializer
+// `MarkdownEditor.tsx` AFTER `$importMarkdownInto`. The initializer
 // runs inside Lexical's HISTORY_MERGE-tagged init context, so the splices
 // don't fire `OnChangePlugin` — preserving the documented invariant in
 // `src/components/organisms/board/AGENTS.md:18` ("Because init never emits

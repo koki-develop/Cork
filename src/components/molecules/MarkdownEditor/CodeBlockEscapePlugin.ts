@@ -194,7 +194,7 @@ function $getCodeNodeAtCursor(): CodeNode | null {
 // depending on how the block was produced:
 //   - As LineBreakNode children (when the user pressed Enter), or
 //   - As literal "\n" characters inside a single TextNode (how
-//     `$convertFromMarkdownString` initially imports a fenced block before the
+//     `$importMarkdownInto` initially imports a fenced block before the
 //     highlight transforms have run), or
 //   - As LineBreakNode children sitting BETWEEN per-token CodeHighlightNode
 //     children (after `CodeBlockHighlightPlugin`'s transforms split the block

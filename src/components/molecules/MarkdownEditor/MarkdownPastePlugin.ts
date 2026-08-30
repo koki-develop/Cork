@@ -1,12 +1,10 @@
 import { $insertGeneratedNodes } from "@lexical/clipboard";
-import { $convertFromMarkdownString } from "@lexical/markdown";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getTableCellNodeFromLexicalNode } from "@lexical/table";
 import {
   $createParagraphNode,
   $getSelection,
   $isRangeSelection,
-  $setSelection,
   COMMAND_PRIORITY_LOW,
   PASTE_COMMAND,
   type RangeSelection,
@@ -14,7 +12,7 @@ import {
 import { useEffect } from "react";
 
 import { $isInsideCodeBlock } from "./codeBlock";
-import { $insertSpacersBetweenAdjacentQuotes, MARKDOWN_TRANSFORMERS } from "./transformers";
+import { $importMarkdownInto, $insertSpacersBetweenAdjacentQuotes } from "./transformers";
 
 // Plain-text paste (e.g. `> hello world` copied from anywhere that doesn't
 // also put a text/html or Lexical clipboard payload on the clipboard) falls
@@ -74,22 +72,21 @@ export function MarkdownPastePlugin(): null {
         const normalizedText = text.replace(/\r\n?/g, "\n");
 
         // Parse into a detached scratch paragraph rather than the real root
-        // — `$convertFromMarkdownString` unconditionally `.clear()`s
-        // whatever node it's given, which would wipe the live document if
-        // passed `$getRoot()`. Same pattern `transformers.ts`'s
-        // `$createTableCell` already uses for cell-body markdown.
+        // — the import unconditionally `.clear()`s whatever node it's given,
+        // which would wipe the live document if passed `$getRoot()`. Same
+        // pattern `transformers.ts`'s `$createTableCell` uses for cell-body
+        // markdown, and the reason both go through `$importMarkdownInto`
+        // instead of `$convertFromMarkdownString`: importing into a detached
+        // node otherwise rewrites the live caret to point INSIDE that node
+        // (see `$importMarkdownInto`'s header), leaving `selection` below
+        // anchored to a parentless block that `$insertGeneratedNodes` then
+        // throws on mid-update.
         const scratch = $createParagraphNode();
-        $convertFromMarkdownString(normalizedText, MARKDOWN_TRANSFORMERS, scratch, true);
+        $importMarkdownInto(scratch, normalizedText, { preserveNewLines: true });
         const nodes = scratch.getChildren();
         if (nodes.length === 0) return false;
         for (const node of nodes) node.remove();
 
-        // `$convertFromMarkdownString` moves the selection to the start of
-        // its `node` argument (the now-empty scratch paragraph) as its last
-        // step. Reassert the real pre-paste selection before inserting, or
-        // `$insertGeneratedNodes` would insert relative to the discarded
-        // scratch node instead of where the user's caret actually was.
-        $setSelection(selection);
         $insertGeneratedNodes(editor, nodes, selection);
         // Import strips the empty paragraph between two adjacent quotes at
         // root level (see this helper's header in transformers.ts) —

@@ -38,12 +38,14 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $getSelection,
   $getState,
   $isElementNode,
   $isLineBreakNode,
   $isParagraphNode,
   $isRootNode,
   $isTextNode,
+  $setSelection,
   $setState,
   createState,
   type ElementNode,
@@ -363,7 +365,18 @@ function $createTableCell(textContent: string): TableCellNode {
   const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS);
   // GFM pads cells with spaces (`| aaa |`); trim removes that padding, then
   // decodeCell restores any escaped `\`, `|` or newline.
-  $convertFromMarkdownString(decodeCell(textContent.trim()), MARKDOWN_TRANSFORMERS, cell);
+  //
+  // Goes through `$importMarkdownInto` rather than the library's importer
+  // directly, like every other import in this package. On the import path an
+  // outer `$importMarkdownInto` has already nulled the selection, so a raw
+  // call here would happen to be harmless; on the LIVE-TYPING path
+  // (`mapToTableCells` ← the TABLE transformer ← `MarkdownShortcutPlugin`)
+  // nothing has, and a raw call teleports the user's caret into this
+  // still-detached cell. That goes unnoticed today only because the
+  // transformer's `!isImport` branch re-parks the caret a few lines later — a
+  // coupling nothing states and nothing enforces. Routing every import
+  // through the one entry point removes it.
+  $importMarkdownInto(cell, decodeCell(textContent.trim()), { preserveNewLines: false });
   return cell;
 }
 
@@ -566,7 +579,7 @@ export function $absorbTrailingQuoteSibling(quote: QuoteNode): void {
 // adjacent blockquotes then render flush against each other, while the live
 // editor (where the user authored them with an Enter-exit + blank line +
 // `> bbb`) had the empty paragraph in between as a visible gap. Run this
-// after `$convertFromMarkdownString` to restore that gap so the on-screen
+// after `$importMarkdownInto` to restore that gap so the on-screen
 // shape after open matches the on-screen shape before save, edit by edit.
 //
 // Only fires at root level — adjacent nested QuoteNodes inside another
@@ -980,7 +993,7 @@ const CODE: MultilineElementTransformer = {
     // root-only guard is load-bearing HERE (unlike QUOTE/HORIZONTAL_RULE/the
     // list transformers): this same `export` runs recursively for a CodeNode
     // nested inside a TABLE cell (via `$createTableCell`'s
-    // `$convertFromMarkdownString` call) or inside a QuoteNode (via
+    // `$importMarkdownInto` call) or inside a QuoteNode (via
     // `$exportNestedQuote`'s direct call below), where an added `\n` would
     // either get escaped into a literal sequence by `encodeCell` or double
     // up the quote-line prefix — neither of which our root-only normalize
@@ -1139,7 +1152,7 @@ function $trailingSpacingPad(node: LexicalNode): "" | "\n" {
   return $isSpacedBlockNode($skipEmptyParagraphsForward(next)) ? "" : "\n";
 }
 
-// Inverse of the export-side padding above: after `$convertFromMarkdownString`
+// Inverse of the export-side padding above: after `$importMarkdownInto`
 // naturally turns each on-disk blank line into its own empty ParagraphNode
 // (one node per blank line — production always imports with
 // `shouldPreserveNewLines: true`, so upstream's own empty-paragraph cleanup
@@ -1329,7 +1342,7 @@ const QUOTE_CODE: MultilineElementTransformer = {
     // fence typed/reloaded inside a table cell body must stay literal text,
     // same as CELL_AWARE_QUOTE's own guard for a bare `> ` there. `rootNode`
     // IS the TableCellNode (or a descendant of it) whenever this fires from
-    // `$createTableCell`'s recursive `$convertFromMarkdownString` call.
+    // `$createTableCell`'s recursive `$importMarkdownInto` call.
     if ($getTableCellNodeFromLexicalNode(rootNode) != null) {
       return null;
     }
@@ -1779,6 +1792,60 @@ export const MARKDOWN_TRANSFORMERS: Array<Transformer> = [
   ...CELL_AWARE_LIST_TRANSFORMERS,
   ...NON_LIST_NON_QUOTE_DEFAULTS,
 ];
+
+// The single entry point for "parse Markdown source into `target`'s children"
+// — every import path in this package goes through here rather than calling
+// `$convertFromMarkdownString` directly, because that function is not
+// selection-safe.
+//
+// `@lexical/markdown`'s `createMarkdownImport` ends its work with an
+// unconditional
+//
+//     if ($getSelection() !== null) { root.selectStart(); }
+//
+// where `root` is the node it was handed. `ElementNode.select()` /
+// `TextNode.select()` do NOT allocate a fresh selection when one already
+// exists — they MUTATE the live `RangeSelection` in place (`anchor.set(...)`
+// / `setTextNodeRange(...)`). So importing into a detached scratch node
+// silently drags the caller's caret into that detached subtree, and any
+// reference the caller is holding to "the selection from before the import"
+// has been rewritten underneath it. Restoring such a captured object
+// afterwards is a no-op, and the next `insertNodes` runs against a parentless
+// block (`Expected node N to have a parent.`), which throws mid-update.
+//
+// Nulling the selection for the duration of the parse is what makes this
+// robust rather than merely recovered-from: the importer's `!== null` guard
+// short-circuits, so `selectStart()` never runs, `LexicalNode.replace()`
+// never swaps in a clone of its own, and the original selection object comes
+// back untouched — no copy, no reconstruction, nothing to keep in sync with
+// `RangeSelection`'s fields.
+//
+// The transformers in this file already gate their own `.select*()` calls on
+// `!isImport` for the same "an import must not conjure a caret" reason (see
+// the TABLE / HORIZONTAL_RULE / QUOTE `replace` bodies above); this closes
+// the equivalent hole in the library's own import driver, which has no
+// `isImport` notion at all.
+//
+// Contract: the caller must guarantee that the current selection does not
+// point into `target`'s existing children — the import `.clear()`s them, and
+// restoring a selection anchored at a removed node fails Lexical's
+// end-of-update selection check. Every call site satisfies this structurally:
+// `MarkdownPastePlugin` and `$createTableCell` import into freshly created,
+// detached nodes, and `$seedMarkdownEditorState` runs on a not-yet-mounted
+// editor whose selection is still null.
+export function $importMarkdownInto(
+  target: ElementNode,
+  markdown: string,
+  options: { preserveNewLines: boolean },
+): void {
+  const saved = $getSelection();
+  $setSelection(null);
+  try {
+    $convertFromMarkdownString(markdown, MARKDOWN_TRANSFORMERS, target, options.preserveNewLines);
+  } finally {
+    $setSelection(saved);
+  }
+}
 
 // Split for the shortcut pipeline. `FormatShortcutPlugin` owns text-format
 // transformers (the upstream `$runTextFormatTransformers` is buggy — wrapping

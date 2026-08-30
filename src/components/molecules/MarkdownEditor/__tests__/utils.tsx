@@ -1,5 +1,5 @@
 import { createHeadlessEditor } from "@lexical/headless";
-import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown";
+import { $convertToMarkdownString } from "@lexical/markdown";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -18,6 +18,8 @@ import {
 } from "@lexical/table";
 import {
   $createParagraphNode,
+  $getRoot,
+  $setSelection,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
@@ -29,11 +31,12 @@ import {
   type LexicalEditor,
 } from "lexical";
 import { type ReactNode } from "react";
+import { expect, onTestFinished } from "vitest";
 import { render } from "vitest-browser-react";
 import { userEvent } from "vitest/browser";
 
 import { $seedMarkdownEditorState, buildInitialConfig, NODES } from "../MarkdownEditor";
-import { MARKDOWN_TRANSFORMERS } from "../transformers";
+import { $importMarkdownInto, MARKDOWN_TRANSFORMERS } from "../transformers";
 
 // Builds a fenced code block of `lineCount` throwaway statements, for specs
 // that need a body long/structured enough to force real scroll/selection
@@ -47,24 +50,57 @@ export function fencedCodeBlock(lang: string, lineCount = 20): string {
   ].join("\n");
 }
 
+// Fails the current test if the editor reported ANY Lexical error, however
+// the test itself ended.
+//
+// Both editor factories below install a collecting `onError` rather than a
+// throwing one, matching production (`buildInitialConfig`): rethrowing from
+// `onError` skips Lexical's own rollback in `$beginUpdate`, so a throwing
+// test editor would exercise a state machine production never runs — the
+// corrupted-`_pendingEditorState` cascade instead of a clean recovery. But a
+// merely-collecting handler would also make a broken editor look green (a
+// failed paste silently doing nothing still renders a plausible DOM), which
+// is exactly how the "paste bricks the editor" bug shipped past a spec file
+// that only ever pasted `> `/`# `. Registering the assertion here, in the
+// factory, means every spec in this package gets it without opting in.
+function failTestOnLexicalError(errors: Array<Error>): void {
+  onTestFinished(() => {
+    expect(errors.map((e) => e.message)).toEqual([]);
+  });
+}
+
 // Headless editor for pure-helper and transformer round-trip tests — no DOM
-// mount, no React, runs entirely in JS. `onError` throws so silent Lexical
-// errors surface as test failures.
+// mount, no React, runs entirely in JS.
 export function createTestHeadlessEditor(): LexicalEditor {
-  return createHeadlessEditor({
+  const errors: Array<Error> = [];
+  const editor = createHeadlessEditor({
     nodes: NODES,
     onError: (error) => {
-      throw error;
+      errors.push(error);
     },
   });
+  failTestOnLexicalError(errors);
+  return editor;
 }
 
 // `discrete: true` flushes the update synchronously, so the subsequent
 // `$readMarkdown` sees the committed state without a microtask hop.
+//
+// Drops the selection first, then imports through `$importMarkdownInto` like
+// every other import in this package. This helper REPLACES the whole document
+// (the import `.clear()`s the root), so no caret that pointed into the old
+// content can meaningfully survive — `$importMarkdownInto`'s contract is that
+// the saved selection must not point into what it is about to clear, and
+// nulling it up front is how this call site satisfies that rather than
+// leaving it to whatever the caller happened to select. Every current caller
+// runs on a fresh headless editor with no selection anyway, so this changes
+// no existing behaviour; it stops the helper from being the one path that
+// could reintroduce the very hazard `$importMarkdownInto` exists to remove.
 export function $setMarkdown(editor: LexicalEditor, markdown: string): void {
   editor.update(
     () => {
-      $convertFromMarkdownString(markdown, MARKDOWN_TRANSFORMERS, undefined, true);
+      $setSelection(null);
+      $importMarkdownInto($getRoot(), markdown, { preserveNewLines: true });
     },
     { discrete: true },
   );
@@ -124,9 +160,18 @@ export async function renderTestEditor(
   options?: RenderTestEditorOptions,
 ): Promise<RenderTestEditorResult> {
   let captured: LexicalEditor | undefined;
+  const errors: Array<Error> = [];
+  failTestOnLexicalError(errors);
 
   const screen = await render(
-    <LexicalComposer initialConfig={buildInitialConfig(options?.initialValue ?? "")}>
+    <LexicalComposer
+      initialConfig={{
+        ...buildInitialConfig(options?.initialValue ?? ""),
+        onError: (error: Error) => {
+          errors.push(error);
+        },
+      }}
+    >
       <EditorCapture
         onCapture={(editor) => {
           captured = editor;
