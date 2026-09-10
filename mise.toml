@@ -1,7 +1,7 @@
 [tools]
 bun = "1.3.14"
 node = "24.17.0"
-rust = "1.96.0"
+rust = "1.98.1"
 # TODO: remove `trust_policy_excludes` — temporary.
 "npm:@fission-ai/openspec" = { version = "1.4.1", trust_policy_excludes = ["fastq@1.20.2"] }
 "npm:uipro-cli" = "2.2.3"
