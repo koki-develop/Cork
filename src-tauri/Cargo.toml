@@ -49,7 +49,7 @@ objc2-foundation = { version = "=0.3.2", features = [
 ] }
 objc2 = "=0.6.4"
 block2 = "=0.6.2"
-rmcp = { version = "=1.7.0", features = [
+rmcp = { version = "=2.0.0", features = [
   "server",
   "transport-streamable-http-server",
   "macros",
