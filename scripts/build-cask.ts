@@ -39,20 +39,20 @@ cask "cork" do
   # (Contents/MacOS/cork-cli) を \`cork\` という名前でシンボリックリンクする。
   binary "#{appdir}/Cork.app/Contents/MacOS/cork-cli", target: "cork"
 
-  preflight do
+  preflight_steps do
     # ad-hoc 署名で designated requirement を identifier のみに設定
     # これにより、ビルドが変わっても TCC が同じアプリとして認識する
-    system_command "/usr/bin/codesign",
-                   args: [
-                     "--force",
-                     "--deep",
-                     "--sign", "-",
-                     "--identifier", "me.koki.cork",
-                     "-r=designated => identifier \\"me.koki.cork\\"",
-                     "#{staged_path}/Cork.app"
-                   ]
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{staged_path}/Cork.app"]
+    run "/usr/bin/codesign",
+        args: [
+          "--force",
+          "--deep",
+          "--sign", "-",
+          "--identifier", "me.koki.cork",
+          "-r=designated => identifier \\"me.koki.cork\\"",
+          "{{staged_path}}/Cork.app"
+        ]
+    run "/usr/bin/xattr",
+        args: ["-dr", "com.apple.quarantine", "{{staged_path}}/Cork.app"]
   end
 end
 `;
